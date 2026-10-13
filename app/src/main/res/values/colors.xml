@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary purple used by https://www.bucea.edu.cn/gbcss/style.css. -->
+    <color name="launcher_icon_background">#6C397F</color>
+    <color name="launcher_icon_foreground">#FFFFFF</color>
+    <color name="launcher_icon_accent">#EADDF2</color>
+</resources>

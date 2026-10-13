@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shared silhouette preserves page and fold gaps for launcher theme colors. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="0.35"
+        android:scaleY="0.35"
+        android:translateX="9.2"
+        android:translateY="9.2">
+        <path android:fillColor="@color/launcher_icon_foreground" android:pathData="M164 158L178 156L174 189C173.7 192.4 171.6 194 168.7 193.1L163 191Z" />
+        <path android:fillColor="@color/launcher_icon_foreground" android:pathData="M89 163L104 161L100.7 192C100.4 195.5 97.9 197.4 94.8 196.4L89 194.4Z" />
+        <path android:fillColor="@color/launcher_icon_foreground" android:pathData="M133 87C148 75 164 69 182 72L179 120L175 147L160 151L163 126C152 130 142 135 131 143Z" />
+        <path android:fillColor="@color/launcher_icon_foreground" android:pathData="M77 77C94 70 109 73 124 85L122 136C108 128 94 124 81 127L81 141C81 148 86 153 97 154L101 165C81 165 72 153 74 134Z" />
+        <path android:fillColor="@color/launcher_icon_foreground" android:pathData="M91 148L163 137C173 135.5 179 138 183 144L187 150L159 158L102 165C91 166.4 85 163 81 159C79 153.5 83 149.4 91 148Z" />
+    </group>
+</vector>
