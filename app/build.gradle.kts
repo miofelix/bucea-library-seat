@@ -39,7 +39,7 @@ android {
 }
 
 // Keep beta updates compatible with the debug-signed APKs already distributed.
-// The staged file name is also the actual GitHub download name, including version.
+// The portable staged file name is also the actual GitHub download name, including version.
 tasks.register("stageBetaApk") {
     group = "distribution"
     description = "Stage the debug-signed beta APK and its SHA-256 checksum for GitHub Releases."
@@ -48,7 +48,7 @@ tasks.register("stageBetaApk") {
     val releaseTag = "v${android.defaultConfig.versionName}-beta.1"
     val sourceApk = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk")
     val outputDirectory = layout.buildDirectory.dir("outputs/beta-release")
-    val artifactName = "北建大图书馆选座-$releaseTag.apk"
+    val artifactName = "BUCEA-Library-Seat-$releaseTag.apk"
     val stagedApk = outputDirectory.map { it.file(artifactName) }
     val checksumFile = outputDirectory.map { it.file("SHA256SUMS") }
 

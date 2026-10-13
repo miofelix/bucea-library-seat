@@ -12,10 +12,10 @@
 
 产物在 `app/build/outputs/beta-release/`：
 
-- `北建大图书馆选座-v0.3.3-beta.1.apk`：实际下载文件名包含应用名称及版本。
+- `BUCEA-Library-Seat-v0.3.3-beta.1.apk`：实际下载文件名包含应用名称及版本。
 - `SHA256SUMS`：该 APK 的 SHA-256 校验值。
 
-GitHub Release 标题使用 `北建大图书馆选座 v0.3.3 测试版`，APK 附件显示名称使用 `北建大图书馆选座 v0.3.3 测试版 · APK（Android 8.0+）`。上传时使用 Gradle 生成的中文文件名，避免仅修改显示名称而使下载文件仍叫 `app-debug.apk`。
+GitHub Release 标题使用 `北建大图书馆选座 v0.3.3 测试版`，APK 附件显示名称使用 `北建大图书馆选座 v0.3.3 测试版 · APK（Android 8.0+）`。附件显示名称使用中文，实际下载文件名使用包含应用英文名称和版本号的 ASCII 文件名，方便链接、命令行及各类下载工具使用。上传时使用 Gradle 生成的文件名，避免下载文件仍叫 `app-debug.apk`。
 
 ## 签名与安装验证
 
@@ -24,7 +24,7 @@ GitHub Release 标题使用 `北建大图书馆选座 v0.3.3 测试版`，APK �
 发布前用 SDK 的 `apksigner verify --print-certs` 对比本次与上次 APK 的签名证书 SHA-256，确认一致。通过 ADB 覆盖安装最终附件并启动应用：
 
 ```sh
-adb install -r 'app/build/outputs/beta-release/北建大图书馆选座-v0.3.3-beta.1.apk'
+adb install -r 'app/build/outputs/beta-release/BUCEA-Library-Seat-v0.3.3-beta.1.apk'
 adb shell am start -n cn.edu.bucea.library/.MainActivity
 ```
 
