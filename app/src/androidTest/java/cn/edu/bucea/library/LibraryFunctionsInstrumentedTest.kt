@@ -146,6 +146,54 @@ class LibraryFunctionsInstrumentedTest {
     }
 
     @Test
+    fun reservationGuidanceDistinguishesNoReservationFromLibraryWifiRestriction() {
+        fun state(json: String) = LibraryFunctionsRepository.parseUserState(LibraryHtml.parse("<script>var userInfo='$json';</script>"))
+        val none = state("""{"currentReservationStatus":"NO_RESERVATION","softMode":false}""")
+        assertTrue(none.actions.isEmpty())
+        assertTrue(none.actionMessage.contains("当前没有可签到的预约"))
+        assertFalse(none.requiresLibraryWifi)
+        assertFalse(none.actionMessage.contains("当前网络"))
+        val restricted = state("""{"currentReservationStatus":"LOC_RESTRICT","softMode":true}""")
+        assertTrue(restricted.actions.isEmpty())
+        assertTrue(restricted.requiresLibraryWifi)
+        assertTrue(restricted.actionMessage.contains("图书馆 Wi-Fi"))
+        assertFalse(restricted.actionMessage.contains("没有"))
+        val reserved = state("""{"currentReservationStatus":"RESERVE","softMode":true}""")
+        assertEquals(listOf("checkIn"), reserved.actions)
+        assertTrue(reserved.requiresLibraryWifi)
+        val manualMode = state("""{"currentReservationStatus":"RESERVE","softMode":false}""")
+        assertTrue(manualMode.actions.isEmpty())
+        assertTrue(manualMode.actionMessage.contains("按馆内指引签到"))
+        assertFalse(manualMode.actionMessage.contains("当前网络"))
+    }
+
+    @Test
+    fun checkInRequiresFreshServerActionAndPreservesSchoolFailureWithWifiGuidance() = runBlocking {
+        val account = SavedAccount("fake", "209999990001", "fake", "测试")
+        var actions = 0
+        var restricted = true
+        val repository = LibraryFunctionsRepository(request = { _, endpoint ->
+            if (endpoint == "/self") {
+                val status = if (restricted) "LOC_RESTRICT" else "RESERVE"
+                """<script>var userInfo='{"currentReservationStatus":"$status","softMode":true}';</script>"""
+            } else {
+                assertEquals("/user/checkIn", endpoint)
+                actions++
+                """{"status":"fail","message":"该功能仅在场馆内有效","data":{"status":"LOC_RESTRICT"}}"""
+            }
+        }, post = { _, _, _ -> error("Seat actions must not invent a POST contract") })
+        try { repository.performAction(account, "checkIn"); fail("Restricted state must not send an action") }
+        catch (failure: IllegalArgumentException) { assertTrue(failure.message.orEmpty().contains("图书馆 Wi-Fi")) }
+        assertEquals(0, actions)
+        restricted = false
+        val result = repository.performAction(account, "checkIn")
+        assertFalse(result.success)
+        assertTrue(result.message.contains("该功能仅在场馆内有效"))
+        assertTrue(result.message.contains("图书馆 Wi-Fi"))
+        assertEquals(1, actions)
+    }
+
+    @Test
     fun seatSearchPreservesIdentityAvailabilityAndPagination() {
         val response = """{"seatNum":2,"offset":3,"seatStr":"<ul><li id='seat_5773' class='free' title='座位空闲'><dl><dt>001D</dt><dd>二层内环区</dd></dl></li><li id='seat_8' class='noUsre' title='不可预约'><dl><dt>002A</dt><dd>三层外环区</dd></dl></li></ul>"}"""
         val page = LibraryFunctionsRepository.parseSeatPage(response)

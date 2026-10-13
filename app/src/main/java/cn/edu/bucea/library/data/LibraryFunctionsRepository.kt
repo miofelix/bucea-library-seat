@@ -74,7 +74,8 @@ class LibraryFunctionsRepository(
             "没有找到匹配的空闲座位，可换一个编号或房间" else "按编号查询展示所选日期和区域的空闲座位；可用时段请点选确认")
     }
 
-    suspend fun favorites(account: SavedAccount): SeatPage {
+    /** Frequent seats are selected by the school; local bookmarks are stored separately. */
+    suspend fun frequentSeats(account: SavedAccount): SeatPage {
         val document = authenticatedPage(account, "/freeBook/fav")
         val seats = parseSeats(document.selectFirst("#favSeatList")?.html().orEmpty())
         return SeatPage(seats, seats.size, null, message = if (seats.isEmpty()) "暂无常用座位" else "")
@@ -121,27 +122,19 @@ class LibraryFunctionsRepository(
 
     private suspend fun cancelHistoryOnce(account: SavedAccount, record: LibraryHistoryItem): ReservationResult {
         val action = record.cancelPath ?: throw IllegalArgumentException("这条记录当前不能取消")
-        var freshDocument = authenticatedPage(account, "/history?type=SEAT")
-        var fresh = parseHistory(freshDocument)
-        var match = fresh.items.firstOrNull { it.id == record.id }
-        var offset = fresh.nextOffset
-        var pages = 0
-        while (match == null && offset != null && pages++ < 10) {
-            val data = json(request(account, path("/user/viewMoreHistory", "type" to "SEAT", "offset" to offset.toString())))
-            freshDocument = LibraryHtml.parse(data.optString("resStr"))
-            fresh = parseHistory(freshDocument)
-            match = fresh.items.firstOrNull { it.id == record.id }
-            offset = data.optInt("offset", -1).takeIf { it >= 0 && data.optInt("resNum") > 0 }
+        val (freshDocument, matched) = findHistoryRecord(account, record)
+            ?: throw IllegalArgumentException("预约状态已改变，请同步记录后重试")
+        require(matched.cancelPath == action && matched.cancelMethod == record.cancelMethod) {
+            "预约状态已改变，请同步记录后重试"
         }
-        require(match != null && match.cancelPath == action) { "预约状态已改变，请同步记录后重试" }
-        val matched = requireNotNull(match)
         val url = (LibraryRepository.BASE_URL + action).toHttpUrl()
         require(action.startsWith("/") && !action.startsWith("//") && url.host == "10.1.20.7" &&
             url.encodedPath.contains("cancel", ignoreCase = true)) { "取消操作参数异常，请更新记录" }
         val response = if (matched.cancelMethod == "POST") {
             require(url.encodedPath == "/reservation/cancel" && !matched.reservationId.isNullOrBlank()) { "取消操作参数异常，请更新记录" }
-            val form = freshDocument.select("form[action='/reservation/cancel'][method]").firstOrNull {
-                it.attr("method").equals("post", true) && it.selectFirst("input[name=id]")?.attr("value") == matched.reservationId
+            val form = freshDocument.select("form[action][method]").firstOrNull {
+                schoolPath(it.attr("action")) == action && it.attr("method").equals("post", true) &&
+                    it.selectFirst("input[name=id]")?.attr("value") == matched.reservationId
             } ?: throw IllegalArgumentException("预约状态已改变，请同步记录后重试")
             val fields = form.select("input[type=hidden][name]").associate { it.attr("name") to it.attr("value") }
             require(!fields["SYNCHRONIZER_TOKEN"].isNullOrBlank() && fields["SYNCHRONIZER_URI"] == "/history" &&
@@ -167,12 +160,29 @@ class LibraryFunctionsRepository(
         // The school's POST can redirect to a generic page. Confirm state via a fresh GET,
         // rather than treating an HTTP 200 or a successful submission as cancellation evidence.
         try {
-            val confirmed = history(account).items.firstOrNull { it.id == record.id ||
-                (matched.reservationId != null && it.reservationId == matched.reservationId) }
+            val confirmed = findHistoryRecord(account, matched)?.second
             if (confirmed?.status?.contains("取消") == true) return ReservationResult(true, "取消预约成功")
         } catch (error: CancellationException) { throw error }
         catch (_: Exception) { /* Preserve the unknown result; never send the mutation again. */ }
         return ReservationResult(false, message)
+    }
+
+    /** Reads only, including older pages when the reservation is not in the first batch. */
+    private suspend fun findHistoryRecord(account: SavedAccount, record: LibraryHistoryItem): Pair<Document, LibraryHistoryItem>? {
+        var document = authenticatedPage(account, "/history?type=SEAT")
+        var parsed = parseHistory(document)
+        val visitedOffsets = mutableSetOf<Int>()
+        while (true) {
+            val match = parsed.items.firstOrNull { it.id == record.id ||
+                (record.reservationId != null && it.reservationId == record.reservationId) }
+            if (match != null) return document to match
+            val offset = parsed.nextOffset ?: return null
+            if (!visitedOffsets.add(offset) || visitedOffsets.size > 10) return null
+            val data = json(request(account, path("/user/viewMoreHistory", "type" to "SEAT", "offset" to offset.toString())))
+            document = LibraryHtml.parse(data.optString("resStr"))
+            parsed = parseHistory(document).copy(nextOffset =
+                data.optInt("offset", -1).takeIf { it >= 0 && data.optInt("resNum") > 0 })
+        }
     }
 
     suspend fun reservationDetails(account: SavedAccount, record: LibraryHistoryItem): LibraryHistoryItem {
@@ -203,7 +213,13 @@ class LibraryFunctionsRepository(
     suspend fun performAction(account: SavedAccount, action: String, endTime: String? = null): ReservationResult {
         require(action in setOf("checkIn", "leave", "resume", "stopUsing", "extend")) { "预约操作无效" }
         val state = userState(account)
-        require(action in state.actions) { "当前状态或所在网络不支持此操作" }
+        require(action in state.actions) {
+            when {
+                state.status == "LOC_RESTRICT" || !state.softMode || state.status.isBlank() -> state.actionMessage
+                action == "checkIn" && state.status == "NO_RESERVATION" -> "当前没有可签到的预约，请同步预约记录"
+                else -> "当前预约没有此操作，请同步预约状态后重试"
+            }
+        }
         val endpoint = if (action == "extend") {
             require(!endTime.isNullOrBlank() && endTime.toIntOrNull() != null) { "请选择续约结束时间" }
             require(extensionTimes(account).any { it.value == endTime }) { "该续约时段已失效，请重新选择" }
@@ -213,7 +229,16 @@ class LibraryFunctionsRepository(
         val success = data.optString("status") == "success"
         val receipt = (data.optJSONObject("data")?.optJSONObject("reservation") ?: data.optJSONObject("data"))
             ?.takeIf { it.has("receipt") }?.let(::parseReceipt)
-        return ReservationResult(success, data.optString("message").ifBlank { if (success) "操作成功" else "操作未成功，请刷新当前预约核实结果" }, receipt)
+        val message = data.optString("message").ifBlank {
+            if (success) "操作成功" else "操作未成功，请刷新当前预约核实结果"
+        }
+        val locationRestricted = data.optString("status") == "LOC_RESTRICT" ||
+            data.optJSONObject("data")?.optString("status") == "LOC_RESTRICT" ||
+            message.contains("仅在场馆内") || message.contains("馆内网络")
+        val guidance = if (!success && (action == "checkIn" || locationRestricted)) {
+            "$message；签到等座位操作需连接图书馆 Wi-Fi，连接后请同步预约状态"
+        } else message
+        return ReservationResult(success, guidance, receipt)
     }
 
     suspend fun prepareReservation(account: SavedAccount, selection: ReservationSelection): PreparedReservation {
@@ -273,6 +298,15 @@ class LibraryFunctionsRepository(
     }
 
     companion object {
+        /** Normalize only URLs on the school origin, never an external form/link target. */
+        private fun schoolPath(target: String): String? {
+            val base = LibraryRepository.BASE_URL.toHttpUrl()
+            val url = base.resolve(target.trim()) ?: return null
+            if (target.isBlank() || url.scheme != base.scheme || url.host != base.host || url.port != base.port ||
+                url.username.isNotBlank() || url.password.isNotBlank()) return null
+            return url.encodedPath + (url.encodedQuery?.let { "?$it" } ?: "")
+        }
+
         private fun matchesName(label: String, name: String): Boolean {
             fun number(value: String) = value.takeWhile { it.isDigit() }.trimStart('0').ifEmpty { "0" }
             return number(label) == number(name) &&
@@ -354,19 +388,34 @@ class LibraryFunctionsRepository(
             val container = document.selectFirst(".myReserveList, #myReserveList") ?: document.body()
             val items = container.select("dl").filterNot { it.id() == "moreBlock" || it.select("dd").isEmpty() }.map { item ->
                 val details = item.select("dd").map { it.text() }.filter { it.isNotBlank() }
-                val detail = item.selectFirst("a[href^='/view?']")?.attr("href")?.takeIf { it.startsWith("/") && !it.startsWith("//") }
-                val serverId = detail?.let { (LibraryRepository.BASE_URL + it).toHttpUrl().queryParameter("id") }
-                    ?.takeIf { it.matches(Regex("[0-9]+")) }
-                val cancelForm = item.selectFirst("form[action='/reservation/cancel'][method=post]")
-                    ?.takeIf { serverId != null && it.selectFirst("input[name=id]")?.attr("value") == serverId }
-                val cancel = cancelForm?.attr("action")
-                    ?: item.selectFirst("a[href*=cancel]")?.attr("href")?.takeIf { it.startsWith("/") && !it.startsWith("//") }
-                // Older pages omit DOM IDs. Content-based IDs remain stable across pagination.
-                val contentId = MessageDigest.getInstance("SHA-256").digest(item.text().toByteArray(Charsets.UTF_8))
-                    .joinToString("") { "%02x".format(it) }
+                val detail = item.select("a[href]").mapNotNull { schoolPath(it.attr("href")) }.firstOrNull {
+                    val url = (LibraryRepository.BASE_URL + it).toHttpUrl()
+                    url.encodedPath == "/view" && url.queryParameter("type") == "SEAT" &&
+                        url.queryParameter("id")?.matches(Regex("[0-9]+")) == true
+                }
+                val detailId = detail?.let { (LibraryRepository.BASE_URL + it).toHttpUrl().queryParameter("id") }
                 val knownStatuses = setOf("已预约", "预约", "已取消", "取消", "已完成", "已违约", "违约", "使用中", "暂离", "待签到", "已签到", "已结束")
                 val status = item.select("a").lastOrNull { it.attr("href").isBlank() && it.attr("onclick").isBlank() &&
                     it.text() in knownStatuses }?.text() ?: details.firstOrNull { it.contains("状态") }.orEmpty()
+                val inactive = listOf("取消", "违约", "完成", "结束").any(status::contains)
+                val cancelForm = item.select("form[action][method]").firstOrNull {
+                    val id = it.selectFirst("input[name=id]")?.attr("value")
+                    !inactive && schoolPath(it.attr("action")) == "/reservation/cancel" &&
+                        it.attr("method").equals("post", true) && id?.matches(Regex("[0-9]+")) == true &&
+                        (detailId == null || id == detailId)
+                }
+                // A cancellation form also identifies the server record when its detail link is absent.
+                val serverId = detailId ?: cancelForm?.selectFirst("input[name=id]")?.attr("value")
+                val cancel = cancelForm?.let { schoolPath(it.attr("action")) }
+                    ?: if (inactive) null else item.select("a[href]").mapNotNull { schoolPath(it.attr("href")) }
+                        .firstOrNull {
+                            val url = (LibraryRepository.BASE_URL + it).toHttpUrl()
+                            url.encodedPath.contains("cancel", true) &&
+                                (serverId == null || url.queryParameter("id") == null || url.queryParameter("id") == serverId)
+                        }
+                // Older pages omit DOM IDs. Content-based IDs remain stable across pagination.
+                val contentId = MessageDigest.getInstance("SHA-256").digest(item.text().toByteArray(Charsets.UTF_8))
+                    .joinToString("") { "%02x".format(it) }
                 LibraryHistoryItem(serverId?.let { "reservation_$it" } ?: item.id().ifBlank { "history_$contentId" },
                     item.selectFirst("dt")?.text().orEmpty(), details, status, cancel,
                     cancel?.let { if (cancelForm != null) "POST" else "GET" }, serverId, detail)
@@ -401,7 +450,17 @@ class LibraryFunctionsRepository(
                 if (user?.optBoolean("hasPrevUnStoppedReservation") == true && "stopUsing" !in actions) actions += "stopUsing"
             }
             val details = document.select(".receipt dd, #receipt dd, .reserveResult dd, .layoutSeat dd").map { it.text() }.filter { it.isNotBlank() }
-            return LibraryUserState(status, soft, details, actions)
+            val actionMessage = when {
+                status == "LOC_RESTRICT" -> "签到等座位操作需连接图书馆 Wi-Fi，连接后请同步预约状态"
+                status == "NO_RESERVATION" -> "当前没有可签到的预约，已预约座位请查看预约记录"
+                status.isBlank() -> "暂未读取到当前预约状态，请同步后重试"
+                !soft -> "图书馆系统暂未开放在线座位操作，请连接图书馆 Wi-Fi 后同步，或按馆内指引签到"
+                status == "RESERVE" -> "签到前请连接图书馆 Wi-Fi，并在预约允许的时间内操作"
+                actions.isEmpty() -> "当前预约没有可执行的座位操作，请同步预约状态"
+                else -> "座位操作以图书馆系统当前提供的选项为准"
+            }
+            return LibraryUserState(status, soft, details, actions, actionMessage,
+                status in setOf("RESERVE", "CHECK_IN", "AWAY", "COMPLETE", "LOC_RESTRICT"))
         }
 
         private fun parseReceipt(data: JSONObject): ReservationReceipt = ReservationReceipt(

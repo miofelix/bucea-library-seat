@@ -323,11 +323,12 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
                 detailsLoading = false, detailsError = null) }
             try {
                 val current = account()
-                val user = functions.userState(current)
                 when (section) {
                     HubSection.RESERVATIONS -> {
                         val result = functions.history(current)
                         historyItems.clear()
+                        // Fresh records restore cancellation independently of Wi-Fi-only seat actions.
+                        actionRefreshRequired = false
                         val records = result.items.map(::hubRecord)
                         hubState.update { it.copy(records = records, hasMore = result.nextOffset != null,
                             selectedRecord = it.selectedRecord?.let { selected -> records.firstOrNull { record -> record.id == selected.id } },
@@ -335,13 +336,17 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
                         historyOffset = result.nextOffset
                     }
                     HubSection.FAVORITES -> {
-                        val server = functions.favorites(current)
-                        server.seats.forEach { backendSeats[it.id] = it }
                         val saved = favorites.seats(current.id)
-                        saved.forEach { backendSeats.putIfAbsent(it.id, it) }
-                        val combined = saved.map { HubFavorite(it.id, it.label, it.room, local = true) } +
-                            server.seats.filterNot { seat -> saved.any { it.id == seat.id } }.map { HubFavorite(it.id, it.label, it.room) }
-                        hubState.update { it.copy(favorites = combined, hasMore = false, notice = operationNotice("收藏保存在本机；网站常用座位按原站记录显示")) }
+                        saved.forEach { backendSeats[it.id] = it }
+                        hubState.update { it.copy(favorites = saved.map { HubFavorite(it.id, it.label, it.room, local = true) },
+                            hasMore = false, notice = operationNotice("收藏座位由你手动添加，仅保存在本机，按账号独立管理。")) }
+                        historyOffset = null
+                    }
+                    HubSection.FREQUENT -> {
+                        val server = functions.frequentSeats(current)
+                        server.seats.forEach { backendSeats[it.id] = it }
+                        hubState.update { it.copy(favorites = server.seats.map { HubFavorite(it.id, it.label, it.room) },
+                            hasMore = false, notice = operationNotice("常用座位由图书馆系统根据使用记录生成，可在此快速选座。")) }
                         historyOffset = null
                     }
                     HubSection.VIOLATIONS -> {
@@ -354,12 +359,14 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
                         historyOffset = result.nextOffset
                     }
                 }
+                val user = functions.userState(current)
                 actionRefreshRequired = false
                 hubState.update { it.copy(currentStatus = user.status, currentDetails = user.details,
-                    actions = user.actions.map(::hubAction), error = retainedError) }
+                    actions = user.actions.map(::hubAction), actionMessage = user.actionMessage,
+                    requiresLibraryWifi = user.requiresLibraryWifi, error = retainedError) }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { hubState.update { it.copy(error = listOfNotNull(retainedError, repository.userMessage(e)).joinToString("\n"),
-                actions = if (actionRefreshRequired) emptyList() else it.actions) } }
+                actions = emptyList(), actionMessage = "当前预约状态同步失败，请连接校园网或图书馆 Wi-Fi 后刷新。") } }
             finally { if (coroutineContext[Job]?.isActive == true) hubState.update { it.copy(loading = false) } }
         }
     }
@@ -441,7 +448,7 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     }
 
     fun loadMoreHistory() {
-        if (hubState.value.loading || actionJob?.isActive == true || hubState.value.section == HubSection.FAVORITES) return
+        if (hubState.value.loading || actionJob?.isActive == true || hubState.value.section in setOf(HubSection.FAVORITES, HubSection.FREQUENT)) return
         val offset = historyOffset ?: return
         val section = hubState.value.section
         hubJob = viewModelScope.launch {
@@ -458,11 +465,16 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
-    fun removeFavorite(item: HubFavorite) { boundAccountId?.let { favorites.remove(it, item.id) }; refreshHub() }
-    fun favoriteSeat(item: HubFavorite): NativeSeat = nativeSeat(backendSeats[item.id] ?: LibrarySeat(item.id, item.name, item.location, "常用座位", true))
+    fun removeFavorite(item: HubFavorite) {
+        if (!item.local || hubState.value.section != HubSection.FAVORITES) return
+        boundAccountId?.let { favorites.remove(it, item.id) }
+        refreshHub()
+    }
+    fun favoriteSeat(item: HubFavorite): NativeSeat = nativeSeat(backendSeats[item.id] ?: LibrarySeat(item.id, item.name, item.location,
+        if (item.local) "收藏座位" else "常用座位", true))
 
     private fun hubAction(id: String): HubAction = when (id) {
-        "checkIn" -> HubAction(id, "签到", "为当前预约签到，请确认已在图书馆内。")
+        "checkIn" -> HubAction(id, "签到", "签到需要连接图书馆内部 Wi-Fi。请到馆并连接后，为当前预约签到。")
         "leave" -> HubAction(id, "暂离", "将当前座位标记为暂离，请按学校规定及时返回。")
         "resume" -> HubAction(id, "返回座位", "结束暂离，恢复使用当前座位。")
         "stopUsing" -> HubAction(id, "结束使用", "结束当前座位使用，座位将释放给其他同学。", true)

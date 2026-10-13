@@ -121,4 +121,69 @@ class NativeCancellationInstrumentedTest {
         catch (_: IllegalArgumentException) { }
         assertEquals(1, posts)
     }
+
+    @Test fun cancellationFormWithoutDetailLinkUsesServerIdAndNormalizesSchoolAction() = runBlocking {
+        val page = """<div class="myReserveList"><dl><dt>明天 07:30 -- 08:00</dt><dd>001D</dd>
+            <form action="http://10.1.20.7/reservation/cancel" method="POST">
+            <input type="hidden" name="SYNCHRONIZER_TOKEN" value="fresh-form-token">
+            <input type="hidden" name="SYNCHRONIZER_URI" value="/history"><input type="hidden" name="id" value="123456">
+            <a onclick="MyDoSubmit('123456')">取消预约</a></form><a>已预约</a></dl></div>"""
+        val item = LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(page)).items.single()
+        assertEquals("reservation_123456", item.id)
+        assertEquals("123456", item.reservationId)
+        assertNull(item.detailPath)
+        assertEquals("/reservation/cancel", item.cancelPath)
+        assertEquals("POST", item.cancelMethod)
+        var posts = 0
+        val repository = LibraryFunctionsRepository(request = { _, _ -> page }, post = { _, endpoint, fields ->
+            posts++
+            assertEquals("/reservation/cancel", endpoint)
+            assertEquals("123456", fields["id"])
+            """{"status":"success","message":"预约已取消"}"""
+        })
+        assertTrue(repository.cancelHistory(account, item).success)
+        assertEquals(1, posts)
+    }
+
+    @Test fun inactiveMismatchedAndExternalFormsNeverExposeCancellation() {
+        fun page(detail: String, action: String, id: String, status: String) = """<div class="myReserveList"><dl>
+            <dt>预约</dt><dd><a href="$detail">001D</a></dd><form action="$action" method="POST">
+            <input type="hidden" name="id" value="$id"></form><a>$status</a></dl></div>"""
+        for (html in listOf(
+            page("/view?type=SEAT&amp;id=123456", "/reservation/cancel", "999999", "已预约"),
+            page("/view?type=SEAT&amp;id=123456", "http://example.com/reservation/cancel", "123456", "已预约"),
+            page("/view?type=SEAT&amp;id=123456", "/reservation/cancel", "123456", "已取消"),
+        )) {
+            val item = LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(html)).items.single()
+            assertEquals("123456", item.reservationId)
+            assertNull(item.cancelPath)
+            assertNull(item.cancelMethod)
+        }
+        val reordered = LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(
+            page("http://10.1.20.7/view?type=SEAT&amp;id=123456", "reservation/cancel", "123456", "已预约"))).items.single()
+        assertEquals("reservation_123456", reordered.id)
+        assertEquals("/view?type=SEAT&id=123456", reordered.detailPath)
+        assertEquals("/reservation/cancel", reordered.cancelPath)
+    }
+
+    @Test fun genericCancellationResponseReadsBackRecordOnOlderHistoryPage() = runBlocking {
+        val firstPage = """<div class="myReserveList"><dl id="moreBlock"><dd class="more"><input id="offset" value="1"></dd></dl></div>"""
+        fun record(canceled: Boolean) = """<div class="myReserveList"><dl><dt>预约</dt><dd><a href="/view?id=123456&amp;type=SEAT">001D</a></dd>
+            ${if (canceled) "" else """<form action="/reservation/cancel" method="post">
+            <input type="hidden" name="SYNCHRONIZER_TOKEN" value="fresh"><input type="hidden" name="SYNCHRONIZER_URI" value="/history">
+            <input type="hidden" name="id" value="123456"></form>"""}
+            <a>${if (canceled) "已取消" else "已预约"}</a></dl></div>"""
+        val item = LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(record(false))).items.single()
+        var posts = 0
+        val paths = mutableListOf<String>()
+        val repository = LibraryFunctionsRepository(request = { _, endpoint ->
+            paths += endpoint
+            if (endpoint.startsWith("/history")) firstPage else org.json.JSONObject()
+                .put("resStr", record(posts > 0)).put("resNum", 1).put("offset", -1).toString()
+        }, post = { _, _, _ -> posts++; "<p>请求已处理</p>" })
+        assertTrue(repository.cancelHistory(account, item).success)
+        assertEquals(1, posts)
+        assertEquals(2, paths.count { it == "/history?type=SEAT" })
+        assertEquals(2, paths.count { it.startsWith("/user/viewMoreHistory?") })
+    }
 }

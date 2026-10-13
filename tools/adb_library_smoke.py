@@ -39,7 +39,7 @@ SEAT_LABEL = re.compile(r"\d+[A-Za-z]?\Z")
 TIME_LABEL = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d\Z")
 SAFE_LABELS = {
     "首页", "选座", "我的", "账号", "查找可用座位", "下一步", "修改时间", "取消",
-    "我的预约", "常用座位", "违约记录", "返回首页",
+    "我的预约", "收藏座位", "常用座位", "违约记录", "返回首页",
     "布局选座", "地图", "列表", "关闭", "适应区域", "修改图书馆密码",
     "时间、电源与靠窗", "收起筛选条件", "场馆", "阅览区域", "使用时长",
     "开始时间", "结束时间", "电源", "靠窗",
@@ -186,9 +186,9 @@ class NativeSmoke:
                     return node
                 current = self.parents.get(current)
         # Compose can expose a tab's text without a clickable accessibility
-        # ancestor. Its three native section labels still share one horizontal
+        # ancestor. Its native section labels still share one horizontal
         # row; the duplicate content heading has no such neighbouring labels.
-        titles = {"我的预约", "常用座位", "违约记录"}
+        titles = {"我的预约", "收藏座位", "常用座位", "违约记录"}
         if value not in titles:
             return None
         row_labels = self.nodes(lambda node: label(node) in titles)
@@ -377,7 +377,7 @@ class NativeSmoke:
         self.adb("shell", "input", "keyevent", "KEYCODE_BACK")
         self.tap_exact("我的", bottom=True)
         self.wait(lambda: self.exact("我的图书馆"), "未打开原生个人图书馆页面。")
-        for index, title in enumerate(["我的预约", "常用座位", "违约记录"], start=3):
+        for index, title in enumerate(["我的预约", "收藏座位", "常用座位", "违约记录"], start=3):
             self.find_scrolling(lambda value=title: self.selected_tab(value) or self.record_tab(value), f"未找到“{title}”标签。")
             if not self.selected_tab(title):
                 node = self.record_tab(title)
@@ -390,7 +390,7 @@ class NativeSmoke:
                       f"“{title}”页面尚未同步完成。")
             if self.exact("暂时无法同步") is not None:
                 raise SmokeFailure(f"“{title}”未能同步校园数据。")
-            self.pass_phase(f"0{index}-" + ["reservations", "favorites", "violations"][index-3])
+            self.pass_phase(f"0{index}-" + ["reservations", "favorites", "frequent", "violations"][index-3])
 
     def selected_tab(self, title: str) -> bool:
         for node in self.nodes(lambda element: label(element) == title):

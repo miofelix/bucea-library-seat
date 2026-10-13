@@ -100,4 +100,7 @@ data class LibraryUserState(
     val softMode: Boolean,
     val details: List<String>,
     val actions: List<String>,
+    val actionMessage: String = "",
+    /** A school requirement, not a measurement of the phone's current Wi-Fi connection. */
+    val requiresLibraryWifi: Boolean = false,
 )
