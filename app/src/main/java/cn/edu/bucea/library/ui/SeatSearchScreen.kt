@@ -128,6 +128,7 @@ fun SeatSearchScreen(
 ) {
     var advanced by rememberSaveable { mutableStateOf(false) }
     var choosing by remember { mutableStateOf<String?>(null) }
+    val byNumber = state.filters["name"].orEmpty().isNotBlank()
     BackHandler(enabled = state.selectedSeat != null || choosing != null) {
         if (choosing != null) choosing = null
         else if (!state.reservationBusy) onDismissReservation()
@@ -188,7 +189,8 @@ fun SeatSearchScreen(
                         shape = RoundedCornerShape(13.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
-                    if (advanced) {
+                    if (byNumber) Text("按编号查询仅使用日期和区域，点选座位后确认可用时段。", fontSize = 11.sp, color = SeatMuted)
+                    if (advanced && !byNumber) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             FilterField("开始时间", selectedLabel(state, "startMin", "不限时间"), !state.loading && state.options["startMin"].orEmpty().isNotEmpty(), Modifier.weight(1f)) { choosing = "startMin" }
                             FilterField("结束时间", selectedLabel(state, "endMin", "不限时间"), !state.loading && state.options["endMin"].orEmpty().isNotEmpty(), Modifier.weight(1f)) { choosing = "endMin" }
@@ -199,7 +201,7 @@ fun SeatSearchScreen(
                         }
                         FilterField("靠窗", selectedLabel(state, "window", "不限靠窗"), !state.loading && state.options["window"].orEmpty().isNotEmpty(), Modifier.fillMaxWidth()) { choosing = "window" }
                     }
-                    TextButton(onClick = { advanced = !advanced }, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = { advanced = !advanced }, enabled = !byNumber, modifier = Modifier.fillMaxWidth()) {
                         Text(if (advanced) "收起筛选条件" else "时间、电源与靠窗", fontSize = 12.sp)
                         Icon(Icons.Outlined.ExpandMore, null, modifier = Modifier.size(18.dp))
                     }

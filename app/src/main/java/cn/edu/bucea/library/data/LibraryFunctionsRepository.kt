@@ -13,6 +13,8 @@ class LibraryFunctionsRepository(
 ) {
     constructor(library: LibraryRepository) : this(library::request, library::post)
     private val submittedTokens = mutableSetOf<String>()
+    private data class Catalog(val loadedAt: Long, val seats: List<LibrarySeat>)
+    private val catalogs = mutableMapOf<String, Catalog>()
     suspend fun options(account: SavedAccount): SeatSearchOptions =
         parseOptions(authenticatedPage(account, "/self"))
 
@@ -22,12 +24,50 @@ class LibraryFunctionsRepository(
     suspend fun search(account: SavedAccount, query: SeatQuery, offset: Int = 0): SeatPage {
         require(query.onDate.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) { "请选择预约日期" }
         require(offset >= 0)
-        val fields = if (query.name.isNotBlank()) listOf("onDate" to query.onDate, "name" to query.name)
-        else listOf("onDate" to query.onDate, "building" to query.building, "room" to query.room,
+        val name = query.name.trim()
+        require(name.isEmpty() || name.matches(Regex("[0-9]{1,12}[A-Za-z]?"))) { "请输入座位数字编号，可带一位字母，例如001或001D" }
+        if (name.isNotBlank()) return searchCatalog(account, query.copy(name = name))
+        val fields = listOf("onDate" to query.onDate, "building" to query.building, "room" to query.room,
             "hour" to query.hour, "power" to query.power, "window" to query.window,
-            "startMin" to query.startMin, "endMin" to query.endMin)
-        val request = path("/freeBook/ajaxSearch", *(fields + ("offset" to offset.toString())).toTypedArray())
+            "startMin" to query.startMin, "endMin" to query.endMin, "offset" to offset.toString())
+        val request = path("/freeBook/ajaxSearch", *fields.toTypedArray())
         return parseSeatPage(this.request(account, request))
+    }
+
+    private suspend fun searchCatalog(account: SavedAccount, query: SeatQuery): SeatPage {
+        // The school's numeric name endpoint misses lettered labels. Use its documented
+        // room maps, whose complete catalog exposes label, date availability and local-only flag.
+        val choices = if (query.building == "null") options(account).rooms else rooms(account, query.building)
+        val selectedRooms = choices.filter { it.value != "null" && (query.room == "null" || it.value == query.room) }
+        require(selectedRooms.size <= 20) { "请先选择房间，再按座位号查询" }
+        val matches = mutableListOf<LibrarySeat>()
+        for (room in selectedRooms) {
+            val key = "${account.id}|${query.onDate}|${room.value}"
+            val cached = synchronized(catalogs) { catalogs[key]?.takeIf { System.currentTimeMillis() - it.loadedAt < 30_000 } }
+            val seats = cached?.seats ?: run {
+                val response = request(account, path("/mapBook/getSeatsByRoom", "room" to room.value, "date" to query.onDate))
+                if (response.trimStart().startsWith("{")) {
+                    val data = json(response)
+                    if (data.optBoolean("limit")) return SeatPage(emptyList(), 0, null, true,
+                        "查询频率过快，请在原页面完成验证")
+                }
+                val document = LibraryHtml.parse(response)
+                if (document.selectFirst("form[action='/auth/signIn']") != null)
+                    throw LoginFailure(FailureKind.CREDENTIALS, "登录已失效，请重新登录")
+                if (response.contains("clickVerifyCode(") || response.contains("您操作的频率太快"))
+                    return SeatPage(emptyList(), 0, null, true, "查询频率过快，请在原页面完成验证")
+                parseMapSeats(document, room.label).also { parsed ->
+                    synchronized(catalogs) {
+                        catalogs.entries.removeAll { System.currentTimeMillis() - it.value.loadedAt >= 30_000 }
+                        catalogs[key] = Catalog(System.currentTimeMillis(), parsed)
+                    }
+                }
+            }
+            matches += seats.filter { seat -> seat.available && matchesName(seat.label, query.name) }
+        }
+        val seats = matches.distinctBy { it.id }
+        return SeatPage(seats, seats.size, null, message = if (seats.isEmpty())
+            "没有找到匹配的空闲座位，可换一个编号或房间" else "按编号查询展示所选日期和区域的空闲座位；可用时段请点选确认")
     }
 
     suspend fun favorites(account: SavedAccount): SeatPage {
@@ -137,6 +177,18 @@ class LibraryFunctionsRepository(
     }
 
     companion object {
+        private fun matchesName(label: String, name: String): Boolean {
+            fun number(value: String) = value.takeWhile { it.isDigit() }.trimStart('0').ifEmpty { "0" }
+            return number(label) == number(name) &&
+                (!name.last().isLetter() || label.last().equals(name.last(), ignoreCase = true))
+        }
+
+        fun parseMapSeats(document: Document, room: String): List<LibrarySeat> = document.select("li[id^=seat_]").mapNotNull {
+            val link = it.selectFirst("a") ?: return@mapNotNull null
+            LibrarySeat(it.id().removePrefix("seat_"), link.text(), room, link.attr("title").ifBlank { link.className() },
+                link.hasClass("idle") && link.attr("local") != "true")
+        }.filter { it.id.isNotBlank() && it.label.isNotBlank() }
+
         private fun path(endpoint: String, vararg fields: Pair<String, String>): String {
             val url = (LibraryRepository.BASE_URL + endpoint).toHttpUrl().newBuilder().apply {
                 fields.forEach { (name, value) -> addQueryParameter(name, value) }
