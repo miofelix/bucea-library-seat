@@ -173,7 +173,7 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, onOp
                         }) },
                         onToggleFavorite = features::toggleFavorite, onSelectStart = features::selectStart,
                         onSelectEnd = features::selectEnd, onConfirmReservation = features::confirmReservation,
-                        onDismissReservation = features::dismissReservation)
+                        onDismissReservation = features::dismissReservation, onRefresh = features::refreshSearch)
                 } else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login) { tab = 3 }
                 2 -> if (state.authenticated) LibraryHubScreen(hubState, Modifier.padding(padding), features::refreshHub,
                     features::selectHubSection, features::loadMoreHistory, onSearch = { tab = 1 }, onOpenPage = onOpenPage,

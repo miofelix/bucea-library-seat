@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.Power
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Window
 import androidx.compose.material3.AlertDialog
@@ -40,6 +43,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,11 +57,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -125,13 +131,23 @@ fun SeatSearchScreen(
     onSelectEnd: (String) -> Unit = {},
     onConfirmReservation: () -> Unit = {},
     onDismissReservation: () -> Unit = {},
+    onRefresh: () -> Unit = {},
 ) {
     var advanced by rememberSaveable { mutableStateOf(false) }
     var choosing by remember { mutableStateOf<String?>(null) }
+    val resultsRequester = remember { BringIntoViewRequester() }
     val byNumber = state.filters["name"].orEmpty().isNotBlank()
-    BackHandler(enabled = state.selectedSeat != null || choosing != null) {
+    LaunchedEffect(state.page, state.hasSearched, state.loading) {
+        if (state.hasSearched && !state.loading) {
+            withFrameNanos { }
+            resultsRequester.bringIntoView()
+        }
+    }
+    BackHandler {
         if (choosing != null) choosing = null
-        else if (!state.reservationBusy) onDismissReservation()
+        else if (state.selectedSeat != null) {
+            if (!state.reservationBusy) onDismissReservation()
+        } else onBack()
     }
     val fields = mapOf(
         "onDate" to "预约日期", "building" to "场馆", "room" to "阅览区域",
@@ -146,6 +162,9 @@ fun SeatSearchScreen(
                 Column(Modifier.weight(1f).padding(start = 4.dp)) {
                     Text("找一个好座位", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SeatInk)
                     Text("选好位置，安心专注", fontSize = 11.sp, color = SeatMuted)
+                }
+                IconButton(onClick = onRefresh, enabled = !state.loading && !state.reservationBusy) {
+                    Icon(Icons.Outlined.Refresh, "刷新座位筛选", tint = SeatTeal)
                 }
                 TextButton(onClick = onOpenOfficial) { Text("布局选座", fontSize = 12.sp) }
             }
@@ -171,6 +190,11 @@ fun SeatSearchScreen(
                                     onClick = { onFilter("onDate", option.value) },
                                     label = { Text(option.label, fontSize = 12.sp) },
                                     enabled = !state.loading,
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = SeatSoft,
+                                        selectedLabelColor = SeatTeal,
+                                        selectedLeadingIconColor = SeatTeal,
+                                    ),
                                     leadingIcon = { Icon(Icons.Outlined.CalendarMonth, null, modifier = Modifier.size(16.dp)) }
                                 )
                             }
@@ -223,7 +247,12 @@ fun SeatSearchScreen(
                 }
             }
             state.status?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.sp, lineHeight = 19.sp, color = SeatMuted) }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            if (state.reservationRequiresOfficial && state.selectedSeat == null) {
+                OutlinedButton(onClick = onOpenOfficial, enabled = !state.loading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Text("进入完整功能中心验证")
+                }
+            }
+            Row(Modifier.fillMaxWidth().bringIntoViewRequester(resultsRequester), verticalAlignment = Alignment.CenterVertically) {
                 Text("可用座位", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = SeatInk, modifier = Modifier.weight(1f))
                 if (state.hasSearched) Text("已加载 ${state.seats.size} 个 · 第 ${state.page + 1} 页", fontSize = 12.sp, color = SeatMuted)
             }
@@ -238,10 +267,14 @@ fun SeatSearchScreen(
             }
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val columns = if (LocalDensity.current.fontScale >= 1.3f) 2 else if (maxWidth >= 620.dp) 4 else if (maxWidth >= 410.dp) 3 else 2
-                val cardWidth = (maxWidth - 10.dp * (columns - 1)) / columns
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    state.seats.forEach { seat ->
-                        SeatCard(seat, !state.loading && !state.reservationBusy, Modifier.width(cardWidth), { onToggleFavorite(seat) }) { onSelectSeat(seat) }
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    state.seats.chunked(columns).forEach { seats ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            seats.forEach { seat ->
+                                SeatCard(seat, !state.loading && !state.reservationBusy, Modifier.weight(1f), { onToggleFavorite(seat) }) { onSelectSeat(seat) }
+                            }
+                            repeat(columns - seats.size) { Spacer(Modifier.weight(1f)) }
+                        }
                     }
                 }
             }
@@ -304,7 +337,7 @@ private fun SeatCard(seat: NativeSeat, enabled: Boolean, modifier: Modifier, onF
             Text(seat.location, fontSize = 11.sp, lineHeight = 17.sp, color = SeatMuted)
             Text(seat.status, fontSize = 10.sp, color = if (seat.available) SeatTeal else SeatMuted)
             if (seat.power == true || seat.window == true) {
-                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     if (seat.power == true) SeatCapability(Icons.Outlined.Power, "电源")
                     if (seat.window == true) SeatCapability(Icons.Outlined.Window, "靠窗")
                 }
@@ -373,10 +406,16 @@ private fun ReservationDialog(state: SeatSearchState, seat: NativeSeat, onStart:
                     }
                     Text("提交后将按图书馆规则生成预约，请确认日期和时间。", fontSize = 12.sp, lineHeight = 20.sp, color = SeatMuted)
                 } else {
-                    TimeChoices("开始时间", state.startOptions, state.selectedStart, !state.reservationBusy, onStart)
+                    TimeChoices("开始时间", state.startOptions, state.selectedStart, !state.reservationBusy,
+                        if (state.reservationBusy) "正在获取可用时段…" else "当前没有可用开始时间。", onStart)
                     HorizontalDivider()
-                    TimeChoices("结束时间", state.endOptions, state.selectedEnd, !state.reservationBusy, onEnd)
-                    if (state.startOptions.isEmpty() && !state.reservationBusy) Text("当前没有可用时段，可返回选择其他座位。", fontSize = 12.sp, color = SeatMuted)
+                    TimeChoices("结束时间", state.endOptions, state.selectedEnd, !state.reservationBusy,
+                        when {
+                            state.reservationBusy -> "正在获取可用时段…"
+                            state.selectedStart == null -> "选择开始时间后显示可用结束时间。"
+                            else -> "当前没有可用结束时间，请选择其他开始时间。"
+                        }, onEnd)
+                    if (state.startOptions.isEmpty() && !state.reservationBusy && state.error == null) Text("可以返回选择其他日期或座位。", fontSize = 12.sp, color = SeatMuted)
                 }
                 state.status?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.sp, lineHeight = 19.sp, color = SeatMuted) }
                 if (state.reservationRequiresOfficial) {
@@ -395,12 +434,24 @@ private fun ReservationDialog(state: SeatSearchState, seat: NativeSeat, onStart:
 }
 
 @Composable
-private fun TimeChoices(title: String, options: List<SeatOption>, selected: String?, enabled: Boolean, onSelect: (String) -> Unit) {
+private fun TimeChoices(title: String, options: List<SeatOption>, selected: String?, enabled: Boolean, emptyMessage: String, onSelect: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SeatInk)
-        if (options.isEmpty()) Text(if (title == "结束时间") "选择开始时间后显示可用结束时间。" else "正在获取可用时段…", fontSize = 11.sp, color = SeatMuted)
+        if (options.isEmpty()) Text(emptyMessage, fontSize = 11.sp, color = SeatMuted)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            options.forEach { option -> FilterChip(selected == option.value, onClick = { onSelect(option.value) }, label = { Text(option.label, fontSize = 12.sp) }, enabled = enabled) }
+            options.forEach { option ->
+                FilterChip(
+                    selected = selected == option.value,
+                    onClick = { onSelect(option.value) },
+                    label = { Text(option.label, fontSize = 12.sp) },
+                    enabled = enabled,
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = SeatSoft,
+                        selectedLabelColor = SeatTeal,
+                        selectedLeadingIconColor = SeatTeal,
+                    ),
+                )
+            }
         }
     }
 }

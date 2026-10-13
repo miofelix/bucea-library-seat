@@ -8,12 +8,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.BookmarkBorder
@@ -49,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -91,7 +95,7 @@ fun LibraryHubScreen(
     onRemoveFavorite: (HubFavorite) -> Unit,
     onAction: (HubAction) -> Unit,
 ) {
-    var confirmingAction by remember { mutableStateOf<HubAction?>(null) }
+    var confirmingAction by remember(state.currentStatus, state.currentDetails) { mutableStateOf<HubAction?>(null) }
     var removingFavorite by remember { mutableStateOf<HubFavorite?>(null) }
     LaunchedEffect(state.actions, state.favorites) {
         if (confirmingAction?.id?.let { id -> state.actions.none { it.id == id } } == true) confirmingAction = null
@@ -262,10 +266,20 @@ fun LibraryHubScreen(
     }
 
     confirmingAction?.let { action ->
+        val maximumHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.45f).coerceAtMost(360.dp)
         AlertDialog(
             onDismissRequest = { if (!state.loading) confirmingAction = null },
             title = { Text("确认${action.label}") },
-            text = { Text(action.description.ifBlank { "确认对当前预约执行${action.label}？" }) },
+            text = {
+                Column(Modifier.fillMaxWidth().heightIn(max = maximumHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(currentStatusLabel(state.currentStatus), fontWeight = FontWeight.Medium, color = HubTeal)
+                    state.currentDetails.filter { it.isNotBlank() }.forEach { detail ->
+                        Text(detail, fontSize = 13.sp, lineHeight = 21.sp, color = HubMuted)
+                    }
+                    HorizontalDivider(color = HubLine)
+                    Text(action.description.ifBlank { "确认对当前预约执行${action.label}？" })
+                }
+            },
             confirmButton = { TextButton(enabled = !state.loading, onClick = { confirmingAction = null; onAction(action) }) {
                 Text("确认${action.label}", color = if (action.destructive) MaterialTheme.colorScheme.error else HubTeal)
             } },
