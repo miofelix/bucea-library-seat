@@ -50,6 +50,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         mutableState.update { it.copy(overview = overview) }
         val account = store.accounts().find { it.id == store.activeAccountId }
         if (account != null) {
+            explicitlySignedOut = store.isSignedOut(account.id)
             if (!explicitlySignedOut && (store.autoLogin || state.value.authenticated)) loginAccounts(account)
             else if (explicitlySignedOut) mutableState.update {
                 it.copy(authenticated = false, status = "已退出登录", overview = overview.copy(displayName = null))
@@ -68,6 +69,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         mutableState.update { it.copy(captcha = null) }
         val account = store.accounts().find { it.id == store.activeAccountId }
             ?: throw IllegalArgumentException("请先添加图书馆账号")
+        store.setSignedOut(account.id, false)
         loginAccounts(account)
     }
 
@@ -75,7 +77,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         operation?.cancel()
         store.activeAccountId?.let(repository::releaseSession)
         pending = null
-        if (signedOut) explicitlySignedOut = true
+        if (signedOut) {
+            explicitlySignedOut = true
+            store.activeAccountId?.let { store.setSignedOut(it, true) }
+        }
         mutableState.update { it.copy(authenticated = false, captcha = null, overview = it.overview?.copy(displayName = null)) }
         refresh()
     }
@@ -84,6 +89,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val candidates = listOf(first) + if (store.autoSwitch) store.accounts().filterNot { it.id == first.id } else emptyList()
         for ((index, account) in candidates.withIndex()) {
             store.activeAccountId = account.id
+            if (store.isSignedOut(account.id)) continue
             syncAccounts()
             mutableState.update { it.copy(authenticated = false, captcha = null, overview = it.overview?.copy(displayName = null)) }
             try {
@@ -121,6 +127,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteAccount(id: String) {
         operation?.cancel(); pending = null
         repository.forget(id)
+        SeatFavoritesStore(getApplication()).clear(id)
         store.delete(id); syncAccounts()
         mutableState.update { it.copy(authenticated = false, busy = false, captcha = null, status = "账号已删除", overview = it.overview?.copy(displayName = null)) }
         if (store.activeAccountId != null) refresh()

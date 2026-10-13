@@ -63,6 +63,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -87,6 +88,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bucea.library.AccountSummary
 import cn.edu.bucea.library.LibraryUiState
 import cn.edu.bucea.library.MainViewModel
+import cn.edu.bucea.library.LibraryFeatureViewModel
+import androidx.compose.foundation.layout.consumeWindowInsets
 
 private val Ink = Color(0xFF183334)
 private val Muted = Color(0xFF778583)
@@ -97,10 +100,20 @@ private val Line = Color(0xFFE2E8E1)
 private val Warm = Color(0xFFD4B87D)
 
 @Composable
-fun LibraryApp(viewModel: MainViewModel, onOpenSeats: () -> Unit) {
+fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, onOpenPage: (String) -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val seatState by features.search.collectAsStateWithLifecycle()
+    val hubState by features.hub.collectAsStateWithLifecycle()
+    val extensionOptions by features.extensionTimes.collectAsStateWithLifecycle()
+    val mutating by features.mutationBusy.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    val destinations = listOf("首页" to Icons.Outlined.Home, "账号" to Icons.Outlined.Person, "设置" to Icons.Outlined.Settings)
+    val destinations = listOf("首页" to Icons.Outlined.Home, "选座" to Icons.Outlined.GridView,
+        "我的" to Icons.Outlined.AutoStories, "账号" to Icons.Outlined.Person, "设置" to Icons.Outlined.Settings)
+    LaunchedEffect(state.activeAccountId, state.authenticated) { features.bindAccount(state.activeAccountId, state.authenticated) }
+    LaunchedEffect(tab, state.authenticated) {
+        if (state.authenticated && tab == 1) features.loadSearch()
+        if (state.authenticated && tab == 2) features.refreshHub()
+    }
 
     MaterialTheme(
         colorScheme = lightColorScheme(
@@ -124,6 +137,7 @@ fun LibraryApp(viewModel: MainViewModel, onOpenSeats: () -> Unit) {
                     destinations.forEachIndexed { index, (label, icon) ->
                         NavigationBarItem(
                             selected = tab == index,
+                            enabled = !mutating && !seatState.reservationBusy,
                             onClick = { tab = index },
                             icon = { Icon(icon, contentDescription = null, modifier = Modifier.size(23.dp)) },
                             label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium) },
@@ -145,11 +159,29 @@ fun LibraryApp(viewModel: MainViewModel, onOpenSeats: () -> Unit) {
                     modifier = Modifier.padding(padding),
                     onLogin = viewModel::login,
                     onRefresh = viewModel::refresh,
-                    onOpenLibrary = onOpenSeats,
-                    onAccounts = { tab = 1 }
+                    onOpenLibrary = { tab = 1 },
+                    onOpenPage = onOpenPage,
+                    onAccounts = { tab = 3 }
                 )
-                1 -> AccountsScreen(
-                    state = state,
+                1 -> if (state.authenticated) Box(Modifier.padding(padding).consumeWindowInsets(padding)) {
+                    SeatSearchScreen(seatState, features::setFilter, features::searchSeats,
+                        features::nextPage, features::previousPage, features::selectSeat,
+                        onBack = { tab = 0 }, onOpenOfficial = { onOpenPage(when {
+                            seatState.reservationOutcomeUncertain -> "/history?type=SEAT"
+                            seatState.reservationRequiresOfficial -> "/self"
+                            else -> "/map"
+                        }) },
+                        onToggleFavorite = features::toggleFavorite, onSelectStart = features::selectStart,
+                        onSelectEnd = features::selectEnd, onConfirmReservation = features::confirmReservation,
+                        onDismissReservation = features::dismissReservation)
+                } else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login) { tab = 3 }
+                2 -> if (state.authenticated) LibraryHubScreen(hubState, Modifier.padding(padding), features::refreshHub,
+                    features::selectHubSection, features::loadMoreHistory, onSearch = { tab = 1 }, onOpenPage = onOpenPage,
+                    onFavorite = { favorite -> tab = 1; features.loadSearch(features.favoriteSeat(favorite)) },
+                    onRemoveFavorite = features::removeFavorite, onAction = features::performAction)
+                else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login) { tab = 3 }
+                3 -> AccountsScreen(
+                    state = state.copy(busy = state.busy || seatState.reservationBusy || mutating),
                     modifier = Modifier.padding(padding),
                     onSave = viewModel::saveAccount,
                     onSelect = viewModel::selectAccount,
@@ -167,6 +199,27 @@ fun LibraryApp(viewModel: MainViewModel, onOpenSeats: () -> Unit) {
         state.captcha?.let { bytes ->
             CaptchaDialog(bytes, state.busy, state.status, viewModel::submitCaptcha, viewModel::dismissCaptcha)
         }
+        if (extensionOptions.isNotEmpty()) {
+            var selected by remember(extensionOptions) { mutableStateOf<String?>(null) }
+            AlertDialog(onDismissRequest = features::dismissExtension, title = { Text("续约至") },
+                text = { Column(Modifier.verticalScroll(rememberScrollState())) {
+                    extensionOptions.forEach { option -> TextButton(onClick = { selected = option.value }, modifier = Modifier.fillMaxWidth()) {
+                        Text(if (selected == option.value) "✓ ${option.label}" else option.label)
+                    } }
+                } }, confirmButton = { TextButton(enabled = selected != null, onClick = { selected?.let(features::extendReservation) }) { Text("确认续约") } },
+                dismissButton = { TextButton(onClick = features::dismissExtension) { Text("取消") } })
+        }
+    }
+}
+
+@Composable
+private fun FeatureLoginPrompt(state: LibraryUiState, modifier: Modifier, onLogin: () -> Unit, onAccounts: () -> Unit) {
+    Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
+        Text("登录后使用图书馆功能", style = MaterialTheme.typography.titleLarge)
+        Text(state.status, Modifier.padding(vertical = 16.dp), color = Muted)
+        Button(onClick = if (state.accounts.isEmpty()) onAccounts else onLogin, enabled = !state.busy) {
+            Text(if (state.accounts.isEmpty()) "添加账号" else "登录图书馆")
+        }
     }
 }
 
@@ -177,6 +230,7 @@ private fun Dashboard(
     onLogin: () -> Unit,
     onRefresh: () -> Unit,
     onOpenLibrary: () -> Unit,
+    onOpenPage: (String) -> Unit,
     onAccounts: () -> Unit
 ) {
     val account = state.accounts.firstOrNull { it.id == state.activeAccountId }
@@ -255,13 +309,16 @@ private fun Dashboard(
                     Icon(if (state.authenticated) Icons.Outlined.GridView else Icons.Outlined.Lock, contentDescription = null, modifier = Modifier.size(19.dp))
                     Spacer(Modifier.width(10.dp))
                 }
-                Text(when { state.busy -> "正在连接图书馆…"; state.authenticated -> "进入图书馆"; account != null -> "登录并同步"; else -> "添加账号，开始使用" }, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text(when { state.busy -> "正在连接图书馆…"; state.authenticated -> "查询并预约座位"; account != null -> "登录并同步"; else -> "添加账号，开始使用" }, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 if (!state.busy) {
                     Spacer(Modifier.weight(1f))
                     Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, modifier = Modifier.size(19.dp))
                 }
             }
-            Text("完整功能中心 · 在手机上使用网站的全部功能", color = Muted, fontSize = 11.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+            if (state.authenticated) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                TextButton(onClick = { onOpenPage("/map") }) { Text("布局选座") }
+                TextButton(onClick = { onOpenPage("/self") }) { Text("完整网页功能") }
+            }
         }
 
         SessionCard(state, account, onAccounts, onLogin)

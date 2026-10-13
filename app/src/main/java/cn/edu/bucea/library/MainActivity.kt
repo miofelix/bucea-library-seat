@@ -21,17 +21,21 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             val mainViewModel: MainViewModel = viewModel()
+            val features: LibraryFeatureViewModel = viewModel()
             val libraryLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.StartActivityForResult()
             ) { result ->
                 mainViewModel.onWebReturned(result.data?.getBooleanExtra("signed_out", false) == true)
+                features.returnedFromWeb()
             }
             LibraryApp(
                 viewModel = mainViewModel,
-                onOpenSeats = {
+                features = features,
+                onOpenPage = { path ->
                     libraryLauncher.launch(
                         Intent(this, SeatWebActivity::class.java)
                             .putExtra("account_id", mainViewModel.state.value.activeAccountId)
+                            .putExtra("initial_path", path)
                     )
                 }
             )
