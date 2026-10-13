@@ -1,6 +1,16 @@
 # Actual test results — 2026-10-13
 
-## Latest UI and account run — 0.3.2
+## Latest reservation and navigation run — 0.3.3
+
+The final version **0.3.3 / code 7** was installed and tested through ADB on the Android 16 physical device. **72 independent tests passed in 18.665 seconds**, with all nine opt-in live classes excluded and no skips. Added tests cover cancellation confirmation/dismissal, server token and record checks, paginated readback, Wi-Fi guidance and independent local bookmarks/system frequent seats. Removing a synthetic bookmark leaves the identical synthetic system entry intact.
+
+The real campus read-only business test passed in **4.072 seconds**, including available times, account-bound booking preparation, history, violations and native map data. Full native UI smoke passed search/time/review, the four separate history/seat sections, filters and Canvas/list/pan/fit for all four school-returned floors. No reservation or cancellation was submitted in this run. The existing real cancellation results below remain historical evidence; check-in and follow-on seat-use operations still need library-internal Wi-Fi and were not submitted.
+
+The final ADB navigation acceptance passed the restored dashboard, prominent fixed map action on “选座”, map routing, the physical device’s Wi-Fi settings activity, About author/QQ/copy controls, and both GitHub destination intents.
+
+Builds and Lint passed with zero errors (36 advisory warnings). The staged release APK matches the tested APK bytes and prior release signer. Private evidence is under `.private/qa-0.3.3/`.
+
+## Earlier UI and account run — 0.3.2
 
 64 independent tests passed. Actual current-day selection changed **32 / 32 → 13 / 32** immediately when the availability switch was enabled, without another query. Pagination retained the switch. A synthetic rendering test also covered all-unavailable pages and incoming page updates.
 

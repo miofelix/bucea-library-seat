@@ -12,6 +12,20 @@ At the user's direction, this run skips check-in on library-internal Wi-Fi and t
 
 The versioned results below are snapshots of earlier phases, including the former browser-based prototype. They do not describe the current APK or override the newer live outcome record. A later build/test total must be recorded from its own run output rather than inferred from source test counts.
 
+## Version 0.3.3 reservation and navigation improvements
+
+- **72 independent device tests passed in 18.665 seconds**, excluding all nine opt-in live classes, with no skipped tests. ADB ran the final APK on the physical Android 16 / SDK 36 device.
+- New native UI fixtures verify visible cancellation, keeping the reservation, Back dismissal and exactly one confirmed cancellation callback; inactive records offer no cancel action. Data regressions cover fresh tokens, same-origin form normalization, form-only record identity, conflicting/inactive records and paginated cancellation readback.
+- Library Wi-Fi guidance distinguishes location restrictions from no current reservation; an enabled system Wi-Fi settings entry and reconnect refresh are present. Fresh history restores cancellation even when the separate seat-action state read fails.
+- Manual “收藏座位” and school-generated “常用座位” have separate sections. The same seat remains in the system list after removing its local bookmark; system entries offer no manual deletion.
+- The real campus read-only business test passed in **4.072 seconds** with no skip. Native search, number lookup, times, booking preparation, history, violations and room maps were read without submitting a reservation or seat action.
+- Full ADB native UI smoke passed query, time selection, reservation review without submission, all four record/seat sections, advanced filter choices, and Canvas/list/pan/fit for all four returned floors. The closed password entry shows its notice and opens no form.
+- Latest ADB UI acceptance also passed the original dashboard without a map entry, the persistent full-width map entry at the top of “选座”, native map routing, the device-specific Wi-Fi settings activity, About author/QQ/copy controls, and outgoing GitHub repository/issue URLs. The map entry remains visible while scrolling query results.
+- Debug/test builds and Lint passed: **0 errors, 36 advisory warnings**. Version **0.3.3 / code 7** retains the prior APK signing certificate and supports ADB overwrite installation.
+- Release asset: `BUCEA-Library-Seat-v0.3.3-beta.1.apk`; SHA-256 `67c90dc11effc60329cbbdf3e4941e21b3b1608c1961505bb90ddbd02c733aab`. `SHA256SUMS` agrees and the staged asset is byte-for-byte identical to the tested APK.
+- This run did not submit a new real reservation or cancellation. Cancellation protocol and UI changes passed synthetic regression tests; earlier real cancellation evidence remains recorded for 0.3.1. Check-in, leave, resume, renewal and finish remain unverified live because the device is not connected to library-internal Wi-Fi.
+- Private logs and screenshots are under `.private/qa-0.3.3/`. Temporary ADB keep-awake settings are restored after acceptance.
+
 ## Version 0.3.2 selection and account improvements
 
 - **64 independent device tests passed in 6.711 seconds**, excluding all nine opt-in live classes. The new UI test verifies immediate filtering, application to incoming pages, empty filtered pages with working pagination, and zero extra search callbacks.
@@ -64,7 +78,7 @@ At the 0.2.0 checkpoint, booking/action writes were covered with synthetic respo
 
 ## Current verification commands and coverage
 
-Android 16 / SDK 36, arm64 physical device; app minimum SDK 26, target SDK 35. Debug version is 0.3.2, versionCode 6. Dependencies and SDK values are defined in `app/build.gradle.kts`.
+Android 16 / SDK 36, arm64 physical device; app minimum SDK 26, target SDK 35. Debug version is 0.3.3, versionCode 7. Dependencies and SDK values are defined in `app/build.gradle.kts`.
 
 ```sh
 ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
@@ -87,7 +101,7 @@ python3 tools/adb_library_smoke.py --full --serial YOUR_DEVICE_SERIAL --artifact
 python3 tools/adb_library_smoke.py --map-only --serial YOUR_DEVICE_SERIAL --artifacts .private/map-native-qa
 ```
 
-The UI script checks native search, time selection and reservation review without submission, then records/favorites/violations. `--full` additionally opens server filter choices, checks native map Canvas/list presentation for returned floors, and verifies that the temporarily closed password entry opens no form; an explicit device event test verifies its Toast. `--map-only` runs only the map portion. It does not test successful password changes, reservation submissions or seat-use mutations; those need separate actual-service results. A floor without school-provided rooms produces an explicit `SKIP`.
+The UI script checks native search, time selection and reservation review without submission, then reservations/manual bookmarks/system frequent seats/violations. `--full` additionally opens server filter choices, checks native map Canvas/list presentation for returned floors, and verifies that the temporarily closed password entry opens no form; an explicit device event test verifies its Toast. `--map-only` runs only the map portion. It does not test successful password changes, reservation submissions or seat-use mutations; those need separate actual-service results. A floor without school-provided rooms produces an explicit `SKIP`.
 
 Run one UI test at a time on an unlocked device. UI screenshots may show names and account labels; keep them under ignored `.private/` paths. The script does not print or persist UI XML. Synthetic account tests use separate preference namespaces and do not clear the production vault.
 
