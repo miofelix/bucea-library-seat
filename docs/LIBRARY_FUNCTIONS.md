@@ -1,26 +1,27 @@
 # Native library functions
 
-Version 0.2.0 adds native seat search, reservation selection and a personal library screen. The original website remains available for the room map, school verification and full feature access.
+Version 0.3.0 implements every application screen and interaction in Kotlin and Jetpack Compose. No original webpage is rendered, no website JavaScript runs, and no WebView or browser activity is present. Some school endpoints return HTML fragments; the data layer parses their business values and discards the markup before native rendering.
 
-| User task | Native behavior | School source |
+| Task | Native interaction | School data source |
 | --- | --- | --- |
-| Choose a booking date | Shows dates currently opened by the school | `/self`, `#options_onDate` |
-| Find a seat | Date, building, room, duration, start/end time, power and window filters; paginated seat cards | `/freeBook/ajaxSearch` |
-| Find a seat number | Matches numeric prefixes or full labels against the selected date and room catalogs | `/mapBook/getSeatsByRoom` |
-| Change building | Loads that building's real room options | `/freeBook/ajaxGetRooms` |
-| Choose start/end times | Shows only server-returned available time options | `/freeBook/ajaxGetTime`, `/freeBook/ajaxGetEndTime` |
-| Book a seat | Reviews account/date/seat/times, rechecks time availability, obtains a fresh account-bound token, then submits once | `/self`, `/selfRes` |
-| Keep favorite seats | Saves local bookmarks per account and combines them with school common-seat records | Local preferences, `/freeBook/fav` |
-| View booking history | Native record cards and load-more, without treating hidden controls as records | `/history?type=SEAT`, `/user/viewMoreHistory` |
-| View violations | Native record cards and load-more | `/user/violations`, `/user/viewMoreViolations` |
-| Check in / leave / return / finish | Provides confirmation and submits only if the current server state allows it | `/user/checkIn`, `/user/leave`, `/user/resume`, `/user/stopUsing` |
-| Extend usage | Loads allowed extension end times, asks for confirmation and revalidates the chosen time | `/user/getTimeExtend`, `/user/extend` |
-| Use the full website | Opens the requested authenticated feature page with mobile styles | Original library routes |
+| Select date and filters | Native chips, selection dialogs and search field | `/self`, `/freeBook/ajaxGetRooms` |
+| Find a seat | Native paginated seat cards | `/freeBook/ajaxSearch` |
+| Find seat number | Match real labels in selected room catalogs | `/mapBook/getSeatsByRoom` |
+| Use the room map | Pan/pinch native Canvas, seat details, accessible list | `/map`, `/mapBook/ajaxGetFloor`, `/mapBook/ajaxGetRooms`, `/mapBook/getSeatsByRoom` |
+| Select booking times | Native time chips and reservation review | `/freeBook/ajaxGetTime`, `/freeBook/ajaxGetEndTime` |
+| Submit reservation | Fresh account-bound token and one explicit confirmation | `/self`, `/selfRes` |
+| Manage favorite seats | Per-account bookmarks and native common-seat cards | Local preferences, `/freeBook/fav` |
+| Read/cancel reservations | Native history, details and fresh server-provided cancellation action | `/history?type=SEAT`, `/user/viewMoreHistory` |
+| Read violations | Native cards and pagination | `/user/violations`, `/user/viewMoreViolations` |
+| Check in / leave / return / finish | Native confirmations based on fresh server status | `/user/checkIn`, `/user/leave`, `/user/resume`, `/user/stopUsing` |
+| Extend usage | Native end-time selection and confirmation | `/user/getTimeExtend`, `/user/extend` |
+| Change password | Native masked fields, fresh CSRF, explicit result validation | `/user/password`, `/user/updateCredentials` |
+| Sign out | Native confirmation and persistent local sign-out | `/logout` |
+| Solve login captcha | Local ddddocr recognition | `/auth/createCaptcha`, `/auth/signIn` |
+| Solve extra verification | Local ddddocr detection + text matching + automatic coordinates | `/cap/captcha/...`, `/cap/checkCaptcha` |
 
-The school can restrict seat operations to a particular network or mode. Native actions follow the original page's `softMode`, reservation state and Wi-Fi restriction flags. A hidden or unavailable school action is not exposed as an enabled native button.
+The app follows school availability, mode, location and verification restrictions. A successful HTTP response alone never establishes login, booking or password-change success. Mutation requests are not automatically retried; uncertain results require checking current state before another attempt.
 
-Search rate verification and additional reservation verification open the original school page. HTTP success alone does not count as booking success: native result handling requires an affirmative booking result or a receipt. An uncertain submission disables immediate resubmission and directs the user to verify booking history.
+The original numeric-name search does not find lettered labels, so native number lookup uses documented room catalogs. It applies date/building/room conditions; other time/power/window filters belong to ordinary search. Bookmarks store locations and trigger a fresh time query on selection.
 
-Local bookmarks store locations, not guaranteed availability. Selecting a bookmark queries available times again. Removing a local bookmark does not alter the school's usage history.
-
-The original numeric name-search endpoint does not find the school's lettered seat labels. Native number lookup uses the documented room maps and matches labels locally; it uses date/building/room conditions, while time/power/window filters apply to regular search. Each seat selection still requests fresh available times from the school.
+Click captcha images and target text are handled by the same local ddddocr pipeline, never by manual user input. Proof tokens are scoped to the current account and expire locally; only server-confirmed proofs can be attached to a booking.

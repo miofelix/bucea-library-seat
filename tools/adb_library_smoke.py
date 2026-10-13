@@ -333,10 +333,12 @@ class NativeSmoke:
                 if node is None:
                     raise SmokeFailure(f"“{title}”标签暂不可操作。")
                 self.tap(node, title)
-            # The section header shares the tab label. The selected state is the
-            # authoritative signal, followed by its original-page entry.
-            self.wait(lambda value=title: self.selected_tab(value) and self.exact("查看完整页面") is not None,
+            # The section header shares the tab label; the selected tab and enabled
+            # native refresh action indicate the data request has completed.
+            self.wait(lambda value=title: self.selected_tab(value) and self.exact("刷新预约与座位") is not None,
                       f"“{title}”页面尚未同步完成。")
+            if self.exact("暂时无法同步") is not None:
+                raise SmokeFailure(f"“{title}”未能同步校园数据。")
             self.pass_phase(f"0{index}-" + ["reservations", "favorites", "violations"][index-3])
 
     def selected_tab(self, title: str) -> bool:

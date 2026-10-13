@@ -5,6 +5,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import cn.edu.bucea.library.data.AccountStore
 import cn.edu.bucea.library.data.LibraryFunctionsRepository
 import cn.edu.bucea.library.data.LibraryRepository
+import cn.edu.bucea.library.data.NativeMapRepository
 import cn.edu.bucea.library.data.models.ReservationSelection
 import cn.edu.bucea.library.data.models.SeatQuery
 import cn.edu.bucea.library.ocr.DdddOcr
@@ -47,7 +48,7 @@ class LiveLibraryReadOnlyTest {
                 if (restored == null) {
                     assumeTrue("No valid session and automatic login is disabled", store.autoLogin)
                     val result = repository.login(current) { /* Never log account/session data. */ }
-                    assumeTrue("The school requires manual captcha verification; finish it in the app first", result.overview != null)
+                    assumeTrue("Automatic login verification did not complete", result.overview != null)
                 }
                 // restore() verifies the returned identity equals this account's username.
                 assertTrue("The saved session must authenticate as the selected account", repository.restore(current) != null)
@@ -103,6 +104,41 @@ class LiveLibraryReadOnlyTest {
                 val state = functions.userState(current)
                 assertTrue("The server must expose reservation state", state.status.isNotBlank())
                 if (!state.softMode || state.status == "LOC_RESTRICT") assertTrue(state.actions.isEmpty())
+
+                val nativeMap = NativeMapRepository(repository)
+                val mapOptions = nativeMap.options(current)
+                assertTrue("Native map must return server date choices", mapOptions.dates.isNotEmpty())
+                val mapDate = mapOptions.dates.firstOrNull { option ->
+                    runCatching { LocalDate.parse(option.value).isAfter(today) }.getOrDefault(false)
+                }
+                assumeTrue("The map has not opened a future booking date", mapDate != null)
+                val mapDateValue = requireNotNull(mapDate).value
+                val mapBuilding = mapOptions.buildings.firstOrNull { it.value.isNotBlank() && it.value != "null" }
+                assumeTrue("The map has no available building", mapBuilding != null)
+                val mapBuildingValue = requireNotNull(mapBuilding).value
+                val floors = try { nativeMap.floors(current, mapBuildingValue) }
+                catch (_: NativeMapRepository.VerificationRequired) {
+                    assumeTrue("The school requested native map floor verification; finish it in the app", false)
+                    return@use
+                }
+                val floor = floors.firstOrNull { it.value.isNotBlank() && it.value != "null" }
+                assumeTrue("The building has no map floor choices", floor != null)
+                val mapRooms = nativeMap.rooms(current, mapDateValue, mapBuildingValue, requireNotNull(floor).value)
+                assumeTrue("The school requested native map room verification; finish it in the app", !mapRooms.verificationRequired)
+                assumeTrue("The selected floor has no available room layout", mapRooms.rooms.isNotEmpty())
+                val room = mapRooms.rooms.first()
+                val layout = nativeMap.layout(current, room, mapDateValue)
+                assumeTrue("The school requested native map layout verification; finish it in the app", !layout.verificationRequired)
+                assertEquals(room.id, layout.roomId)
+                assertEquals(room.name, layout.roomName)
+                assertTrue("Native room dimensions must retain the server grid", layout.rows > 0 && layout.columns > 0)
+                assertTrue("Native room must contain parsed seat cells", layout.cells.any { it.seat != null })
+                assertTrue("All native cell bounds must fit the reported grid", layout.cells.all {
+                    it.row >= 0 && it.column >= 0 && it.row + it.rowSpan <= layout.rows && it.column + it.columnSpan <= layout.columns
+                })
+                assertEquals(layout.cells.count { it.seat != null }, layout.cells.mapNotNull { it.seat?.id }.distinct().size)
+                assumeTrue("No remotely available seat is free in the selected room", layout.cells.any { it.seat?.available == true })
+                assertTrue("A site-only seat must never become remotely bookable", layout.cells.filter { it.localOnly }.none { it.seat?.available == true })
                 assertFalse("Read-only checks must preserve the sign-in choice", store.isSignedOut(current.id))
             } finally {
                 // Dispose cached clients without clearing the user's persisted session.

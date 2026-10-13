@@ -1,5 +1,16 @@
 # Validation — 2026-10-13
 
+## Version 0.3.0 fully native migration
+
+- All application UI and interactions now use Kotlin/Compose. Removed SeatWebActivity, its manifest entry, mobile JavaScript/CSS adapter and adapter test. The installed APK declares only MainActivity and packages no HTML/JS/CSS assets.
+- Debug and instrumentation APK builds passed; Lint passed with 0 errors (32 advisory warnings). Installed version 0.3.0, versionCode 4, using adb.
+- **46 independent device tests passed** in 4.802 seconds. Coverage includes native map geometry/status/verification, account password form/CSRF/result handling, logout, cancellation freshness, architecture constraints and automatic OCR verification. The obsolete browser-cookie snapshot case was removed.
+- **Both explicit live tests passed** in 5.503 seconds with JUnit completion code 0. The read-only test covers native seat search/number lookup/times/booking preparation/history and real map dates/floors/rooms/layout. The automatic verification test runs the bundled detector and recognizer on Android and obtains a successful proof from the school's server without human input.
+- Login CAPTCHA recognition is fully automatic: fresh challenges, bounded OCR attempts, immediate exit for credential/network/protocol failures. Ordered-click verification uses ddddocr `common_det.onnx` for text boxes and `common_old.onnx` for target/crop recognition, then submits computed coordinates. Four real image fixtures pass offline Android inference.
+- Native UI smoke checks passed search → start/end selection → booking review without submission → reservations/favorites/violations. Manual checks also passed map Canvas selection → native seat details → native time dialog, map/list toggle, native password-dialog field visibility, explicit logout and automatic re-login.
+- Password change and booking/cancellation submissions were exercised only against synthetic responses. No real password was changed and no real seat reservation was submitted. Native cancellation appears only for a fresh action actually provided by the account's server history.
+- Screenshots and authenticated development captures remain under ignored `.private/`. Model assets and pixel-only CAPTCHA fixtures contain no credentials, session cookies or proof tokens.
+
 ## Version 0.2.1 device acceptance
 
 - Debug builds and Lint passed (0 errors). Installed using adb on the same physical device.
