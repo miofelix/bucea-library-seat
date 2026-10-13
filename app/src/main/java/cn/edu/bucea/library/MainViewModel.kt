@@ -21,6 +21,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val state = mutableState.asStateFlow()
     private var operation: Job? = null
     private var pending: CaptchaChallenge? = null
+    private var explicitlySignedOut = false
 
     init {
         try { syncAccounts(); refresh() }
@@ -49,7 +50,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         mutableState.update { it.copy(overview = overview) }
         val account = store.accounts().find { it.id == store.activeAccountId }
         if (account != null) {
-            if (store.autoLogin || state.value.authenticated) loginAccounts(account)
+            if (!explicitlySignedOut && (store.autoLogin || state.value.authenticated)) loginAccounts(account)
+            else if (explicitlySignedOut) mutableState.update {
+                it.copy(authenticated = false, status = "已退出登录", overview = overview.copy(displayName = null))
+            }
             else {
                 val restored = repository.restore(account)
                 mutableState.update { it.copy(authenticated = restored != null, status = if (restored != null) "已恢复登录状态" else "已连接校园网，点击登录",
@@ -59,11 +63,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun login() = run {
+        explicitlySignedOut = false
         pending = null
         mutableState.update { it.copy(captcha = null) }
         val account = store.accounts().find { it.id == store.activeAccountId }
             ?: throw IllegalArgumentException("请先添加图书馆账号")
         loginAccounts(account)
+    }
+
+    fun onWebReturned(signedOut: Boolean) {
+        operation?.cancel()
+        store.activeAccountId?.let(repository::releaseSession)
+        pending = null
+        if (signedOut) explicitlySignedOut = true
+        mutableState.update { it.copy(authenticated = false, captcha = null, overview = it.overview?.copy(displayName = null)) }
+        refresh()
     }
 
     private suspend fun loginAccounts(first: SavedAccount) {

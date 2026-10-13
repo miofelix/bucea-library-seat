@@ -41,7 +41,11 @@ class SessionCookieJar(private val store: AccountStore, private val accountId: S
 
     @Synchronized fun all(): List<Cookie> = cookies.filter { it.expiresAt > System.currentTimeMillis() }.toList()
     @Synchronized fun clear() { cookies.clear(); store.clearCookies(accountId) }
-    @Synchronized fun invalidate() { active = false; clear() }
+    @Synchronized fun invalidate(clearSaved: Boolean = true) {
+        active = false
+        cookies.clear()
+        if (clearSaved) store.clearCookies(accountId)
+    }
 
     private fun persist() = store.saveCookies(accountId, JSONArray().apply {
         cookies.forEach { put(JSONObject().put("name", it.name).put("value", it.value)

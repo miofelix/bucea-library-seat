@@ -104,6 +104,11 @@ class LibraryRepository(private val store: AccountStore, private val ocr: DdddOc
         store.clearCookies(id)
     }
 
+    /** The WebView has saved newer cookies; drop the in-memory session without erasing them. */
+    @Synchronized fun releaseSession(id: String) {
+        sessions.remove(id)?.let { it.jar.invalidate(clearSaved = false); it.client.dispatcher.cancelAll() }
+    }
+
     fun userMessage(error: Throwable): String = when (error) {
         is LoginFailure -> error.message
         is IOException -> "无法连接图书馆，请确认已连接校园网或图书馆 Wi-Fi，再点击重试"

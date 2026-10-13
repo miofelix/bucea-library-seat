@@ -1,6 +1,7 @@
 package cn.edu.bucea.library
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
@@ -29,6 +30,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.lifecycleScope
+import androidx.core.view.WindowCompat
 import cn.edu.bucea.library.data.*
 import cn.edu.bucea.library.ocr.DdddOcr
 import kotlinx.coroutines.CancellationException
@@ -60,6 +62,10 @@ class SeatWebActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = true
+            isAppearanceLightNavigationBars = true
+        }
         store = AccountStore(this)
         val selected = store.accounts().find { it.id == intent.getStringExtra("account_id") }
         if (selected == null || selected.id != store.activeAccountId) { finish(); return }
@@ -86,7 +92,11 @@ class SeatWebActivity : ComponentActivity() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                     val uri = request?.url ?: return false
                     if (!allowed(uri)) { message = "此 App 仅访问校园内网图书馆"; return true }
-                    if (uri.path == "/logout") { signedOut = true; store.clearCookies(account.id) }
+                    if (uri.path == "/logout") {
+                        signedOut = true
+                        store.clearCookies(account.id)
+                        setResult(RESULT_OK, Intent().putExtra("signed_out", true))
+                    }
                     return false
                 }
 
@@ -132,6 +142,7 @@ class SeatWebActivity : ComponentActivity() {
         val manager = CookieManager.getInstance()
         manager.setAcceptCookie(true)
         manager.setAcceptThirdPartyCookies(webView, false)
+        android.webkit.WebStorage.getInstance().deleteAllData()
         suspendCancellableCoroutine { continuation ->
             manager.removeAllCookies { if (continuation.isActive) continuation.resume(Unit) }
         }
