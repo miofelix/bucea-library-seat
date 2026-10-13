@@ -65,7 +65,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -201,7 +200,7 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
                         onOpenReservations = { features.dismissReservation(); mapOpen = false; tab = 2 }) }
                 }
                 tab == 0 -> Dashboard(state, Modifier.padding(padding), viewModel::login, viewModel::refresh,
-                    onOpenLibrary = { tab = 1 }, onOpenMap = { tab = 1; mapOpen = true }, onReservations = { tab = 2 }, onAccounts = { tab = 3 })
+                    onOpenLibrary = { tab = 1 }, onReservations = { tab = 2 }, onAccounts = { tab = 3 })
                 tab == 1 -> if (state.authenticated) Box(Modifier.padding(padding).consumeWindowInsets(padding)) {
                     SeatSearchScreen(seatState, features::setFilter, features::searchSeats, features::nextPage, features::previousPage,
                         features::selectSeat, onBack = { tab = 0 }, onOpenMap = { tab = 1; mapOpen = true }, onToggleFavorite = features::toggleFavorite,
@@ -266,7 +265,6 @@ private fun Dashboard(
     onLogin: () -> Unit,
     onRefresh: () -> Unit,
     onOpenLibrary: () -> Unit,
-    onOpenMap: () -> Unit,
     onReservations: () -> Unit,
     onAccounts: () -> Unit
 ) {
@@ -300,57 +298,6 @@ private fun Dashboard(
             Text("${state.overview?.displayName?.takeIf { it.isNotBlank() } ?: account?.label?.takeIf { it.isNotBlank() } ?: "同学"}，欢迎来到图书馆", color = Muted, fontSize = 14.sp)
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(
-                onClick = {
-                    when {
-                        state.authenticated -> onOpenMap()
-                        account != null -> onLogin()
-                        else -> onAccounts()
-                    }
-                },
-                enabled = !state.busy && (account == null || state.campusAccess == CampusAccess.REACHABLE),
-                modifier = Modifier.fillMaxWidth().height(if (state.authenticated) 72.dp else 56.dp),
-                shape = RoundedCornerShape(17.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Teal)
-            ) {
-                if (state.busy) {
-                    CircularProgressIndicator(Modifier.size(21.dp), color = Color.White, strokeWidth = 2.dp)
-                } else {
-                    Icon(if (state.authenticated) Icons.Outlined.GridView else Icons.Outlined.Lock,
-                        contentDescription = null, modifier = Modifier.size(if (state.authenticated) 28.dp else 19.dp))
-                }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(when {
-                        state.busy -> "正在连接图书馆…"
-                        account != null && state.campusAccess != CampusAccess.REACHABLE -> "连接校园网后登录"
-                        state.authenticated -> "布局选座"
-                        account != null -> "登录并同步"
-                        else -> "添加账号，开始使用"
-                    }, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-                    if (state.authenticated && !state.busy) {
-                        Text("查看楼层布局，点选座位并预约", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f))
-                    }
-                }
-                if (!state.busy) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp))
-                }
-            }
-            if (state.authenticated) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(onClick = onOpenLibrary, enabled = !state.busy,
-                        modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) {
-                        Text("查询并预约座位", fontSize = 12.sp)
-                    }
-                    OutlinedButton(onClick = onReservations, enabled = !state.busy,
-                        modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) {
-                        Text("我的预约", fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(25.dp),
@@ -380,6 +327,38 @@ private fun Dashboard(
                     StatItem("正在使用", state.overview?.inUse, Modifier.weight(1f))
                     StatItem("等待签到", state.overview?.awaitingSignIn, Modifier.weight(1f))
                 }
+            }
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = {
+                    when {
+                        state.authenticated -> onOpenLibrary()
+                        account != null -> onLogin()
+                        else -> onAccounts()
+                    }
+                },
+                enabled = !state.busy && (account == null || state.campusAccess == CampusAccess.REACHABLE),
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                shape = RoundedCornerShape(17.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Teal)
+            ) {
+                if (state.busy) {
+                    CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
+                    Spacer(Modifier.width(10.dp))
+                } else {
+                    Icon(if (state.authenticated) Icons.Outlined.GridView else Icons.Outlined.Lock, contentDescription = null, modifier = Modifier.size(19.dp))
+                    Spacer(Modifier.width(10.dp))
+                }
+                Text(when { state.busy -> "正在连接图书馆…"; account != null && state.campusAccess != CampusAccess.REACHABLE -> "连接校园网后登录"; state.authenticated -> "查询并预约座位"; account != null -> "登录并同步"; else -> "添加账号，开始使用" }, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                if (!state.busy) {
+                    Spacer(Modifier.weight(1f))
+                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, modifier = Modifier.size(19.dp))
+                }
+            }
+            if (state.authenticated) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                TextButton(onClick = onReservations, enabled = !state.busy) { Text("我的预约") }
             }
         }
 

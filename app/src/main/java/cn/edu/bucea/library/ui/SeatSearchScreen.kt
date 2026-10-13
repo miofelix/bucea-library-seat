@@ -174,16 +174,32 @@ fun SeatSearchScreen(
     Scaffold(
         containerColor = SeatPaper,
         topBar = {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回首页", tint = SeatInk) }
-                Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                    Text("找一个好座位", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SeatInk)
-                    Text("选好位置，安心专注", fontSize = 11.sp, color = SeatMuted)
+            Column {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回首页", tint = SeatInk) }
+                    Column(Modifier.weight(1f).padding(start = 4.dp)) {
+                        Text("找一个好座位", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SeatInk)
+                        Text("选好位置，安心专注", fontSize = 11.sp, color = SeatMuted)
+                    }
+                    IconButton(onClick = onRefresh, enabled = !state.loading && !state.reservationBusy) {
+                        Icon(Icons.Outlined.Refresh, "刷新座位筛选", tint = SeatTeal)
+                    }
                 }
-                IconButton(onClick = onRefresh, enabled = !state.loading && !state.reservationBusy) {
-                    Icon(Icons.Outlined.Refresh, "刷新座位筛选", tint = SeatTeal)
+                Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Button(
+                        onClick = onOpenMap,
+                        enabled = !state.reservationBusy,
+                        modifier = Modifier.fillMaxWidth().height(64.dp),
+                        shape = RoundedCornerShape(17.dp),
+                    ) {
+                        Icon(Icons.Outlined.GridView, null, Modifier.size(27.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Text("布局选座", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, Modifier.size(21.dp))
+                    }
+                    Text("查看楼层布局，点选座位并预约", color = SeatMuted, fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp))
                 }
-                TextButton(onClick = onOpenMap) { Text("布局选座", fontSize = 12.sp) }
             }
         }
     ) { padding ->
@@ -326,9 +342,6 @@ fun SeatSearchScreen(
                         Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, modifier = Modifier.size(15.dp))
                     }
                 }
-            }
-            Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center) {
-                TextButton(onClick = onOpenMap) { Icon(Icons.Outlined.GridView, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(7.dp)); Text("查看座位地图", fontSize = 12.sp) }
             }
         }
     }
