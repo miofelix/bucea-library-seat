@@ -4,6 +4,7 @@ local.properties
 **/build/
 *.iml
 .DS_Store
+.private/
 *.jks
 *.keystore
 *.env
