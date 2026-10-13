@@ -12,6 +12,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.LocalDate
+import java.time.ZoneId
 
 /** Synthetic responses exercise library contracts without booking or modifying an account. */
 @RunWith(AndroidJUnit4::class)
@@ -180,6 +182,32 @@ class LibraryFunctionsInstrumentedTest {
             catch (_: IllegalArgumentException) { }
         }
         assertEquals(0, posts)
+    }
+
+    @Test
+    fun actualStartNowSentinelRemainsLiteralAndCanOnlyBookSchoolToday() = runBlocking {
+        val times = LibraryFunctionsRepository.parseTimes("""<li><a time="now">现在</a></li><li><a time="1140">19:00</a></li>
+            <a time="-1">非法哨兵</a><a time="immediate">非法哨兵</a><li class="disabled"><a time="now">禁用现在</a></li>""")
+        assertEquals(listOf("now", "1140"), times.options.map { it.value })
+        val account = SavedAccount("fake", "209999990001", "fake", "测试")
+        val today = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+        val seat = LibrarySeat("1", "001D", "二层内环区", "空闲", true)
+        var posts = 0
+        var postedStart: String? = null
+        val repository = LibraryFunctionsRepository(request = { _, _ -> error("Prepared request needs no GET") },
+            post = { _, _, fields -> posts++; postedStart = fields["start"]; "<p>预约成功</p>" })
+        fun prepared(date: LocalDate, start: String = "now", end: String = "1440") = PreparedReservation(
+            ReservationSelection(date.toString(), seat, LibraryOption(start, "现在"), LibraryOption(end, "24:00")),
+            mapOf("SYNCHRONIZER_TOKEN" to "synthetic-now-token"), false, account.id)
+        for (invalid in listOf(prepared(today.plusDays(1)), prepared(today.minusDays(1)), prepared(today, "immediate"),
+            prepared(today, end = "now"), prepared(today, end = "-1"))) {
+            try { repository.reserve(account, invalid); fail("Only exact now on school today is allowed") }
+            catch (_: IllegalArgumentException) { }
+        }
+        assertEquals(0, posts)
+        assertTrue(repository.reserve(account, prepared(today)).success)
+        assertEquals(1, posts)
+        assertEquals("now", postedStart)
     }
 
     @Test

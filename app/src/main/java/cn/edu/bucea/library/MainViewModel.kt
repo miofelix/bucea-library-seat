@@ -44,9 +44,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun refresh() = run {
-        mutableState.update { it.copy(status = "正在连接图书馆…") }
+        mutableState.update { it.copy(status = "正在连接图书馆…", overviewStale = true) }
         val overview = repository.publicOverview()
-        mutableState.update { it.copy(overview = overview) }
+        mutableState.update { it.copy(overview = overview, overviewStale = false) }
         val account = store.accounts().find { it.id == store.activeAccountId }
         if (account != null) {
             explicitlySignedOut = store.isSignedOut(account.id)

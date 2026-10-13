@@ -283,7 +283,12 @@ private fun Dashboard(
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("空闲座位", fontSize = 14.sp, color = Color.White.copy(alpha = 0.82f), modifier = Modifier.weight(1f))
                     Surface(color = Color.White.copy(alpha = 0.1f), shape = RoundedCornerShape(8.dp)) {
-                        Text(when { state.busy -> "更新中"; state.overview?.available != null -> "已同步"; else -> "待同步" }, color = Color.White.copy(alpha = 0.86f), fontSize = 10.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp))
+                        Text(when {
+                            state.busy -> "更新中"
+                            state.overview?.available == null -> "待同步"
+                            state.overviewStale -> "上次数据"
+                            else -> "已同步"
+                        }, color = Color.White.copy(alpha = 0.86f), fontSize = 10.sp, modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp))
                     }
                 }
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(9.dp)) {

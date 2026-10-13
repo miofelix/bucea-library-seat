@@ -6,6 +6,7 @@ import org.json.JSONObject
 import org.jsoup.nodes.Document
 import java.security.MessageDigest
 import java.time.LocalDate
+import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
 
 /** Native library functions using the same per-account authenticated campus session. */
@@ -239,8 +240,10 @@ class LibraryFunctionsRepository(
         }
         val startMinutes = selection.start.value.toIntOrNull()
         val endMinutes = selection.end.value.toIntOrNull()
-        require(startMinutes != null && endMinutes != null && startMinutes in 0..1439 && endMinutes in 1..1440 &&
-            startMinutes < endMinutes) { "请选择有效的开始和结束时间" }
+        val startsNow = selection.start.value == "now"
+        val validStart = if (startsNow) selection.onDate == LocalDate.now(ZoneId.of("Asia/Shanghai")).toString()
+            else startMinutes != null && startMinutes in 0..1439 && endMinutes != null && startMinutes < endMinutes
+        require(validStart && endMinutes != null && endMinutes in 1..1440) { "请选择有效的开始和结束时间" }
         require(selection.seat.available) { "该座位当前不可预约" }
         val fields = reservation.fields + mapOf("date" to selection.onDate, "seat" to selection.seat.id,
             "start" to selection.start.value, "end" to selection.end.value) +
@@ -338,7 +341,7 @@ class LibraryFunctionsRepository(
             val options = document.select("a[time]").filterNot { it.hasClass("disable") || it.hasClass("disabled") ||
                 it.parent()?.hasClass("disabled") == true || it.parent()?.hasClass("disable") == true }
                 .map { LibraryOption(it.attr("time"), it.text()) }.filter { option ->
-                    option.value.toIntOrNull()?.let { it in 0..1440 } == true && option.label.isNotBlank()
+                    (option.value == "now" || option.value.toIntOrNull()?.let { it in 0..1440 } == true) && option.label.isNotBlank()
                 }
                 .distinctBy { it.value }
             return SeatTimes(options, document.selectFirst("#building")?.attr("value").orEmpty(),
