@@ -1,5 +1,16 @@
 # Validation — 2026-10-13
 
+## Version 0.2.0 native library functions
+
+- Debug application and test APK builds passed; installed on the existing device through adb.
+- Independent instrumentation returned **OK (21 tests)** in 4.102 seconds. Coverage now includes search/page parsing, disabled time slots, official verification, stable record IDs, unknown/negative booking results, fresh account-bound form tokens, duplicate booking prevention, operation restrictions, browser cookie deletion, persistent logout and per-account bookmarks.
+- Explicitly enabled `LiveLibraryReadOnlyTest` returned **OK (1 test)** in 3.805 seconds against the campus service. It verified identity, school-opened future dates, rooms, free-seat search, native number lookup, start/end times, fresh booking-token preparation, booking history, violations and current reservation state. It stopped before any reservation or seat action submission.
+- Real testing exposed a school endpoint issue: the original numeric name search did not find lettered labels such as `001D`. Native number lookup now uses the documented room map API, matches labels locally and excludes unavailable or local-only seats. Ordinary filter search continues using the paginated search API.
+- The mobile adapter behavior test passed inherited/delegated handlers, AJAX-added seats, paging alignment after resize, token/form preservation, hidden dialogs, repeat injection, observer settling and original layout restoration.
+- New native-screen manual click acceptance remains pending because the physical device is locked. No lock settings were changed. The earlier first-version manual checks below remain historical evidence for login and original-page navigation.
+
+Booking/action writes are covered with synthetic responses and account-bound tokens. Actual reservation, check-in, departure, return, renewal and finish-usage submissions were not executed against the live account.
+
 ## Build
 
 - `:app:assembleDebug` — passed.
