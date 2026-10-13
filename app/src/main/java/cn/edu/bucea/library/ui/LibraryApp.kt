@@ -1,7 +1,10 @@
 package cn.edu.bucea.library.ui
 
-import android.graphics.BitmapFactory
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
+import android.graphics.BitmapFactory
 import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
@@ -31,12 +34,15 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.AutoStories
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Refresh
@@ -59,6 +65,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -85,6 +92,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -117,6 +125,8 @@ private val Paper = Color(0xFFF6F7F2)
 private val SoftGreen = Color(0xFFE5EFE8)
 private val Line = Color(0xFFE2E8E1)
 private val Warm = Color(0xFFD4B87D)
+private const val ProjectUrl = "https://github.com/miofelix/bucea-library-seat"
+private const val CommunityGroup = "1109482748"
 
 @Composable
 fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps: NativeMapViewModel,
@@ -290,6 +300,57 @@ private fun Dashboard(
             Text("${state.overview?.displayName?.takeIf { it.isNotBlank() } ?: account?.label?.takeIf { it.isNotBlank() } ?: "同学"}，欢迎来到图书馆", color = Muted, fontSize = 14.sp)
         }
 
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(
+                onClick = {
+                    when {
+                        state.authenticated -> onOpenMap()
+                        account != null -> onLogin()
+                        else -> onAccounts()
+                    }
+                },
+                enabled = !state.busy && (account == null || state.campusAccess == CampusAccess.REACHABLE),
+                modifier = Modifier.fillMaxWidth().height(if (state.authenticated) 72.dp else 56.dp),
+                shape = RoundedCornerShape(17.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Teal)
+            ) {
+                if (state.busy) {
+                    CircularProgressIndicator(Modifier.size(21.dp), color = Color.White, strokeWidth = 2.dp)
+                } else {
+                    Icon(if (state.authenticated) Icons.Outlined.GridView else Icons.Outlined.Lock,
+                        contentDescription = null, modifier = Modifier.size(if (state.authenticated) 28.dp else 19.dp))
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(when {
+                        state.busy -> "正在连接图书馆…"
+                        account != null && state.campusAccess != CampusAccess.REACHABLE -> "连接校园网后登录"
+                        state.authenticated -> "布局选座"
+                        account != null -> "登录并同步"
+                        else -> "添加账号，开始使用"
+                    }, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    if (state.authenticated && !state.busy) {
+                        Text("查看楼层布局，点选座位并预约", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f))
+                    }
+                }
+                if (!state.busy) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp))
+                }
+            }
+            if (state.authenticated) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(onClick = onOpenLibrary, enabled = !state.busy,
+                        modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) {
+                        Text("查询并预约座位", fontSize = 12.sp)
+                    }
+                    OutlinedButton(onClick = onReservations, enabled = !state.busy,
+                        modifier = Modifier.weight(1f).height(48.dp), shape = RoundedCornerShape(14.dp)) {
+                        Text("我的预约", fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(25.dp),
@@ -319,39 +380,6 @@ private fun Dashboard(
                     StatItem("正在使用", state.overview?.inUse, Modifier.weight(1f))
                     StatItem("等待签到", state.overview?.awaitingSignIn, Modifier.weight(1f))
                 }
-            }
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Button(
-                onClick = {
-                    when {
-                        state.authenticated -> onOpenLibrary()
-                        account != null -> onLogin()
-                        else -> onAccounts()
-                    }
-                },
-                enabled = !state.busy && (account == null || state.campusAccess == CampusAccess.REACHABLE),
-                modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(17.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Teal)
-            ) {
-                if (state.busy) {
-                    CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
-                    Spacer(Modifier.width(10.dp))
-                } else {
-                    Icon(if (state.authenticated) Icons.Outlined.GridView else Icons.Outlined.Lock, contentDescription = null, modifier = Modifier.size(19.dp))
-                    Spacer(Modifier.width(10.dp))
-                }
-                Text(when { state.busy -> "正在连接图书馆…"; account != null && state.campusAccess != CampusAccess.REACHABLE -> "连接校园网后登录"; state.authenticated -> "查询并预约座位"; account != null -> "登录并同步"; else -> "添加账号，开始使用" }, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                if (!state.busy) {
-                    Spacer(Modifier.weight(1f))
-                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, modifier = Modifier.size(19.dp))
-                }
-            }
-            if (state.authenticated) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                TextButton(onClick = onOpenMap, enabled = !state.busy) { Text("布局选座") }
-                TextButton(onClick = onReservations, enabled = !state.busy) { Text("我的预约") }
             }
         }
 
@@ -562,6 +590,8 @@ private fun AccountDialog(account: AccountSummary?, onDismiss: () -> Unit, onRen
 
 @Composable
 private fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLogin: (Boolean) -> Unit, onAutoSwitch: (Boolean) -> Unit) {
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         ScreenHeading("让登录更简单", "少一些操作，多一些专注。", Icons.Outlined.Settings)
         ContentCard("登录偏好", Icons.Outlined.AutoAwesome) {
@@ -575,6 +605,35 @@ private fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLogi
             Spacer(Modifier.height(10.dp))
             Text("选座、地图、预约与账号操作均使用 Android 原生界面，验证码在本机自动识别。此应用为第三方客户端。", color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
             Spacer(Modifier.height(14.dp))
+            Text("开发作者：樊彧", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(8.dp))
+            Text("欢迎在 GitHub 提交问题与建议，也欢迎安利给同学，一起更方便地使用图书馆。", color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { uriHandler.openUri(ProjectUrl) }) {
+                    Icon(Icons.Outlined.Link, null, Modifier.size(17.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("GitHub 项目", fontSize = 12.sp)
+                }
+                TextButton(onClick = { uriHandler.openUri("$ProjectUrl/issues") }) {
+                    Icon(Icons.Outlined.BugReport, null, Modifier.size(17.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("提交问题", fontSize = 12.sp)
+                }
+            }
+            HorizontalDivider(Modifier.padding(vertical = 10.dp), color = Line)
+            Text("QQ 交流群：$CommunityGroup", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.height(6.dp))
+            Text("欢迎加入交流群，分享使用体验、反馈问题。", color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
+            TextButton(onClick = {
+                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                clipboard.setPrimaryClip(ClipData.newPlainText("北建大图书馆选座 QQ 交流群", CommunityGroup))
+                Toast.makeText(context, "已复制 QQ 群号：$CommunityGroup", Toast.LENGTH_SHORT).show()
+            }) {
+                Icon(Icons.Outlined.ContentCopy, null, Modifier.size(17.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("复制 QQ 群号", fontSize = 12.sp)
+            }
+            Spacer(Modifier.height(8.dp))
             Text("验证码识别 · ddddocr / ONNX", color = Teal, fontSize = 11.sp)
         }
     }
