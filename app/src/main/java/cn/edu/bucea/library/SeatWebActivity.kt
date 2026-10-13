@@ -6,10 +6,14 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.os.Message
+import android.view.View
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
@@ -27,6 +31,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.lifecycleScope
@@ -36,7 +41,6 @@ import cn.edu.bucea.library.ocr.DdddOcr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
-import okhttp3.Cookie
 import kotlin.coroutines.resume
 
 /** Every original route, form and AJAX operation runs in the site's own document. */
@@ -51,10 +55,14 @@ class SeatWebActivity : ComponentActivity() {
     private var message by mutableStateOf<String?>(null)
     private var mobile by mutableStateOf(true)
     private var challenge by mutableStateOf<CaptchaChallenge?>(null)
-    private var reauthenticating = false
+    private var reauthenticating by mutableStateOf(false)
+    private var installingCookies by mutableStateOf(true)
     private var reauthenticationCount = 0
     private var signedOut = false
     private var cookiesInstalled = false
+    private var logoutPending = false
+    private var requestedUrl = LibraryRepository.BASE_URL + "/self"
+    private var scrollToRestore: Pair<Int, Int>? = null
     private val routes = listOf("自选座位" to "/self", "布局选座" to "/map", "常用座位" to "/freeBook/fav",
         "我的预约" to "/history?type=SEAT", "违约记录" to "/user/violations", "修改密码" to "/user/password")
 
@@ -70,6 +78,12 @@ class SeatWebActivity : ComponentActivity() {
         val selected = store.accounts().find { it.id == intent.getStringExtra("account_id") }
         if (selected == null || selected.id != store.activeAccountId) { finish(); return }
         account = selected
+        signedOut = store.isSignedOut(account.id)
+        mobile = getSharedPreferences("library_browser", MODE_PRIVATE).getBoolean("mobile_layout", true)
+        val sameAccount = savedInstanceState?.getString("browser_account") == account.id
+        requestedUrl = safePageUrl(if (sameAccount) savedInstanceState?.getString("browser_url") else intent.getStringExtra("initial_path"))
+            ?: LibraryRepository.BASE_URL + "/self"
+        if (sameAccount) scrollToRestore = savedInstanceState!!.getInt("browser_scroll_x") to savedInstanceState.getInt("browser_scroll_y")
         ocr = DdddOcr(this)
         repository = LibraryRepository(store, ocr)
         webView = WebView(this).apply {
@@ -92,11 +106,8 @@ class SeatWebActivity : ComponentActivity() {
                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                     val uri = request?.url ?: return false
                     if (!allowed(uri)) { message = "此 App 仅访问校园内网图书馆"; return true }
-                    if (uri.path == "/logout") {
-                        signedOut = true
-                        store.clearCookies(account.id)
-                        setResult(RESULT_OK, Intent().putExtra("signed_out", true))
-                    }
+                    if (request?.isForMainFrame == true && uri.path == "/logout") beginSignOut()
+                    if (request?.isForMainFrame == true && request.method == "GET") safePageUrl(uri.toString())?.let { requestedUrl = it }
                     return false
                 }
 
@@ -108,30 +119,112 @@ class SeatWebActivity : ComponentActivity() {
                     return null
                 }
 
-                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) { loading = true; message = null }
+                override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
+                    loading = true; message = null
+                    if (url != null) {
+                        if (Uri.parse(url).path == "/logout") beginSignOut()
+                        safePageUrl(url)?.let { requestedUrl = it }
+                    }
+                }
                 override fun onPageFinished(view: WebView?, url: String?) {
                     loading = false
                     if (url == null || !allowed(Uri.parse(url))) return
                     if (mobile) injectAdapter()
+                    if (logoutPending) { completeSignOut(); return }
                     val loginPage = Uri.parse(url).path.orEmpty().let { it == "/login" || it == "/auth/signIn" }
+                    syncCookies()
                     if (loginPage && !signedOut && store.autoLogin && reauthenticationCount < 1) authenticate()
                     else if (loginPage && !signedOut) message = "登录状态已失效，请返回首页重新登录"
-                    syncCookies()
+                    else if (!loginPage && safePageUrl(url) != null) {
+                        reauthenticationCount = 0
+                        if (signedOut) detectManualSignIn()
+                        scrollToRestore?.let { (x, y) -> webView.post { webView.scrollTo(x, y) } }
+                        scrollToRestore = null
+                    }
                 }
 
                 override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
-                    if (request?.isForMainFrame == true) { loading = false; message = "无法连接图书馆，请检查校园网连接后重试" }
+                    if (request?.isForMainFrame == true) {
+                        loading = false; message = "无法连接图书馆，请检查校园网连接后重试"
+                        if (logoutPending) completeSignOut()
+                    }
+                }
+
+                override fun onReceivedHttpError(view: WebView?, request: WebResourceRequest?, errorResponse: WebResourceResponse?) {
+                    if (request?.isForMainFrame == true) {
+                        loading = false
+                        message = "图书馆服务暂不可用（HTTP ${errorResponse?.statusCode ?: "错误"}）"
+                        if (logoutPending) completeSignOut()
+                    }
+                }
+
+                override fun onFormResubmission(view: WebView?, dontResend: Message?, resend: Message?) {
+                    dontResend?.sendToTarget()
+                    message = "已保留本次提交结果，可返回上一页查看，或重试打开功能页面"
                 }
             }
         }
         setContent { BrowserScreen() }
         lifecycleScope.launch {
-            try { installCookies(); webView.loadUrl(LibraryRepository.BASE_URL + "/self") }
+            try {
+                installCookies()
+                webView.loadUrl(if (signedOut) LibraryRepository.BASE_URL + "/login?targetUri=" + Uri.encode(Uri.parse(requestedUrl).encodedPath) else requestedUrl)
+            } catch (e: CancellationException) { throw e }
             catch (_: Exception) { message = "无法恢复登录状态，请返回首页重试"; loading = false }
+            finally { installingCookies = false }
         }
     }
 
     private fun allowed(uri: Uri) = uri.scheme == "http" && uri.host == "10.1.20.7" && (uri.port == -1 || uri.port == 80)
+
+    private fun safePageUrl(value: String?): String? {
+        if (value.isNullOrBlank()) return null
+        val uri = Uri.parse(if (value.startsWith("/") && !value.startsWith("//")) LibraryRepository.BASE_URL + value else value)
+        if (!allowed(uri) || uri.userInfo != null || (uri.path != "/" && routes.none { Uri.parse(it.second).path == uri.path })) return null
+        return uri.buildUpon().fragment(null).build().toString()
+    }
+
+    private fun selectedAccountValid() = ::account.isInitialized && ::store.isInitialized && store.activeAccountId == account.id
+
+    private fun beginSignOut() {
+        if (signedOut) return
+        signedOut = true
+        logoutPending = true
+        cookiesInstalled = false
+        store.setSignedOut(account.id, true)
+        repository.forget(account.id)
+        setResult(RESULT_OK, Intent().putExtra("signed_out", true))
+    }
+
+    private fun completeSignOut() {
+        if (!logoutPending) return
+        logoutPending = false
+        WebStorage.getInstance().deleteAllData()
+        CookieManager.getInstance().removeAllCookies { CookieManager.getInstance().flush() }
+    }
+
+    private fun retryCurrentPage() {
+        if (reauthenticating || installingCookies || challenge != null) return
+        message = null
+        val url = webView.url
+        val loginPage = url?.let { Uri.parse(it).path in listOf("/login", "/auth/signIn") } == true
+        if (loginPage && !signedOut && store.autoLogin) { reauthenticationCount = 0; authenticate(); return }
+        // Always issue a GET for a verified feature page; never replay an earlier form POST.
+        webView.loadUrl(safePageUrl(url) ?: requestedUrl)
+    }
+
+    private fun detectManualSignIn() {
+        val username = org.json.JSONObject.quote(account.username)
+        webView.evaluateJavascript("(function(){var u=document.getElementById('sysUsername');return !!u && u.value===$username;})()") { result ->
+            if (result == "true" && selectedAccountValid() && !logoutPending) {
+                signedOut = false
+                cookiesInstalled = true
+                store.setSignedOut(account.id, false)
+                setResult(RESULT_OK, Intent().putExtra("signed_out", false))
+                syncCookies()
+            }
+        }
+    }
 
     private fun injectAdapter() {
         val script = assets.open("mobile/adapter.js").bufferedReader().use { it.readText() }
@@ -139,10 +232,13 @@ class SeatWebActivity : ComponentActivity() {
     }
 
     private suspend fun installCookies() {
+        installingCookies = true
+        cookiesInstalled = false
+        webView.stopLoading()
         val manager = CookieManager.getInstance()
         manager.setAcceptCookie(true)
         manager.setAcceptThirdPartyCookies(webView, false)
-        android.webkit.WebStorage.getInstance().deleteAllData()
+        WebStorage.getInstance().deleteAllData()
         suspendCancellableCoroutine { continuation ->
             manager.removeAllCookies { if (continuation.isActive) continuation.resume(Unit) }
         }
@@ -155,58 +251,53 @@ class SeatWebActivity : ComponentActivity() {
         }
         manager.flush()
         cookiesInstalled = true
+        installingCookies = false
     }
 
     private fun syncCookies() {
-        if (!cookiesInstalled || reauthenticating || signedOut) return
-        val header = CookieManager.getInstance().getCookie(LibraryRepository.BASE_URL) ?: return
-        val jar = SessionCookieJar(store, account.id)
-        val existing = jar.all().associateBy { it.name }
-        val parsed = header.split(";").mapNotNull { entry ->
-            val name = entry.substringBefore("=").trim()
-            if (!entry.contains("=")) return@mapNotNull null
-            val old = existing[name]
-            val builder = Cookie.Builder().name(name).value(entry.substringAfter("=").trim())
-                .hostOnlyDomain("10.1.20.7").path(old?.path ?: "/")
-                .expiresAt(old?.expiresAt ?: Long.MAX_VALUE)
-            if (old?.httpOnly == true) builder.httpOnly()
-            builder.build()
-        }
-        jar.saveFromResponse(okhttp3.HttpUrl.Builder().scheme("http").host("10.1.20.7").build(), parsed)
-        CookieManager.getInstance().flush()
+        if (!cookiesInstalled || reauthenticating || installingCookies || signedOut || !selectedAccountValid()) return
+        runCatching {
+            SessionCookieJar(store, account.id).replaceBrowserCookies(CookieManager.getInstance().getCookie(LibraryRepository.BASE_URL))
+            CookieManager.getInstance().flush()
+        }.onFailure { message = "无法保存最新登录状态，请返回首页重新登录" }
     }
 
     private fun authenticate() {
-        if (reauthenticating) return
+        if (reauthenticating || installingCookies || signedOut || !selectedAccountValid()) return
         reauthenticating = true
         reauthenticationCount++
         lifecycleScope.launch {
             try {
+                repository.releaseSession(account.id)
                 val result = repository.login(account) { message = it }
                 challenge = result.challenge
-                if (result.overview != null) { installCookies(); webView.loadUrl(LibraryRepository.BASE_URL + "/self"); message = null }
+                if (result.overview != null && selectedAccountValid()) { installCookies(); webView.loadUrl(requestedUrl); message = null }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { message = repository.userMessage(e) }
-            finally { reauthenticating = false; loading = false }
+            finally { reauthenticating = false; installingCookies = false; loading = false }
         }
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable private fun BrowserScreen() {
         var menu by remember { mutableStateOf(false) }
+        val busy = reauthenticating || installingCookies
         MaterialTheme(colorScheme = lightColorScheme(primary = Color(0xFF28766C), background = Color(0xFFF6F7F2))) {
             Scaffold(topBar = {
                 TopAppBar(title = { Text(pageTitle, maxLines = 1, style = MaterialTheme.typography.titleMedium) },
                     navigationIcon = { IconButton(onClick = { finish() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回首页") } },
                     actions = {
-                        IconButton(onClick = { webView.reload() }) { Icon(Icons.Outlined.Refresh, "刷新网页") }
+                        IconButton(enabled = !busy && challenge == null, onClick = { retryCurrentPage() }) { Icon(Icons.Outlined.Refresh, "刷新网页") }
                         Box {
-                            IconButton(onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "全部功能") }
+                            IconButton(enabled = !busy && challenge == null, onClick = { menu = true }) { Icon(Icons.Outlined.MoreVert, "全部功能") }
                             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                                routes.forEach { (label, path) -> DropdownMenuItem(text = { Text(label) }, onClick = { menu = false; webView.loadUrl(LibraryRepository.BASE_URL + path) }) }
+                                routes.forEach { (label, path) -> DropdownMenuItem(text = { Text(label) }, onClick = {
+                                    menu = false; requestedUrl = LibraryRepository.BASE_URL + path; webView.loadUrl(requestedUrl)
+                                }) }
                                 HorizontalDivider()
                                 DropdownMenuItem(text = { Text(if (mobile) "切换原网页布局" else "切换手机布局") }, onClick = {
                                     mobile = !mobile; menu = false
+                                    getSharedPreferences("library_browser", MODE_PRIVATE).edit().putBoolean("mobile_layout", mobile).apply()
                                     if (mobile) injectAdapter() else webView.evaluateJavascript("window.BuceaMobile?.setEnabled(false)", null)
                                 })
                             }
@@ -218,10 +309,23 @@ class SeatWebActivity : ComponentActivity() {
                     message?.let { text -> Surface(color = MaterialTheme.colorScheme.secondaryContainer) {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(text, Modifier.weight(1f).padding(vertical = 12.dp), style = MaterialTheme.typography.bodySmall)
-                            TextButton(onClick = { webView.loadUrl(LibraryRepository.BASE_URL + "/self") }) { Text("重试") }
+                            TextButton(enabled = !busy && challenge == null, onClick = { retryCurrentPage() }) { Text("重试") }
                         }
                     } }
-                    AndroidView(factory = { webView }, modifier = Modifier.weight(1f).fillMaxWidth())
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize(), update = {
+                            it.isEnabled = !busy
+                            it.importantForAccessibility = if (busy) View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS else View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+                        })
+                        if (busy) Surface(color = MaterialTheme.colorScheme.surface.copy(alpha = .85f), modifier = Modifier.fillMaxSize().pointerInput(Unit) {
+                            awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } }
+                        }) {
+                            Column(verticalArrangement = Arrangement.Center, horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                                CircularProgressIndicator()
+                                Text("正在恢复登录状态…", Modifier.padding(top = 16.dp))
+                            }
+                        }
+                    }
                 }
             }
             BackHandler { if (webView.canGoBack()) webView.goBack() else finish() }
@@ -230,7 +334,7 @@ class SeatWebActivity : ComponentActivity() {
                 AlertDialog(onDismissRequest = { challenge = null }, title = { Text("输入验证码") }, text = {
                     Column {
                         val bitmap = remember(pending.id) { BitmapFactory.decodeByteArray(pending.image, 0, pending.image.size) }
-                        Image(bitmap.asImageBitmap(), "验证码", Modifier.fillMaxWidth().height(90.dp))
+                        if (bitmap != null) Image(bitmap.asImageBitmap(), "验证码", Modifier.fillMaxWidth().height(90.dp))
                         OutlinedTextField(answer, onValueChange = { answer = it }, label = { Text("验证码") }, singleLine = true)
                     }
                 }, confirmButton = { TextButton(enabled = answer.isNotBlank() && !reauthenticating, onClick = {
@@ -238,7 +342,7 @@ class SeatWebActivity : ComponentActivity() {
                     lifecycleScope.launch {
                         try {
                             repository.submit(account, pending, answer)
-                            challenge = null; installCookies(); webView.loadUrl(LibraryRepository.BASE_URL + "/self")
+                            if (selectedAccountValid()) { challenge = null; installCookies(); webView.loadUrl(requestedUrl); message = null }
                         } catch (e: CancellationException) { throw e }
                         catch (e: Exception) {
                             message = repository.userMessage(e)
@@ -247,17 +351,32 @@ class SeatWebActivity : ComponentActivity() {
                                 catch (refreshError: CancellationException) { throw refreshError }
                                 catch (refreshError: Exception) { challenge = null; message = repository.userMessage(refreshError) }
                             }
-                        } finally { reauthenticating = false }
+                        } finally { reauthenticating = false; installingCookies = false }
                     }
                 }) { Text("登录") } }, dismissButton = { TextButton(onClick = { challenge = null; finish() }) { Text("返回首页") } })
             }
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        if (::account.isInitialized && ::webView.isInitialized) {
+            outState.putString("browser_account", account.id)
+            outState.putString("browser_url", safePageUrl(webView.url) ?: requestedUrl)
+            outState.putInt("browser_scroll_x", webView.scrollX)
+            outState.putInt("browser_scroll_y", webView.scrollY)
+        }
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onPause() { syncCookies(); super.onPause(); if (::webView.isInitialized) webView.onPause() }
-    override fun onResume() { super.onResume(); if (::webView.isInitialized) webView.onResume() }
+    override fun onResume() {
+        super.onResume()
+        if (::account.isInitialized && !selectedAccountValid()) { cookiesInstalled = false; finish(); return }
+        if (::webView.isInitialized) webView.onResume()
+    }
     override fun onDestroy() {
         if (::webView.isInitialized) { webView.stopLoading(); webView.destroy() }
+        completeSignOut()
         super.onDestroy()
         if (::ocr.isInitialized) ocr.close()
     }

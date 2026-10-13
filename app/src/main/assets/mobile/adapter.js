@@ -14,6 +14,7 @@
   var originalViewport = viewport ? viewport.getAttribute('content') : null;
   var createdViewport = !viewport;
   var labelledButtons = [];
+  var labelledLinks = [];
   var style = document.createElement('style');
   style.id = 'bucea-mobile-style';
   style.textContent = String.raw`
@@ -487,6 +488,7 @@ html[data-bucea-mobile="true"] .startTime h4,
 html[data-bucea-mobile="true"] .endTime h4 { float: none; width: auto; height: auto; padding: 8px 12px; background: var(--bm-teal); border-radius: 10px 10px 0 0; }
 html[data-bucea-mobile="true"] .startTime dl,
 html[data-bucea-mobile="true"] .endTime dl { float: none; box-sizing: border-box; width: 100%; height: auto; max-height: 220px; min-height: 64px; overflow-y: auto; border: 1px solid var(--bm-line); padding: 8px; border-radius: 0 0 10px 10px; }
+html[data-bucea-mobile="true"] .endTime p { height: auto; padding: 12px 8px; line-height: 1.6; font-size: 13px; }
 html[data-bucea-mobile="true"] .startTime ul,
 html[data-bucea-mobile="true"] .endTime ul { box-sizing: border-box; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; width: 100% !important; height: auto !important; margin: 0 !important; overflow: visible !important; }
 html[data-bucea-mobile="true"] .startTime li,
@@ -495,7 +497,7 @@ html[data-bucea-mobile="true"] .startTime li a,
 html[data-bucea-mobile="true"] .endTime li a { box-sizing: border-box; width: 100%; min-height: 44px; padding: 7px 2px; border-radius: 8px; background: #e4f1ed; color: var(--bm-teal); }
 html[data-bucea-mobile="true"] .startTime .onstarTime,
 html[data-bucea-mobile="true"] .endTime .onEndTime { background: var(--bm-teal) !important; color: white !important; }
-html[data-bucea-mobile="true"] .seatTimeFoot { box-sizing: border-box; width: 100% !important; max-width: 100%; float: none !important; display: flex; gap: 10px; padding: 12px 0 0 !important; margin: 0 !important; }
+html[data-bucea-mobile="true"] .seatTimeFoot { box-sizing: border-box; width: 100% !important; max-width: 100%; height: auto; min-height: 56px; float: none !important; display: flex; gap: 10px; padding: 12px 0 0 !important; margin: 0 !important; }
 html[data-bucea-mobile="true"] a.sureBtn,
 html[data-bucea-mobile="true"] a.cancelBtn { flex: 1; float: none; width: auto; min-height: 44px; height: auto; margin: 0 !important; padding: 4px 8px; border-radius: 12px; background: var(--bm-teal); }
 html[data-bucea-mobile="true"] a.cancelBtn { background: #e9eeec; color: var(--bm-navy); }
@@ -516,7 +518,7 @@ html[data-bucea-mobile="true"] .topHandle li { float: none; margin: 0; padding: 
 html[data-bucea-mobile="true"] .topHandle li a { box-sizing: border-box; width: auto; min-height: 44px; height: auto; padding: 10px 14px; line-height: 1.6; border-radius: 12px; background: var(--bm-teal); }
 html[data-bucea-mobile="true"] .topHandle li a.disabled { background: #dce4e2; color: #7c8987; }
 /* The map's rows, coordinates, transforms, widths and seat sprites are intentionally untouched. */
-html[data-bucea-mobile="true"] .seatLayoutList { padding: 14px; overflow: hidden !important; }
+html[data-bucea-mobile="true"] .seatLayoutList { padding: 14px; overflow: auto !important; }
 html[data-bucea-mobile="true"] .seatLayoutList h5 { float: none !important; box-sizing: border-box; width: auto; height: auto; background: none; color: var(--bm-navy); font-size: 17px; line-height: 1.6; text-indent: 0; padding-right: 44px; }
 html[data-bucea-mobile="true"] .seatInfr { float: none; width: auto; height: auto; margin: 10px 0; }
 html[data-bucea-mobile="true"] .seatInfr h6 { float: none; width: auto; height: auto; text-align: left; font-size: 12px; line-height: 1.5; }
@@ -530,7 +532,7 @@ html[data-bucea-mobile="true"] .seatLayoutList .seatLayout {
   width: 100% !important;
   height: 54vh !important;
   max-height: 600px;
-  min-height: 220px;
+  min-height: 160px;
   margin: 8px 0 0;
   overflow: auto !important;
   -webkit-overflow-scrolling: touch;
@@ -562,6 +564,19 @@ html:not([data-bucea-mobile="true"]) .bucea-map-hint { display: none; }
       button.setAttribute('data-bucea-labelled', 'true');
       button.value = button.classList.contains('seatBtn') ? '按座位号' : '查询';
     });
+    [
+      ['.scrollPic a.prev', '上一页'],
+      ['.scrollPic a.next', '下一页'],
+      ['.seatInfr a.quit', '关闭座位地图'],
+      ['a.moreBtn', '更多筛选条件'],
+      ['a.closeMB', '收起筛选条件']
+    ].forEach(function (entry) {
+      document.querySelectorAll(entry[0]).forEach(function (link) {
+        if (link.hasAttribute('aria-label')) return;
+        labelledLinks.push(link);
+        link.setAttribute('aria-label', entry[1]);
+      });
+    });
   }
 
   function restoreLabels() {
@@ -571,6 +586,20 @@ html:not([data-bucea-mobile="true"]) .bucea-map-hint { display: none; }
       entry.node.removeAttribute('data-bucea-labelled');
     });
     labelledButtons = [];
+    labelledLinks.forEach(function (link) { link.removeAttribute('aria-label'); });
+    labelledLinks = [];
+  }
+
+  function alignCurrentPage(scroller) {
+    if (!window.jQuery) return;
+    var api = window.jQuery(scroller).data('scrollable');
+    if (!api || typeof api.getIndex !== 'function' || typeof api.getItems !== 'function') return;
+    var page = api.getItems().eq(api.getIndex());
+    var wrap = api.getItemWrap();
+    if (!page.length || !wrap.length) return;
+    // Do not seekTo: the site's before-seek handler can fetch another AJAX page.
+    var offset = -page.position().left;
+    if (wrap[0].style.left !== offset + 'px') wrap.stop(true, false).css('left', offset + 'px');
   }
 
   function refreshNow() {
@@ -581,8 +610,10 @@ html:not([data-bucea-mobile="true"]) .bucea-map-hint { display: none; }
       var width = Math.round(scroller.clientWidth);
       if (!width) return;
       var widthValue = width + 'px';
-      if (scroller.style.getPropertyValue('--bm-page-width') !== widthValue) {
+      var widthChanged = scroller.style.getPropertyValue('--bm-page-width') !== widthValue;
+      if (widthChanged) {
         scroller.style.setProperty('--bm-page-width', widthValue);
+        alignCurrentPage(scroller);
       }
       var pages = scroller.querySelectorAll('.items .item');
       var index = 0;
@@ -623,6 +654,7 @@ html:not([data-bucea-mobile="true"]) .bucea-map-hint { display: none; }
       if (createdViewport) viewport.remove();
       else if (originalViewport === null) viewport.removeAttribute('content');
       else viewport.setAttribute('content', originalViewport);
+      document.querySelectorAll('.scrollable').forEach(alignCurrentPage);
     }
     return enabled;
   }
