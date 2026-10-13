@@ -14,6 +14,8 @@ class NativeAccountRepository(
     private val saveCredentials: (SavedAccount, String) -> Boolean,
     private val clearSession: (SavedAccount) -> Unit,
 ) {
+    private val accountsChangingPassword = mutableSetOf<String>()
+    private val submittedPasswordTokens = mutableSetOf<String>()
     constructor(repository: LibraryRepository, store: AccountStore) : this(
         request = repository::request,
         post = repository::post,
@@ -40,6 +42,14 @@ class NativeAccountRepository(
     )
 
     suspend fun changePassword(account: SavedAccount, currentPassword: String, newPassword: String, confirmation: String): PasswordChangeResult {
+        synchronized(accountsChangingPassword) {
+            require(accountsChangingPassword.add(account.id)) { "正在修改此账号的密码，请等待结果" }
+        }
+        return try { changePasswordOnce(account, currentPassword, newPassword, confirmation) }
+        finally { synchronized(accountsChangingPassword) { accountsChangingPassword.remove(account.id) } }
+    }
+
+    private suspend fun changePasswordOnce(account: SavedAccount, currentPassword: String, newPassword: String, confirmation: String): PasswordChangeResult {
         require(currentPassword.isNotBlank()) { "请输入当前密码" }
         require(newPassword.isNotBlank()) { "请输入新密码" }
         require(newPassword == confirmation) { "两次输入的新密码不一致" }
@@ -50,6 +60,11 @@ class NativeAccountRepository(
             "newPassword" to newPassword,
             "newPasswordConfirm" to confirmation,
         )
+        synchronized(submittedPasswordTokens) {
+            require(submittedPasswordTokens.add("${account.id}|${fields.getValue("SYNCHRONIZER_TOKEN")}")) {
+                "此修改请求已提交，请先核实密码，避免重复提交"
+            }
+        }
         val response = try { post(account, "/user/updateCredentials", fields) }
         catch (error: CancellationException) { throw error }
         catch (_: Exception) { throw PasswordChangeUncertain() }
@@ -92,20 +107,28 @@ class NativeAccountRepository(
         }
 
         fun parsePasswordResult(document: Document): PasswordChangeResult {
+            val serverFailure = document.title().trim() == "出错了" &&
+                document.select("h1").any { it.text().startsWith("Oops", ignoreCase = true) } &&
+                document.select("h3").any { it.text().contains("暂时无法处理您的请求") }
+            if (serverFailure) return PasswordChangeResult(PasswordChangeOutcome.UNKNOWN,
+                "学校服务器处理出错，修改结果未确认，请先核实密码")
             val scripts = document.select("script").joinToString("\n") { it.data() }
             val flash = Regex("""flashMsg\s*=\s*['"]([^'"]+)['"]""").find(scripts)?.groupValues?.get(1)
             val messages = document.select(".errors, .error, .alert-danger, .message, #msgBoxDIV .msg")
                 .map { it.text().trim() }.filter { it.isNotBlank() } + listOfNotNull(flash)
             val normalized = messages.map { it.trim().trimEnd('！', '!', '。', '.', '；', ';') }
             val success = setOf("密码修改成功", "修改密码成功", "密码更新成功", "更新密码成功", "您的密码已修改成功", "您的密码已经更新")
-            if (normalized.any { it in success }) return PasswordChangeResult(PasswordChangeOutcome.SUCCESS, "密码修改成功")
             val rejected = normalized.any { message ->
                 message in setOf("密码修改失败", "修改密码失败", "密码更新失败", "两次输入的密码不一致", "两次输入的新密码不一致") ||
                     (listOf("当前密码", "原密码", "旧密码").any(message::contains) && listOf("错误", "不正确", "不匹配").any(message::contains)) ||
                     (message.contains("密码") && listOf("不能为空", "至少", "不一致").any(message::contains))
             }
-            return if (rejected) PasswordChangeResult(PasswordChangeOutcome.REJECTED, "修改未成功，请检查当前密码、新密码格式及两次输入是否一致")
-            else PasswordChangeResult(PasswordChangeOutcome.UNKNOWN, "图书馆未明确确认修改结果，请先核实密码，避免重复提交")
+            val explicitError = document.select(".errors, .error, .alert-danger").any { it.text().isNotBlank() }
+            return when {
+                rejected -> PasswordChangeResult(PasswordChangeOutcome.REJECTED, "修改未成功，请检查当前密码、新密码格式及两次输入是否一致")
+                !explicitError && normalized.any { it in success } -> PasswordChangeResult(PasswordChangeOutcome.SUCCESS, "密码修改成功")
+                else -> PasswordChangeResult(PasswordChangeOutcome.UNKNOWN, "图书馆未明确确认修改结果，请先核实密码，避免重复提交")
+            }
         }
     }
 }

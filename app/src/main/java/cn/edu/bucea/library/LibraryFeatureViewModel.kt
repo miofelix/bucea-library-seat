@@ -44,6 +44,7 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     private var timesJob: Job? = null
     private var hubJob: Job? = null
     private var actionJob: Job? = null
+    private var detailsJob: Job? = null
     private val pages = mutableMapOf<Int, SeatPage>()
     private val backendSeats = mutableMapOf<String, LibrarySeat>()
     private var requestedQuery: SeatQuery? = null
@@ -299,20 +300,31 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
-    fun refreshHub() = refreshHub(null)
+    fun refreshHub() {
+        if (actionJob?.isActive == true) return
+        refreshHub(null)
+    }
 
     private fun refreshHub(retainedError: String?) {
         hubJob?.cancel()
+        detailsJob?.cancel()
+        val section = hubState.value.section
         hubJob = viewModelScope.launch {
             hubState.update { it.copy(loading = true, error = retainedError,
-                actions = if (actionRefreshRequired) emptyList() else it.actions) }
+                actions = if (actionRefreshRequired) emptyList() else it.actions,
+                records = if (actionRefreshRequired) it.records.map { record -> record.copy(canCancel = false) } else it.records,
+                selectedRecord = it.selectedRecord?.let { record -> if (actionRefreshRequired) record.copy(canCancel = false) else record },
+                detailsLoading = false, detailsError = null) }
             try {
                 val current = account()
                 val user = functions.userState(current)
-                when (hubState.value.section) {
+                when (section) {
                     HubSection.RESERVATIONS -> {
                         val result = functions.history(current)
-                        hubState.update { it.copy(records = result.items.map(::hubRecord), hasMore = result.nextOffset != null,
+                        historyItems.clear()
+                        val records = result.items.map(::hubRecord)
+                        hubState.update { it.copy(records = records, hasMore = result.nextOffset != null,
+                            selectedRecord = it.selectedRecord?.let { selected -> records.firstOrNull { record -> record.id == selected.id } },
                             currentStatus = result.userStatus, notice = operationNotice(result.message)) }
                         historyOffset = result.nextOffset
                     }
@@ -324,10 +336,15 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
                         val combined = saved.map { HubFavorite(it.id, it.label, it.room, local = true) } +
                             server.seats.filterNot { seat -> saved.any { it.id == seat.id } }.map { HubFavorite(it.id, it.label, it.room) }
                         hubState.update { it.copy(favorites = combined, hasMore = false, notice = operationNotice("收藏保存在本机；网站常用座位按原站记录显示")) }
+                        historyOffset = null
                     }
                     HubSection.VIOLATIONS -> {
                         val result = functions.violations(current)
-                        hubState.update { it.copy(records = result.items.map(::hubRecord), hasMore = result.nextOffset != null, notice = operationNotice(result.message)) }
+                        historyItems.clear()
+                        val records = result.items.map(::hubRecord)
+                        hubState.update { it.copy(records = records, hasMore = result.nextOffset != null,
+                            selectedRecord = it.selectedRecord?.let { selected -> records.firstOrNull { record -> record.id == selected.id } },
+                            notice = operationNotice(result.message)) }
                         historyOffset = result.nextOffset
                     }
                 }
@@ -347,6 +364,25 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
         historyItems[item.id] = item
         return HubRecord(item.id, item.title.ifBlank { "座位记录" }, item.status, item.details, canCancel = item.cancelPath != null)
     }
+
+    fun openRecord(record: HubRecord) {
+        if (hubState.value.loading || actionJob?.isActive == true) return
+        detailsJob?.cancel()
+        val item = historyItems[record.id] ?: return
+        hubState.update { it.copy(selectedRecord = record, detailsLoading = item.detailPath != null, detailsError = null) }
+        if (item.detailPath == null) return
+        detailsJob = viewModelScope.launch {
+            try {
+                val details = functions.reservationDetails(account(), item)
+                hubState.update { it.copy(selectedRecord = hubRecord(details).let { record ->
+                    if (actionRefreshRequired) record.copy(canCancel = false) else record
+                }, detailsLoading = false, detailsError = null) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { hubState.update { it.copy(detailsError = repository.userMessage(e), detailsLoading = false) } }
+        }
+    }
+
+    fun dismissRecord() { detailsJob?.cancel(); hubState.update { it.copy(selectedRecord = null, detailsLoading = false, detailsError = null) } }
 
     fun selectMappedSeat(seat: LibrarySeat, onDate: String) {
         if (searchState.value.reservationBusy || !seat.available) return
@@ -371,34 +407,45 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     }
 
     fun cancelRecord(record: HubRecord) {
-        if (hubState.value.loading || actionJob?.isActive == true || !record.canCancel) return
+        if (hubState.value.loading || actionJob?.isActive == true || actionRefreshRequired || !record.canCancel) return
         val item = historyItems[record.id] ?: return
+        if (hubState.value.section != HubSection.RESERVATIONS || item.cancelPath == null) return
+        detailsJob?.cancel()
         actionJob = viewModelScope.launch {
-            mutationState.value = true; hubState.update { it.copy(loading = true, error = null) }
+            mutationState.value = true
+            actionRefreshRequired = true
+            hubState.update { it.copy(loading = true, error = null, actions = emptyList(),
+                records = it.records.map { record -> record.copy(canCancel = false) }, selectedRecord = null,
+                detailsLoading = false, detailsError = null) }
             var error: String? = null
             try { lastActionMessage = functions.cancelHistory(account(), item).message }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { error = repository.userMessage(e) + "；请同步记录核实取消结果" }
             finally { if (coroutineContext[Job]?.isActive == true) { mutationState.value = false; hubState.update { it.copy(loading = false) } } }
-            actionRefreshRequired = true; refreshHub(error)
+            refreshHub(error)
         }
     }
 
     fun selectHubSection(section: HubSection) {
+        if (hubState.value.loading || actionJob?.isActive == true) return
+        dismissRecord()
+        historyItems.clear(); historyOffset = null
         hubState.update { it.copy(section = section, records = emptyList(), favorites = emptyList(), hasMore = false, notice = null) }
         refreshHub()
     }
 
     fun loadMoreHistory() {
-        if (hubState.value.loading) return
+        if (hubState.value.loading || actionJob?.isActive == true || hubState.value.section == HubSection.FAVORITES) return
         val offset = historyOffset ?: return
+        val section = hubState.value.section
         hubJob = viewModelScope.launch {
             hubState.update { it.copy(loading = true, error = null) }
             try {
-                val result = if (hubState.value.section == HubSection.VIOLATIONS) functions.violations(account(), offset) else functions.history(account(), offset)
+                val result = if (section == HubSection.VIOLATIONS) functions.violations(account(), offset) else functions.history(account(), offset)
                 historyOffset = result.nextOffset
-                hubState.update { it.copy(records = (it.records + result.items.map(::hubRecord)).distinctBy { record -> record.id },
-                    hasMore = result.nextOffset != null, notice = result.message.ifBlank { null }) }
+                val records = result.items.map(::hubRecord).map { record -> if (actionRefreshRequired) record.copy(canCancel = false) else record }
+                hubState.update { it.copy(records = (it.records + records).distinctBy { record -> record.id },
+                    hasMore = result.nextOffset != null, notice = operationNotice(result.message)) }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { hubState.update { it.copy(error = repository.userMessage(e)) } }
             finally { if (coroutineContext[Job]?.isActive == true) hubState.update { it.copy(loading = false) } }
@@ -476,6 +523,6 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
 
     fun dismissExtension() { extensionState.value = emptyList() }
 
-    private fun cancelWork() { listOf(optionsJob, searchJob, roomsJob, timesJob, hubJob, actionJob).forEach { it?.cancel() } }
+    private fun cancelWork() { listOf(optionsJob, searchJob, roomsJob, timesJob, hubJob, actionJob, detailsJob).forEach { it?.cancel() } }
     override fun onCleared() { cancelWork(); if (ocrResource.isInitialized()) ocrResource.value.close(); super.onCleared() }
 }

@@ -3,6 +3,9 @@ package cn.edu.bucea.library
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import cn.edu.bucea.library.data.*
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import java.io.IOException
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -31,5 +34,91 @@ class NativeCancellationInstrumentedTest {
         try { repository.cancelHistory(account, item); fail("Stale cancellation must be blocked") }
         catch (_: IllegalArgumentException) { }
         assertEquals(listOf("/history?type=SEAT"), paths)
+    }
+
+    @Test fun actualSchoolCancellationFormUsesFreshPostTokenAndStableReservationIdentity() = runBlocking {
+        fun page(token: String, status: String = "已预约") = """<div class="myReserveList"><dl>
+            <dt>明天 07:30 -- 08:00</dt><dd><a href="/view?id=123456&amp;type=SEAT" title="图书馆二层001D号">图书馆二层001D号</a></dd>
+            <form action="/reservation/cancel" method="post" id="form_123456">
+            <input type="hidden" name="SYNCHRONIZER_TOKEN" value="$token">
+            <input type="hidden" name="SYNCHRONIZER_URI" value="/history"><input type="hidden" name="id" value="123456">
+            <a onclick="MyDoSubmit('123456')" class="normal" title="点击取消预约">取消预约</a></form><a class="normal">$status</a></dl></div>"""
+        val original = LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(page("stale-token"))).items.single()
+        val changed = LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(page("changed-token", "已取消"))).items.single()
+        assertEquals("reservation_123456", original.id)
+        assertEquals(original.id, changed.id)
+        assertEquals("已预约", original.status)
+        assertEquals("POST", original.cancelMethod)
+        assertEquals("/view?id=123456&type=SEAT", original.detailPath)
+        val gets = mutableListOf<String>()
+        var submitted: Map<String, String>? = null
+        val repository = LibraryFunctionsRepository(request = { _, path -> gets += path; page("fresh-token") },
+            post = { _, path, fields ->
+                assertEquals("/reservation/cancel", path)
+                submitted = fields
+                """{"status":"success","message":"预约已取消"}"""
+            })
+        assertTrue(repository.cancelHistory(account, original).success)
+        assertEquals(listOf("/history?type=SEAT"), gets)
+        assertEquals("fresh-token", submitted?.get("SYNCHRONIZER_TOKEN"))
+        assertEquals("/history", submitted?.get("SYNCHRONIZER_URI"))
+        assertEquals("123456", submitted?.get("id"))
+    }
+
+    @Test fun actualCanceledHistoryResponseConfirmsPostAndKeepsRecordStatus() = runBlocking {
+        val pending = """<div class="myReserveList"><dl><dt>明天 07:30 -- 08:00</dt><dd><a href="/view?id=123456&amp;type=SEAT">001D</a></dd>
+            <form action="/reservation/cancel" method="post"><input type="hidden" name="SYNCHRONIZER_TOKEN" value="fresh">
+            <input type="hidden" name="SYNCHRONIZER_URI" value="/history"><input type="hidden" name="id" value="123456">
+            <a onclick="MyDoSubmit('123456')">取消预约</a></form><a class="normal">已预约</a></dl></div>"""
+        val canceled = """<div class="myReserveList"><dl><dt>明天 07:30 -- 08:00</dt><dd><a href="/view?id=123456&amp;type=SEAT">001D</a></dd>
+            <a class="Missed">已取消</a></dl></div>"""
+        val parsed = LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(canceled)).items.single()
+        assertEquals("已取消", parsed.status)
+        assertNull(parsed.cancelPath)
+        val repository = LibraryFunctionsRepository(request = { _, _ -> pending }, post = { _, _, _ -> canceled })
+        val result = repository.cancelHistory(account, LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(pending)).items.single())
+        assertTrue(result.success)
+        assertEquals("取消预约成功", result.message)
+    }
+
+    @Test fun genericPostResponseNeedsFreshCanceledHistoryReadback() = runBlocking {
+        val pending = """<div class="myReserveList"><dl><dt>明天 07:30 -- 08:00</dt><dd><a href="/view?id=123456&amp;type=SEAT">001D</a></dd>
+            <form action="/reservation/cancel" method="post"><input type="hidden" name="SYNCHRONIZER_TOKEN" value="fresh">
+            <input type="hidden" name="SYNCHRONIZER_URI" value="/history"><input type="hidden" name="id" value="123456"></form><a class="normal">已预约</a></dl></div>"""
+        val canceled = """<div class="myReserveList"><dl><dt>明天 07:30 -- 08:00</dt><dd><a href="/view?id=123456&amp;type=SEAT">001D</a></dd>
+            <a class="Missed">已取消</a></dl></div>"""
+        var gets = 0
+        var posts = 0
+        val repository = LibraryFunctionsRepository(request = { _, path ->
+            assertEquals("/history?type=SEAT", path)
+            gets++; if (gets == 1) pending else canceled
+        }, post = { _, _, _ -> posts++; "<p>请求已处理</p>" })
+        val result = repository.cancelHistory(account, LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(pending)).items.single())
+        assertTrue(result.success)
+        assertEquals("取消预约成功", result.message)
+        assertEquals(2, gets)
+        assertEquals(1, posts)
+    }
+
+    @Test fun concurrentAndAmbiguousCancellationCannotResubmitSameFreshToken() = runBlocking {
+        val page = """<div class="myReserveList"><dl><dt>预约</dt><dd><a href="/view?id=123456&amp;type=SEAT">001D</a></dd>
+            <form action="/reservation/cancel" method="post"><input type="hidden" name="SYNCHRONIZER_TOKEN" value="same-token">
+            <input type="hidden" name="SYNCHRONIZER_URI" value="/history"><input type="hidden" name="id" value="123456"></form><a>已预约</a></dl></div>"""
+        val item = LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(page)).items.single()
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        var posts = 0
+        val repository = LibraryFunctionsRepository(request = { _, _ -> page }, post = { _, _, _ ->
+            posts++; entered.complete(Unit); release.await(); throw IOException("synthetic ambiguous result")
+        })
+        val first = async { try { repository.cancelHistory(account, item); fail("Timeout must remain unknown") } catch (_: IOException) { } }
+        entered.await()
+        try { repository.cancelHistory(account, item); fail("Concurrent duplicate must be blocked") }
+        catch (_: IllegalArgumentException) { }
+        release.complete(Unit)
+        first.await()
+        try { repository.cancelHistory(account, item); fail("Used token must not be submitted after timeout") }
+        catch (_: IllegalArgumentException) { }
+        assertEquals(1, posts)
     }
 }

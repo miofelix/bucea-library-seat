@@ -1,6 +1,7 @@
 package cn.edu.bucea.library.ui
 
 import android.graphics.BitmapFactory
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -77,6 +79,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -148,6 +151,9 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
         }
     }
     val verifySearch: () -> Unit = { state.activeAccountId?.let { verificationOrigin = "search"; verification.begin(it, seatState.verificationUserId) } }
+    BackHandler(enabled = tab != 0 && !mapOpen) {
+        if (!mutating && !seatState.reservationBusy && !accountState.busy && !state.busy && verificationState.context == null) tab = 0
+    }
     MaterialTheme(colorScheme = lightColorScheme(primary = Teal, onPrimary = Color.White, secondary = Ink,
         secondaryContainer = SoftGreen, onSecondaryContainer = Ink, background = Paper, surface = Color.White,
         onBackground = Ink, onSurface = Ink, surfaceVariant = SoftGreen, onSurfaceVariant = Muted, outline = Line,
@@ -156,8 +162,8 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
         Scaffold(containerColor = Paper, bottomBar = {
             NavigationBar(containerColor = Color.White, tonalElevation = 0.dp) {
                 destinations.forEachIndexed { index, (label, icon) -> NavigationBarItem(
-                    selected = tab == index, enabled = !mutating && !seatState.reservationBusy && !accountState.busy && verificationState.context == null,
-                    onClick = { mapOpen = false; tab = index }, icon = { Icon(icon, null, Modifier.size(23.dp)) },
+                    selected = tab == index, enabled = !state.busy && !mutating && !seatState.reservationBusy && !accountState.busy && verificationState.context == null,
+                    onClick = { features.dismissRecord(); mapOpen = false; tab = index }, icon = { Icon(icon, null, Modifier.size(23.dp)) },
                     label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium) },
                     colors = NavigationBarItemDefaults.colors(selectedIconColor = Teal, selectedTextColor = Teal,
                         indicatorColor = SoftGreen, unselectedIconColor = Muted, unselectedTextColor = Muted)) }
@@ -185,7 +191,8 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
                 tab == 2 -> if (state.authenticated) LibraryHubScreen(hubState, Modifier.padding(padding), features::refreshHub,
                     features::selectHubSection, features::loadMoreHistory, onSearch = { tab = 1 }, onOpenMap = { tab = 1; mapOpen = true },
                     onFavorite = { favorite -> tab = 1; features.loadSearch(features.favoriteSeat(favorite)) },
-                    onRemoveFavorite = features::removeFavorite, onAction = features::performAction, onCancelRecord = features::cancelRecord)
+                    onRemoveFavorite = features::removeFavorite, onAction = features::performAction, onCancelRecord = features::cancelRecord,
+                    onOpenRecord = features::openRecord, onDismissRecord = features::dismissRecord)
                 else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login) { tab = 3 }
                 tab == 3 -> AccountsScreen(state.copy(busy = state.busy || seatState.reservationBusy || mutating || accountState.busy),
                     Modifier.padding(padding), viewModel::saveAccount, viewModel::selectAccount, viewModel::deleteAccount, viewModel::login,
@@ -202,8 +209,9 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
         })
         if (extensionOptions.isNotEmpty()) {
             var selected by remember(extensionOptions) { mutableStateOf<String?>(null) }
+            val maximumHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.45f).coerceAtMost(360.dp)
             AlertDialog(onDismissRequest = features::dismissExtension, title = { Text("续约至") },
-                text = { Column(Modifier.verticalScroll(rememberScrollState())) {
+                text = { Column(Modifier.fillMaxWidth().heightIn(max = maximumHeight).verticalScroll(rememberScrollState())) {
                     extensionOptions.forEach { option -> TextButton(onClick = { selected = option.value }, modifier = Modifier.fillMaxWidth()) {
                         Text(if (selected == option.value) "✓ ${option.label}" else option.label)
                     } }

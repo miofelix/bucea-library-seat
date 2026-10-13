@@ -8,6 +8,8 @@ import cn.edu.bucea.library.data.PasswordChangeUncertain
 import cn.edu.bucea.library.data.SavedAccount
 import cn.edu.bucea.library.data.models.PasswordChangeOutcome
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -76,6 +78,8 @@ class NativeAccountInstrumentedTest {
         }
         assertEquals(PasswordChangeOutcome.REJECTED, NativeAccountRepository.parsePasswordResult(
             LibraryHtml.parse("<div class='errors'>当前密码不正确</div>")).outcome)
+        assertEquals(PasswordChangeOutcome.REJECTED, NativeAccountRepository.parsePasswordResult(LibraryHtml.parse(
+            "<div class='message'>密码修改成功</div><div class='errors'>当前密码不正确</div>")).outcome)
     }
 
     @Test fun timeoutAfterPasswordSubmissionNeverRetriesOrClaimsSuccess() = runBlocking {
@@ -84,6 +88,21 @@ class NativeAccountInstrumentedTest {
         try { repository.changePassword(account, "synthetic-old", "synthetic-new", "synthetic-new"); fail("Ambiguous submission must fail") }
         catch (_: PasswordChangeUncertain) { }
         assertEquals(1, posts)
+    }
+
+    @Test fun observedSchoolHttp200ErrorPagePreservesUnknownOutcomeAndSavedCredentials() = runBlocking {
+        var saves = 0
+        var posts = 0
+        val errorPage = """<html><head><title>出错了</title></head><body>
+            <h1>Oops...</h1><h3>对不起，我们暂时无法处理您的请求，请稍候再试。</h3></body></html>"""
+        val repository = NativeAccountRepository({ _, _ -> form() }, { _, _, _ -> posts++; errorPage },
+            { true }, { _, _ -> saves++; true }, {})
+        val result = repository.changePassword(account, "synthetic-old", "synthetic-new", "synthetic-new")
+        assertEquals(1, posts)
+        assertEquals(0, saves)
+        assertEquals(PasswordChangeOutcome.UNKNOWN, result.outcome)
+        assertFalse(result.credentialsSaved)
+        assertEquals("学校服务器处理出错，修改结果未确认，请先核实密码", result.message)
     }
 
     @Test fun serverSuccessAndLocalStorageFailureRemainACompletedChange() = runBlocking {
@@ -107,5 +126,26 @@ class NativeAccountInstrumentedTest {
         assertEquals(1, requests)
         assertEquals(1, clears)
         assertTrue(message.contains("已退出本机"))
+    }
+
+    @Test fun concurrentAndAmbiguousPasswordChangeCannotResubmitSameToken() = runBlocking {
+        val entered = CompletableDeferred<Unit>()
+        val release = CompletableDeferred<Unit>()
+        var posts = 0
+        val repository = NativeAccountRepository({ _, _ -> form() }, { _, _, _ ->
+            posts++; entered.complete(Unit); release.await(); throw IOException("synthetic timeout")
+        }, { true }, { _, _ -> fail("Unknown result must not save a password"); false }, {})
+        val first = async {
+            try { repository.changePassword(account, "synthetic-old", "synthetic-new", "synthetic-new"); fail("Timeout must remain unknown") }
+            catch (_: PasswordChangeUncertain) { }
+        }
+        entered.await()
+        try { repository.changePassword(account, "synthetic-old", "synthetic-new", "synthetic-new"); fail("Concurrent change must be blocked") }
+        catch (_: IllegalArgumentException) { }
+        release.complete(Unit)
+        first.await()
+        try { repository.changePassword(account, "synthetic-old", "synthetic-new", "synthetic-new"); fail("Used token must not be sent after timeout") }
+        catch (_: IllegalArgumentException) { }
+        assertEquals(1, posts)
     }
 }

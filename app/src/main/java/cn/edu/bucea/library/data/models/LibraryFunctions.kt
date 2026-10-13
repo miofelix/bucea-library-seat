@@ -83,6 +83,9 @@ data class LibraryHistoryItem(
     val details: List<String>,
     val status: String,
     val cancelPath: String? = null,
+    val cancelMethod: String? = null,
+    val reservationId: String? = null,
+    val detailPath: String? = null,
 )
 
 data class ReservationHistory(

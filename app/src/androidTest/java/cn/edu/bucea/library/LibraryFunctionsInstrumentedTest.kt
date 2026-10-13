@@ -166,10 +166,29 @@ class LibraryFunctionsInstrumentedTest {
     }
 
     @Test
+    fun invalidDateAndOutOfDayTimesNeverSubmitReservation() = runBlocking {
+        var posts = 0
+        val account = SavedAccount("fake", "209999990001", "fake", "测试")
+        val repository = LibraryFunctionsRepository(request = { _, _ -> error("Prepared input needs no GET") },
+            post = { _, _, _ -> posts++; "<p>预约成功</p>" })
+        val seat = LibrarySeat("1", "001", "阅览室", "空闲", true)
+        for ((date, start, end) in listOf(Triple("2026-02-30", "450", "480"), Triple("2026-10-14", "-30", "30"),
+            Triple("2026-10-14", "450", "1500"))) {
+            val prepared = PreparedReservation(ReservationSelection(date, seat, LibraryOption(start, "开始"), LibraryOption(end, "结束")),
+                mapOf("SYNCHRONIZER_TOKEN" to "synthetic-token"), false, account.id)
+            try { repository.reserve(account, prepared); fail("Invalid reservation must be blocked before POST") }
+            catch (_: IllegalArgumentException) { }
+        }
+        assertEquals(0, posts)
+    }
+
+    @Test
     fun timeOptionsExcludeDisabledSlotsAndPreserveServerValues() {
         val times = LibraryFunctionsRepository.parseTimes("""
             <input id="building" value="图书馆"><input id="room" value="二层内环区">
             <a time="480">08:00</a><a time="495" class="disabled">08:15</a><a time="510">08:30</a>
+            <li class="disabled"><a time="540">09:00</a></li><a time="-10">非法时间</a><a time="5000">非法时间</a>
+            <a time="510">08:30重复项</a>
         """.trimIndent())
         assertEquals(listOf("480", "510"), times.options.map { it.value })
         assertEquals(listOf("08:00", "08:30"), times.options.map { it.label })
@@ -219,6 +238,33 @@ class LibraryFunctionsInstrumentedTest {
         assertTrue(limited.verificationRequired)
         assertTrue(limited.options.isEmpty())
         assertEquals("请完成验证码验证", limited.message)
+    }
+
+    @Test
+    fun actualSchoolReceiptConfirmsBookingAndNormalizesChineseDateAndSpacedTime() {
+        val document = LibraryHtml.parse("""<div class="content"><div class="layoutSeat"><dl>
+            <dt>系统已经为您预定好了<span>座位</span></dt>
+            <dd><em>凭证号 ： </em>test-receipt</dd><dd><em>日&nbsp;&nbsp;&nbsp;&nbsp;期 ： </em>2026 年 10 月 14 日</dd>
+            <dd><em>时&nbsp;&nbsp;&nbsp;&nbsp;间 ： </em>07 : 30 - 08 : 00</dd>
+            <dd><em>位&nbsp;&nbsp;&nbsp;&nbsp;置 ： </em>图书馆二层，座位号001D</dd><dd><em>状&nbsp;&nbsp;&nbsp;&nbsp;态 ： </em>预约</dd>
+            </dl></div></div>""")
+        val result = LibraryFunctionsRepository.parseReservationResult(document)
+        assertTrue(result.success)
+        assertEquals("预约成功", result.message)
+        assertEquals("test-receipt", result.receipt?.number)
+        assertEquals("2026-10-14", result.receipt?.onDate)
+        assertEquals("07:30", result.receipt?.begin)
+        assertEquals("08:00", result.receipt?.end)
+        assertEquals("预约", result.receipt?.status)
+        val canceledDocument = LibraryHtml.parse(document.outerHtml())
+        canceledDocument.select(".layoutSeat dd").last()!!.html("<em>状态 ： </em>取消")
+        val canceled = LibraryFunctionsRepository.parseReservationResult(canceledDocument)
+        assertFalse("A canceled receipt must not be reported as a newly successful booking", canceled.success)
+        assertEquals("取消", canceled.receipt?.status)
+        val rejectedDocument = LibraryHtml.parse(document.outerHtml())
+        rejectedDocument.body().append("<div class='errors'>座位已被占用，请重新查询</div>")
+        assertFalse("An old receipt beside an explicit error cannot confirm a new booking",
+            LibraryFunctionsRepository.parseReservationResult(rejectedDocument).success)
     }
 
     @Test

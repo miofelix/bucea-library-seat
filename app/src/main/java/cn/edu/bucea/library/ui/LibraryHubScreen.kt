@@ -1,5 +1,6 @@
 package cn.edu.bucea.library.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -73,6 +74,9 @@ data class LibraryHubState(
     val actions: List<HubAction> = emptyList(),
     val hasMore: Boolean = false,
     val notice: String? = null,
+    val selectedRecord: HubRecord? = null,
+    val detailsLoading: Boolean = false,
+    val detailsError: String? = null,
 )
 
 private val HubInk = Color(0xFF183334)
@@ -95,14 +99,25 @@ fun LibraryHubScreen(
     onRemoveFavorite: (HubFavorite) -> Unit,
     onAction: (HubAction) -> Unit,
     onCancelRecord: (HubRecord) -> Unit,
+    onOpenRecord: (HubRecord) -> Unit,
+    onDismissRecord: () -> Unit,
 ) {
     var confirmingAction by remember(state.currentStatus, state.currentDetails) { mutableStateOf<HubAction?>(null) }
-    var removingFavorite by remember { mutableStateOf<HubFavorite?>(null) }
-    var selectedRecord by remember(state.section) { mutableStateOf<HubRecord?>(null) }
-    var cancellingRecord by remember { mutableStateOf<HubRecord?>(null) }
-    LaunchedEffect(state.actions, state.favorites) {
+    var removingFavorite by remember(state.section) { mutableStateOf<HubFavorite?>(null) }
+    var cancellingRecord by remember(state.section) { mutableStateOf<HubRecord?>(null) }
+    val maximumDialogHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.45f).coerceAtMost(360.dp)
+    LaunchedEffect(state.actions, state.favorites, state.records) {
         if (confirmingAction?.id?.let { id -> state.actions.none { it.id == id } } == true) confirmingAction = null
         if (removingFavorite?.id?.let { id -> state.favorites.none { it.id == id } } == true) removingFavorite = null
+        if (cancellingRecord?.id?.let { id -> state.records.none { it.id == id && it.canCancel } } == true) cancellingRecord = null
+    }
+    BackHandler(enabled = state.selectedRecord != null || cancellingRecord != null || confirmingAction != null || removingFavorite != null) {
+        when {
+            cancellingRecord != null -> cancellingRecord = null
+            confirmingAction != null && !state.loading -> confirmingAction = null
+            removingFavorite != null && !state.loading -> removingFavorite = null
+            state.selectedRecord != null -> onDismissRecord()
+        }
     }
     val sectionTitle = when (state.section) {
         HubSection.RESERVATIONS -> "我的预约"
@@ -220,7 +235,7 @@ fun LibraryHubScreen(
                 FavoriteCard(favorite, state.loading, { onFavorite(favorite) }, { removingFavorite = favorite })
             }
         } else {
-            items(state.records, key = { "record_${it.id}" }) { record -> HubRecordCard(record) { selectedRecord = record } }
+            items(state.records, key = { "record_${it.id}" }) { record -> HubRecordCard(record, !state.loading) { onOpenRecord(record) } }
         }
         val empty = if (state.section == HubSection.FAVORITES) state.favorites.isEmpty() else state.records.isEmpty()
         if (empty && !state.loading && state.error == null) item {
@@ -259,17 +274,24 @@ fun LibraryHubScreen(
         }
     }
 
-    selectedRecord?.let { record ->
-        AlertDialog(onDismissRequest = { selectedRecord = null }, title = { Text(record.title.ifBlank { "记录详情" }) },
-            text = { Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    state.selectedRecord?.let { record ->
+        AlertDialog(onDismissRequest = onDismissRecord, title = { Text(record.title.ifBlank { "记录详情" }) },
+            text = { Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (state.detailsLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                record.status.takeIf { it.isNotBlank() }?.let { Text(it, color = HubTeal, fontWeight = FontWeight.Medium) }
+                state.detailsError?.let { error ->
+                    Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = { onOpenRecord(record) }, enabled = !state.loading && !state.detailsLoading) { Text("重新读取详情") }
+                }
                 record.details.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
-            } }, confirmButton = { TextButton(onClick = { selectedRecord = null }) { Text("关闭") } },
+            } }, confirmButton = { TextButton(onClick = onDismissRecord) { Text("关闭") } },
             dismissButton = { if (record.canCancel && state.section == HubSection.RESERVATIONS)
-                TextButton(enabled = !state.loading, onClick = { selectedRecord = null; cancellingRecord = record }) { Text("取消预约", color = MaterialTheme.colorScheme.error) } })
+                TextButton(enabled = !state.loading && !state.detailsLoading, onClick = { onDismissRecord(); cancellingRecord = record }) { Text("取消预约", color = MaterialTheme.colorScheme.error) } })
     }
     cancellingRecord?.let { record ->
         AlertDialog(onDismissRequest = { cancellingRecord = null }, title = { Text("取消这次预约？") },
-            text = { Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            text = { Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(record.title, fontWeight = FontWeight.Medium)
                 record.details.forEach { Text(it) }; Text("取消后该时段的座位将释放。")
             } }, confirmButton = { TextButton(enabled = !state.loading, onClick = { cancellingRecord = null; onCancelRecord(record) }) { Text("确认取消预约") } },
             dismissButton = { TextButton(onClick = { cancellingRecord = null }) { Text("保留预约") } })
@@ -334,8 +356,8 @@ private fun HubShortcut(title: String, detail: String, icon: androidx.compose.ui
 }
 
 @Composable
-private fun HubRecordCard(record: HubRecord, onClick: () -> Unit) {
-    Card(onClick = onClick, shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+private fun HubRecordCard(record: HubRecord, enabled: Boolean, onClick: () -> Unit) {
+    Card(onClick = onClick, enabled = enabled, shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(Modifier.fillMaxWidth().padding(17.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text(record.title, color = HubInk, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             record.status.takeIf { it.isNotBlank() }?.let { status ->

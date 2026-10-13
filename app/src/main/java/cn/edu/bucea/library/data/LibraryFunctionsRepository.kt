@@ -5,6 +5,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.json.JSONObject
 import org.jsoup.nodes.Document
 import java.security.MessageDigest
+import java.time.LocalDate
+import kotlinx.coroutines.CancellationException
 
 /** Native library functions using the same per-account authenticated campus session. */
 class LibraryFunctionsRepository(
@@ -13,6 +15,7 @@ class LibraryFunctionsRepository(
 ) {
     constructor(library: LibraryRepository) : this(library::request, library::post)
     private val submittedTokens = mutableSetOf<String>()
+    private val cancellationsInFlight = mutableSetOf<String>()
     private data class Catalog(val loadedAt: Long, val seats: List<LibrarySeat>)
     private val catalogs = mutableMapOf<String, Catalog>()
     suspend fun options(account: SavedAccount): SeatSearchOptions =
@@ -107,32 +110,82 @@ class LibraryFunctionsRepository(
 
     /** A cancellation is offered only when the account's fresh history exposes that exact action. */
     suspend fun cancelHistory(account: SavedAccount, record: LibraryHistoryItem): ReservationResult {
+        val operation = "${account.id}|${record.id}"
+        synchronized(cancellationsInFlight) {
+            require(cancellationsInFlight.add(operation)) { "正在处理这条预约，请等待结果后刷新记录" }
+        }
+        return try { cancelHistoryOnce(account, record) }
+        finally { synchronized(cancellationsInFlight) { cancellationsInFlight.remove(operation) } }
+    }
+
+    private suspend fun cancelHistoryOnce(account: SavedAccount, record: LibraryHistoryItem): ReservationResult {
         val action = record.cancelPath ?: throw IllegalArgumentException("这条记录当前不能取消")
-        val fresh = history(account)
-        var matches = fresh.items
+        var freshDocument = authenticatedPage(account, "/history?type=SEAT")
+        var fresh = parseHistory(freshDocument)
+        var match = fresh.items.firstOrNull { it.id == record.id }
         var offset = fresh.nextOffset
         var pages = 0
-        while (matches.none { it.id == record.id } && offset != null && pages++ < 10) {
-            val more = history(account, offset)
-            matches = more.items
-            offset = more.nextOffset
+        while (match == null && offset != null && pages++ < 10) {
+            val data = json(request(account, path("/user/viewMoreHistory", "type" to "SEAT", "offset" to offset.toString())))
+            freshDocument = LibraryHtml.parse(data.optString("resStr"))
+            fresh = parseHistory(freshDocument)
+            match = fresh.items.firstOrNull { it.id == record.id }
+            offset = data.optInt("offset", -1).takeIf { it >= 0 && data.optInt("resNum") > 0 }
         }
-        require(matches.any { it.id == record.id && it.cancelPath == action }) { "预约状态已改变，请同步记录后重试" }
+        require(match != null && match.cancelPath == action) { "预约状态已改变，请同步记录后重试" }
+        val matched = requireNotNull(match)
         val url = (LibraryRepository.BASE_URL + action).toHttpUrl()
         require(action.startsWith("/") && !action.startsWith("//") && url.host == "10.1.20.7" &&
             url.encodedPath.contains("cancel", ignoreCase = true)) { "取消操作参数异常，请更新记录" }
-        val response = request(account, action)
+        val response = if (matched.cancelMethod == "POST") {
+            require(url.encodedPath == "/reservation/cancel" && !matched.reservationId.isNullOrBlank()) { "取消操作参数异常，请更新记录" }
+            val form = freshDocument.select("form[action='/reservation/cancel'][method]").firstOrNull {
+                it.attr("method").equals("post", true) && it.selectFirst("input[name=id]")?.attr("value") == matched.reservationId
+            } ?: throw IllegalArgumentException("预约状态已改变，请同步记录后重试")
+            val fields = form.select("input[type=hidden][name]").associate { it.attr("name") to it.attr("value") }
+            require(!fields["SYNCHRONIZER_TOKEN"].isNullOrBlank() && fields["SYNCHRONIZER_URI"] == "/history" &&
+                fields["id"] == matched.reservationId) { "取消预约校验参数已失效，请刷新记录" }
+            markSubmitted(account.id, "cancel", fields.getValue("SYNCHRONIZER_TOKEN"))
+            post(account, action, fields)
+        } else request(account, action)
         if (response.trimStart().startsWith("{")) {
             val data = json(response)
             return ReservationResult(data.optString("status") == "success", data.optString("message").ifBlank { "取消请求已提交，请同步记录核实" })
         }
         val document = LibraryHtml.parse(response)
         if (document.selectFirst("form[action='/auth/signIn']") != null) throw LoginFailure(FailureKind.CREDENTIALS, "登录已失效，请重新登录")
+        val canceled = parseHistory(document).items.firstOrNull { it.id == record.id }
+        if (canceled?.status?.contains("取消") == true)
+            return ReservationResult(true, "取消预约成功")
         val scripts = document.select("script").joinToString("\n") { it.data() }
         val message = document.selectFirst("#msgBoxDIV .msg, .errors, .error")?.text()?.takeIf { it.isNotBlank() }
             ?: Regex("""flashMsg\s*=\s*['"]([^'"]+)['"]""").find(scripts)?.groupValues?.get(1)
             ?: "取消请求已提交，请同步记录核实结果"
-        return ReservationResult(message.trimEnd('！', '!', '。') in setOf("取消成功", "预约已取消", "取消预约成功"), message)
+        if (message.trimEnd('！', '!', '。') in setOf("取消成功", "预约已取消", "取消预约成功"))
+            return ReservationResult(true, message)
+        // The school's POST can redirect to a generic page. Confirm state via a fresh GET,
+        // rather than treating an HTTP 200 or a successful submission as cancellation evidence.
+        try {
+            val confirmed = history(account).items.firstOrNull { it.id == record.id ||
+                (matched.reservationId != null && it.reservationId == matched.reservationId) }
+            if (confirmed?.status?.contains("取消") == true) return ReservationResult(true, "取消预约成功")
+        } catch (error: CancellationException) { throw error }
+        catch (_: Exception) { /* Preserve the unknown result; never send the mutation again. */ }
+        return ReservationResult(false, message)
+    }
+
+    suspend fun reservationDetails(account: SavedAccount, record: LibraryHistoryItem): LibraryHistoryItem {
+        val target = record.detailPath ?: throw IllegalArgumentException("这条记录没有可读取的详情")
+        val url = (LibraryRepository.BASE_URL + target).toHttpUrl()
+        require(target.startsWith("/") && !target.startsWith("//") && url.encodedPath == "/view" &&
+            url.queryParameter("id") == record.reservationId && url.queryParameter("type") == "SEAT") { "预约详情参数无效" }
+        val document = authenticatedPage(account, target)
+        val receipt = parseReservationResult(document).receipt
+        val details = receipt?.let { listOf("凭证号：${it.number}", "日期：${it.onDate}", "时间：${it.begin} - ${it.end}",
+            "位置：${it.location}", "状态：${it.status}") }
+            ?: document.select(".receipt dd, #receipt dd, .reserveResult dd, .layoutSeat dd, .myReserveList dd, .reserveTime dd")
+                .map { it.text() }.filter { it.isNotBlank() }
+        return record.copy(details = details.ifEmpty { record.details }, status = receipt?.status?.ifBlank { record.status } ?: record.status)
     }
 
     suspend fun extensionTimes(account: SavedAccount): List<LibraryOption> {
@@ -181,22 +234,31 @@ class LibraryFunctionsRepository(
         require(!reservation.verificationRequired || !reservation.verificationAuthId.isNullOrBlank()) { "请先完成预约图片验证" }
         require(reservation.accountId == account.id) { "账号已切换，请重新选择座位" }
         val selection = reservation.selection
+        require(runCatching { LocalDate.parse(selection.onDate) }.isSuccess && selection.seat.id.matches(Regex("[0-9]+"))) {
+            "预约日期或座位参数无效，请重新选择"
+        }
         val startMinutes = selection.start.value.toIntOrNull()
         val endMinutes = selection.end.value.toIntOrNull()
-        require(startMinutes != null && endMinutes != null && startMinutes < endMinutes) { "请选择有效的开始和结束时间" }
+        require(startMinutes != null && endMinutes != null && startMinutes in 0..1439 && endMinutes in 1..1440 &&
+            startMinutes < endMinutes) { "请选择有效的开始和结束时间" }
         require(selection.seat.available) { "该座位当前不可预约" }
         val fields = reservation.fields + mapOf("date" to selection.onDate, "seat" to selection.seat.id,
             "start" to selection.start.value, "end" to selection.end.value) +
             reservation.verificationAuthId?.let { mapOf("authid" to it) }.orEmpty()
         val token = requireNotNull(fields["SYNCHRONIZER_TOKEN"])
-        synchronized(submittedTokens) {
-            require(submittedTokens.add(token)) { "此预约已提交，请先查看我的预约" }
-        }
+        markSubmitted(account.id, "reserve", token)
         val response = post(account, "/selfRes", fields)
         val document = LibraryHtml.parse(response)
         if (document.selectFirst("form[action='/auth/signIn']") != null)
             throw LoginFailure(FailureKind.CREDENTIALS, "登录已失效，请重新登录后预约")
         return parseReservationResult(document)
+    }
+
+    private fun markSubmitted(accountId: String, action: String, token: String) {
+        require(token.isNotBlank()) { "操作校验令牌无效，请刷新后重试" }
+        synchronized(submittedTokens) {
+            require(submittedTokens.add("$accountId|$action|$token")) { "此操作已提交，请先查看预约状态" }
+        }
     }
 
     private suspend fun authenticatedPage(account: SavedAccount, path: String): Document {
@@ -273,8 +335,12 @@ class LibraryFunctionsRepository(
             val document = LibraryHtml.parse(response)
             if (document.selectFirst("form[action='/auth/signIn']") != null)
                 throw LoginFailure(FailureKind.CREDENTIALS, "登录已失效，请重新登录")
-            val options = document.select("a[time]").filterNot { it.hasClass("disable") || it.hasClass("disabled") }
-                .map { LibraryOption(it.attr("time"), it.text()) }.filter { it.value.isNotBlank() }
+            val options = document.select("a[time]").filterNot { it.hasClass("disable") || it.hasClass("disabled") ||
+                it.parent()?.hasClass("disabled") == true || it.parent()?.hasClass("disable") == true }
+                .map { LibraryOption(it.attr("time"), it.text()) }.filter { option ->
+                    option.value.toIntOrNull()?.let { it in 0..1440 } == true && option.label.isNotBlank()
+                }
+                .distinctBy { it.value }
             return SeatTimes(options, document.selectFirst("#building")?.attr("value").orEmpty(),
                 document.selectFirst("#room")?.attr("value").orEmpty(),
                 if (options.isEmpty()) document.body().text().ifBlank { "该座位暂无可用时段" } else "",
@@ -285,12 +351,22 @@ class LibraryFunctionsRepository(
             val container = document.selectFirst(".myReserveList, #myReserveList") ?: document.body()
             val items = container.select("dl").filterNot { it.id() == "moreBlock" || it.select("dd").isEmpty() }.map { item ->
                 val details = item.select("dd").map { it.text() }.filter { it.isNotBlank() }
-                val cancel = item.selectFirst("a[href*=cancel]")?.attr("href")?.takeIf { it.startsWith("/") }
+                val detail = item.selectFirst("a[href^='/view?']")?.attr("href")?.takeIf { it.startsWith("/") && !it.startsWith("//") }
+                val serverId = detail?.let { (LibraryRepository.BASE_URL + it).toHttpUrl().queryParameter("id") }
+                    ?.takeIf { it.matches(Regex("[0-9]+")) }
+                val cancelForm = item.selectFirst("form[action='/reservation/cancel'][method=post]")
+                    ?.takeIf { serverId != null && it.selectFirst("input[name=id]")?.attr("value") == serverId }
+                val cancel = cancelForm?.attr("action")
+                    ?: item.selectFirst("a[href*=cancel]")?.attr("href")?.takeIf { it.startsWith("/") && !it.startsWith("//") }
                 // Older pages omit DOM IDs. Content-based IDs remain stable across pagination.
                 val contentId = MessageDigest.getInstance("SHA-256").digest(item.text().toByteArray(Charsets.UTF_8))
                     .joinToString("") { "%02x".format(it) }
-                LibraryHistoryItem(item.id().ifBlank { "history_$contentId" }, item.selectFirst("dt")?.text().orEmpty(),
-                    details, details.firstOrNull { it.contains("状态") }.orEmpty(), cancel)
+                val knownStatuses = setOf("已预约", "预约", "已取消", "取消", "已完成", "已违约", "违约", "使用中", "暂离", "待签到", "已签到", "已结束")
+                val status = item.select("a").lastOrNull { it.attr("href").isBlank() && it.attr("onclick").isBlank() &&
+                    it.text() in knownStatuses }?.text() ?: details.firstOrNull { it.contains("状态") }.orEmpty()
+                LibraryHistoryItem(serverId?.let { "reservation_$it" } ?: item.id().ifBlank { "history_$contentId" },
+                    item.selectFirst("dt")?.text().orEmpty(), details, status, cancel,
+                    cancel?.let { if (cancelForm != null) "POST" else "GET" }, serverId, detail)
             }
             val scripts = document.select("script").joinToString("\n") { it.data() }
             val status = Regex("currentReservationStatus\"\\s*:\\s*\"([^\"]+)\"").find(scripts)?.groupValues?.get(1).orEmpty()
@@ -321,7 +397,7 @@ class LibraryFunctionsRepository(
                 }
                 if (user?.optBoolean("hasPrevUnStoppedReservation") == true && "stopUsing" !in actions) actions += "stopUsing"
             }
-            val details = document.select(".receipt dd, #receipt dd, .reserveResult dd").map { it.text() }.filter { it.isNotBlank() }
+            val details = document.select(".receipt dd, #receipt dd, .reserveResult dd, .layoutSeat dd").map { it.text() }.filter { it.isNotBlank() }
             return LibraryUserState(status, soft, details, actions)
         }
 
@@ -330,24 +406,32 @@ class LibraryFunctionsRepository(
             data.optString("location"), data.optString("statusDisplay").ifBlank { data.optString("status") })
 
         fun parseReservationResult(document: Document): ReservationResult {
-            val receiptContainer = document.selectFirst(".receipt, #receipt, .reserveResult, .reserveSuccess")
+            val receiptContainer = document.selectFirst(".receipt, #receipt, .reserveResult, .reserveSuccess, .layoutSeat")
             val text = document.body().text()
-            val message = document.selectFirst("#msgBoxDIV .msg, .errors, .error, .alert-danger")?.text()?.takeIf { it.isNotBlank() }
+            var message = document.selectFirst("#msgBoxDIV .msg, .errors, .error, .alert-danger")?.text()?.takeIf { it.isNotBlank() }
                 ?: Regex("(?:flashMsg\\s*=\\s*|showmsg\\()\\s*['\"]([^'\"]+)")
                     .find(document.select("script").joinToString("\n") { it.data() })?.groupValues?.get(1)
                 ?: if (document.select("p, h1, h2, h3, .resultMessage").any { it.text() in setOf("预约成功", "座位预约成功", "预约成功！", "预约成功!", "预约成功。") })
                     "预约成功" else "已提交预约，请在我的预约中确认结果"
             val successMessages = setOf("预约成功", "座位预约成功", "预约成功！", "预约成功!", "预约成功。")
             val receiptFields = receiptContainer?.select("dd")?.map { it.text() }.orEmpty()
-            fun receiptField(label: String) = receiptFields.firstOrNull { it.replace(" ", "").startsWith(label) }
-                ?.substringAfter('：', "")?.ifBlank { null }
+            fun receiptField(label: String) = receiptFields.firstOrNull { it.replace(Regex("[\\s\\u00a0]"), "").startsWith(label) }
+                ?.substringAfter('：', "")?.trim()?.ifBlank { null }
             val number = receiptField("凭证号")
-            val date = receiptField("日期")
-            val time = receiptField("时间")?.split(Regex("\\s*-\\s*"))
+            val date = receiptField("日期")?.let { value ->
+                Regex("""(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日""").find(value)?.let { match ->
+                    "%s-%02d-%02d".format(match.groupValues[1], match.groupValues[2].toInt(), match.groupValues[3].toInt())
+                } ?: value.trim()
+            }
+            val time = receiptField("时间")?.replace(Regex("[\\s\\u00a0]"), "")?.split('-')
             val receipt = if (!number.isNullOrBlank() && !date.isNullOrBlank() && time?.size == 2)
                 ReservationReceipt(number, date, time[0], time[1], receiptField("位置").orEmpty(), receiptField("状态").orEmpty())
                 else null
-            val confirmed = (receipt != null && !message.contains("失败")) || message in successMessages
+            val inactiveReceipt = receipt?.status?.let { status -> listOf("取消", "违约", "结束", "完成").any(status::contains) } == true
+            val activeReceipt = receipt != null && receipt.status in setOf("预约", "已预约", "待签到")
+            val explicitFailure = document.select(".errors, .error, .alert-danger").any { it.text().isNotBlank() }
+            val confirmed = !explicitFailure && !inactiveReceipt && ((activeReceipt && !message.contains("失败")) || message in successMessages)
+            if (receipt != null && confirmed && message == "已提交预约，请在我的预约中确认结果") message = "预约成功"
             return ReservationResult(confirmed, message, receipt)
         }
     }
