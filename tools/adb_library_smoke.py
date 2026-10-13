@@ -7,6 +7,12 @@ already saved, authenticated account. Does not clear app data or enter credentia
 Usage:
     python3 tools/adb_library_smoke.py --serial DEVICE_ID
     python3 tools/adb_library_smoke.py --artifacts .private/native-qa
+    python3 tools/adb_library_smoke.py --full --artifacts .private/full-native-qa
+    python3 tools/adb_library_smoke.py --map-only --artifacts .private/map-native-qa
+
+--full additionally inspects native filter choices, server floor/room maps, the
+accessible seat list, and the empty password-change form. It never submits a
+booking, account change, reservation action, password change, or sign-out.
 
 Screenshots are optional and can contain personal information. Keep them in .private/.
 The script never saves or prints the UI hierarchy or its account labels.
@@ -32,8 +38,11 @@ ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
 SEAT_LABEL = re.compile(r"\d+[A-Za-z]?\Z")
 TIME_LABEL = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d\Z")
 SAFE_LABELS = {
-    "首页", "选座", "我的", "查找可用座位", "下一步", "修改时间", "取消",
+    "首页", "选座", "我的", "账号", "查找可用座位", "下一步", "修改时间", "取消",
     "我的预约", "常用座位", "违约记录", "返回首页",
+    "布局选座", "地图", "列表", "关闭", "适应区域", "修改图书馆密码",
+    "时间、电源与靠窗", "收起筛选条件", "场馆", "阅览区域", "使用时长",
+    "开始时间", "结束时间", "电源", "靠窗",
 }
 FORBIDDEN_LABELS = {
     "确认预约", "签到", "确认签到", "结束使用", "确认结束使用",
@@ -87,14 +96,34 @@ class NativeSmoke:
         self.phase = "设备准备"
 
     def adb(self, *args: str, timeout: float = 20) -> bytes:
+        # Include only a known command category, never arbitrary arguments,
+        # captured stderr, device identifiers, account data or UI text.
+        if args[:3] == ("shell", "uiautomator", "dump"):
+            category = "读取界面"
+        elif args[:2] == ("exec-out", "cat"):
+            category = "读取界面结果"
+        elif args[:2] == ("shell", "input"):
+            category = "操作已验证控件"
+        elif args[:2] == ("shell", "date"):
+            category = "读取设备日期"
+        elif args[:3] == ("shell", "dumpsys", "window"):
+            category = "检查锁屏状态"
+        elif args[:3] == ("shell", "am", "start"):
+            category = "打开原生 App"
+        elif args[:2] == ("exec-out", "screencap"):
+            category = "保存界面截图"
+        else:
+            category = "设备请求"
         try:
             result = subprocess.run(self.prefix + list(args), stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE, timeout=min(timeout, 20), check=False)
-        except (OSError, subprocess.TimeoutExpired) as exc:
-            raise SmokeFailure("adb 无法完成请求；请检查设备连接。") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise SmokeFailure(f"adb {category}超时；请检查设备连接。") from exc
+        except OSError as exc:
+            raise SmokeFailure(f"adb {category}无法启动；请检查设备连接。") from exc
         if result.returncode:
             # adb stderr can include identifiers or arbitrary app output; do not echo it.
-            raise SmokeFailure("adb 请求失败；请确认仅连接目标设备并已授权 USB 调试。")
+            raise SmokeFailure(f"adb {category}失败（退出码 {result.returncode}）；请确认设备已授权且没有其他 UI 测试同时运行。")
         return result.stdout
 
     def require_unlocked(self) -> None:
@@ -156,6 +185,24 @@ class NativeSmoke:
                 if current.get("clickable") == "true" and 0 < y2 - y1 <= self.height * .15:
                     return node
                 current = self.parents.get(current)
+        # Compose can expose a tab's text without a clickable accessibility
+        # ancestor. Its three native section labels still share one horizontal
+        # row; the duplicate content heading has no such neighbouring labels.
+        titles = {"我的预约", "常用座位", "违约记录"}
+        if value not in titles:
+            return None
+        row_labels = self.nodes(lambda node: label(node) in titles)
+        for node in sorted(matches, key=lambda item: bounds(item)[1]):
+            x1, y1, x2, y2 = bounds(node)
+            if not 0 < y2 - y1 <= self.height * .1 or not 0 < x2 - x1 <= self.width * .5:
+                continue
+            centre = (y1 + y2) / 2
+            tolerance = max(8, (y2 - y1) * .65)
+            neighbours = [item for item in row_labels if
+                          abs((bounds(item)[1] + bounds(item)[3]) / 2 - centre) <= tolerance and
+                          0 < bounds(item)[3] - bounds(item)[1] <= self.height * .1]
+            if {label(item) for item in neighbours} == titles:
+                return node
         return None
 
     def wait(self, predicate, diagnostic: str, timeout: float | None = None):
@@ -179,6 +226,9 @@ class NativeSmoke:
             raise SmokeFailure("目标控件已变化；验收已停止以避免误操作。")
         # Text semantics can be children of a clickable chip/card. Keep the tap at
         # the verified label's centre so adjacent bookmark/mutation icons are avoided.
+        self.tap_center(node)
+
+    def tap_center(self, node: ET.Element) -> None:
         x1, y1, x2, y2 = bounds(node)
         self.adb("shell", "input", "tap", str((max(0, x1) + min(self.width, x2)) // 2),
                  str((max(0, y1) + min(self.height, y2)) // 2))
@@ -187,7 +237,7 @@ class NativeSmoke:
         node = self.wait(lambda: self.exact(value, bottom), f"未找到可用的“{value}”控件。")
         self.tap(node, value)
 
-    def scroll(self) -> None:
+    def scroll(self, up: bool = False) -> None:
         scrollables = self.nodes(lambda node: node.get("scrollable") == "true")
         usable = [node for node in scrollables if bounds(node)[3] - bounds(node)[1] >= self.height * .15]
         if usable:
@@ -197,10 +247,11 @@ class NativeSmoke:
         else:
             x1, y1, x2, y2 = 0, int(self.height * .23), self.width, int(self.height * .77)
         x = (x1 + x2) // 2
-        self.adb("shell", "input", "swipe", str(x), str(int(y1 + (y2-y1) * .78)),
-                 str(x), str(int(y1 + (y2-y1) * .32)), "350")
+        begin, end = (.32, .78) if up else (.78, .32)
+        self.adb("shell", "input", "swipe", str(x), str(int(y1 + (y2-y1) * begin)),
+                 str(x), str(int(y1 + (y2-y1) * end)), "350")
 
-    def find_scrolling(self, predicate, diagnostic: str, max_swipes: int = 6):
+    def find_scrolling(self, predicate, diagnostic: str, max_swipes: int = 6, up: bool = False):
         deadline = time.monotonic() + 20
         for step in range(max_swipes + 1):
             self.snapshot()
@@ -209,7 +260,7 @@ class NativeSmoke:
                 return result
             if step == max_swipes or time.monotonic() >= deadline:
                 break
-            self.scroll()
+            self.scroll(up)
             time.sleep(.25)
         raise SmokeFailure(diagnostic)
 
@@ -352,6 +403,196 @@ class NativeSmoke:
                 current = self.parents.get(current)
         return False
 
+    def date_value(self, node: ET.Element) -> str | None:
+        for value in [node.get("content-desc", "").strip(), node.get("text", "").strip()]:
+            if ISO_DATE.fullmatch(value):
+                return value
+        return None
+
+    def clickable_ancestor(self, node: ET.Element) -> ET.Element | None:
+        current: ET.Element | None = node
+        for _ in range(4):
+            if current is None:
+                break
+            if current.get("clickable") == "true":
+                return current
+            current = self.parents.get(current)
+        return None
+
+    def map_room_choices(self) -> list[ET.Element]:
+        dates = self.nodes(lambda node: self.date_value(node) is not None)
+        date_bottom = max((bounds(node)[3] for node in dates), default=0)
+        choices = []
+        seen = set()
+        for node in self.nodes(lambda item: bool(label(item)) and self.date_value(item) is None):
+            parent = self.clickable_ancestor(node)
+            if parent is None or parent.get("checkable") != "true":
+                continue
+            if bounds(node)[1] <= date_bottom or label(node) in FORBIDDEN_LABELS or label(node) in SAFE_LABELS:
+                continue
+            if label(node) not in seen:
+                choices.append(node)
+                seen.add(label(node))
+        return sorted(choices, key=lambda node: (bounds(node)[1], bounds(node)[0]))
+
+    def tap_observed_choice(self, node: ET.Element, kind: str) -> None:
+        """Only allow dynamic data from a verified native map/filter context."""
+        if not self.visible(node) or label(node) in FORBIDDEN_LABELS:
+            raise SmokeFailure("已阻止不在只读验收范围内的动态选项。")
+        if kind == "date":
+            valid = self.date_value(node) is not None and self.exact("刷新座位地图") is not None
+        elif kind == "room":
+            valid = self.exact("刷新座位地图") is not None and node in self.map_room_choices()
+        elif kind == "floor":
+            valid = self.exact("选择楼层") is not None and self.exact("关闭") is not None and self.clickable_ancestor(node) is not None
+        else:
+            valid = False
+        if not valid:
+            raise SmokeFailure("动态选项的原生界面上下文已变化，验收已停止。")
+        self.tap_center(node)
+
+    def require_map_ready(self) -> None:
+        self.wait(lambda: self.exact("刷新座位地图"), "地图数据未就绪，请检查校园网连接。")
+        if self.exact("完成验证") is not None:
+            raise SmokeFailure("学校要求图片验证；请在 App 完成后重新运行验收。")
+        if self.exact("重试") is not None:
+            raise SmokeFailure("地图数据同步失败；请手动检查连接后重试。")
+
+    def map_floor_button(self) -> ET.Element | None:
+        dates = self.nodes(lambda node: self.date_value(node) is not None)
+        date_bottom = max((bounds(node)[3] for node in dates), default=0)
+        rooms = self.map_room_choices()
+        rooms_top = min((bounds(node)[1] for node in rooms), default=self.height * .75)
+        candidates = []
+        seen = set()
+        for node in self.nodes(lambda item: bool(label(item))):
+            parent = self.clickable_ancestor(node)
+            if parent is None or parent.get("checkable") == "true":
+                continue
+            xy = bounds(parent)
+            if date_bottom <= xy[1] < rooms_top and xy[0] > self.width * .42 and xy[2] < self.width * .98:
+                if xy not in seen:
+                    candidates.append(node)
+                    seen.add(xy)
+        return min(candidates, key=lambda node: bounds(node)[1]) if candidates else None
+
+    def open_floor_options(self) -> list[str]:
+        button = self.find_scrolling(self.map_floor_button, "未找到原生楼层选择按钮。", up=True)
+        if self.exact("刷新座位地图") is None or self.clickable_ancestor(button) is None:
+            raise SmokeFailure("楼层选择上下文已变化。")
+        self.tap_center(button)
+        self.wait(lambda: self.exact("选择楼层"), "未打开楼层选择。")
+        options = []
+        for node in self.nodes(lambda item: bool(label(item)) and label(item) not in {"选择楼层", "关闭"}):
+            if self.clickable_ancestor(node) is not None and label(node) not in FORBIDDEN_LABELS:
+                options.append(label(node))
+        return list(dict.fromkeys(options))
+
+    def run_filter_checks(self) -> None:
+        self.phase = "原生高级筛选"
+        self.tap_exact("首页", bottom=True)
+        self.tap_exact("选座", bottom=True)
+        self.wait(lambda: self.exact("查找可用座位"), "原生筛选页面未就绪。")
+        if self.exact("时间、电源与靠窗") is not None:
+            self.tap_exact("时间、电源与靠窗")
+        for title in ["场馆", "阅览区域", "开始时间", "结束时间", "使用时长", "电源", "靠窗"]:
+            node = self.find_scrolling(lambda value=title: self.exact(value), "高级筛选字段未完整显示。")
+            self.tap(node, title)
+            self.wait(lambda: self.exact("关闭"), "筛选选项未打开。")
+            choices = self.nodes(lambda item: item.get("class") == "android.widget.RadioButton" or item.get("checkable") == "true")
+            if not choices:
+                raise SmokeFailure("原生筛选没有提供可选择项。")
+            self.tap_exact("关闭")
+        self.pass_phase("06-native-filter-options")
+
+    def switch_map_mode(self, target: str) -> None:
+        """Verify the state change before proceeding; retry one fresh safe toggle."""
+        current = "列表" if target == "list" else "地图"
+        changed = "地图" if target == "list" else "列表"
+        for attempt in range(2):
+            node = self.find_scrolling(lambda: self.exact(current), "未找到地图显示方式切换按钮。", up=True)
+            self.tap(node, current)
+            deadline = time.monotonic() + min(self.timeout, 8)
+            while time.monotonic() < deadline:
+                self.snapshot()
+                if self.exact(changed) is not None:
+                    return
+                time.sleep(.3)
+            # Retry only this display toggle using a new hierarchy. Never replay
+            # booking, account or reservation operations after an uncertain click.
+        raise SmokeFailure("地图显示方式未切换；已停止验收，未执行任何预约操作。")
+
+    def run_map_checks(self) -> None:
+        self.phase = "原生地图楼层与区域"
+        self.tap_exact("首页", bottom=True)
+        self.tap_exact("选座", bottom=True)
+        self.tap_exact("布局选座")
+        self.require_map_ready()
+        raw_today = self.adb("shell", "date", "+%Y-%m-%d").decode().strip()
+        try:
+            today = date.fromisoformat(raw_today)
+        except ValueError as exc:
+            raise SmokeFailure("无法读取设备日期。") from exc
+        dates = self.nodes(lambda node: self.date_value(node) is not None)
+        future = [node for node in dates if date.fromisoformat(self.date_value(node)) > today]
+        if future:
+            self.tap_observed_choice(min(future, key=lambda node: self.date_value(node)), "date")
+            self.require_map_ready()
+        floor_labels = self.open_floor_options()
+        self.tap_exact("关闭")
+        if not floor_labels:
+            raise SmokeFailure("学校未返回可用楼层。")
+        for index, floor in enumerate(floor_labels[:6], start=1):
+            self.open_floor_options()
+            node = self.exact(floor)
+            if node is None:
+                raise SmokeFailure("服务端楼层选项已变化。")
+            self.tap_observed_choice(node, "floor")
+            self.require_map_ready()
+            rooms = self.map_room_choices()
+            if not rooms:
+                print(f"SKIP native-map-floor-{index}: no-school-room", flush=True)
+                continue
+            self.tap_observed_choice(rooms[0], "room")
+            self.require_map_ready()
+            canvas = self.find_scrolling(lambda: self.nodes(lambda node: "座位地图，双指缩放" in node.get("content-desc", "")),
+                                         "原生地图画布未显示。")
+            self.pass_phase(f"07-native-map-floor-{index}-canvas")
+            # Pan the native canvas, then reset fit. No seat/action is activated.
+            x1, y1, x2, y2 = bounds(canvas[0])
+            self.adb("shell", "input", "swipe", str(int(x1+(x2-x1)*.65)), str((y1+y2)//2),
+                     str(int(x1+(x2-x1)*.35)), str((y1+y2)//2), "400")
+            reset = self.find_scrolling(lambda: self.exact("适应区域"), "未找到地图适应区域按钮。", up=True)
+            self.tap(reset, "适应区域")
+            self.switch_map_mode("list")
+            self.find_scrolling(lambda: self.nodes(lambda node: SEAT_LABEL.fullmatch(label(node)) is not None),
+                                "原生地图列表没有显示座位。")
+            self.pass_phase(f"08-native-map-floor-{index}-list")
+            self.switch_map_mode("map")
+
+    def run_password_empty_check(self) -> None:
+        self.phase = "原生密码表单空值校验"
+        self.adb("shell", "input", "keyevent", "KEYCODE_BACK")
+        self.tap_exact("账号", bottom=True)
+        opener = self.find_scrolling(lambda: self.exact("修改图书馆密码"), "未找到原生密码修改入口。")
+        self.tap(opener, "修改图书馆密码")
+        self.wait(lambda: self.exact("当前密码"), "未打开原生密码表单。")
+        for field in ["当前密码", "新密码", "再次输入新密码"]:
+            self.find_scrolling(lambda value=field: self.exact(value), "原生密码表单字段未完整显示。")
+        submit = self.nodes(lambda node: label(node) == "修改密码", enabled=False)
+        if not submit:
+            raise SmokeFailure("密码表单未提供提交按钮。")
+        if any(self.visible(node) for node in submit):
+            raise SmokeFailure("密码字段为空时提交按钮应禁用。")
+        self.pass_phase("09-native-password-empty-no-submit")
+        self.tap_exact("取消")
+
+    def run_full(self) -> None:
+        """Bounded additional native UX checks; intentionally omits real mutations."""
+        self.run_filter_checks()
+        self.run_map_checks()
+        self.run_password_empty_check()
+
     def cleanup(self) -> None:
         try:
             self.adb("shell", "rm", "-f", self.remote_xml, timeout=5)
@@ -363,6 +604,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--serial", help="adb device serial; omit only when a single device is connected")
     parser.add_argument("--adb", help="path to adb executable")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--full", action="store_true", help="also inspect native filters, all returned map floors (up to 6), and empty password validation")
+    modes.add_argument("--map-only", action="store_true", help="only inspect native map floors and canvas/list switching, without repeating search acceptance")
     parser.add_argument("--timeout", type=float, default=20, help="maximum wait per UI phase, 1–20 seconds (default 20)")
     parser.add_argument("--artifacts", type=Path, nargs="?", const=Path(".private/native-qa"), help="optional screenshot directory (default .private/native-qa when flag is supplied)")
     args = parser.parse_args()
@@ -371,7 +615,14 @@ def main() -> int:
     smoke = None
     try:
         smoke = NativeSmoke(find_adb(args.adb), args.serial, args.artifacts, args.timeout)
-        smoke.run()
+        if args.map_only:
+            smoke.require_unlocked()
+            smoke.adb("shell", "am", "start", "-n", COMPONENT)
+            smoke.run_map_checks()
+        else:
+            smoke.run()
+            if args.full:
+                smoke.run_full()
         return 0
     except SmokeFailure as exc:
         phase = smoke.phase if smoke else "设备准备"

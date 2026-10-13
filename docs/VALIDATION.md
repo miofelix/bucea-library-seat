@@ -1,5 +1,25 @@
 # Validation — 2026-10-13
 
+## Current actual campus-service run
+
+The current application uses native Kotlin/Compose screens and interactions. Website HTML is parsed only for business data; it is never rendered. Installed-APK architecture tests inspect native activity declarations and verify that the assets contain no HTML, JavaScript or CSS.
+
+The current live outcomes are recorded in [ACTUAL_TEST_RESULTS.md](ACTUAL_TEST_RESULTS.md). Two future reservations and one same-day “start now” reservation were submitted, read back and canceled; no active test reservation remains. That run corrected receipt parsing, the school's fresh-token POST cancellation form, and canceled-record recognition. The three canceled audit records are retained by the school.
+
+Two real password-change attempts encountered the school's error page and did not establish success. The original credential was subsequently authenticated, the saved value restored, and encrypted recovery removed. Password-changing support is implemented and covered by synthetic tests; successful password mutation is **not** a passed live acceptance result.
+
+At the user's direction, this run skips check-in on library-internal Wi-Fi and the leave, resume, renewal and finish-use operations that depend on check-in. These are not counted as passed live transactions. Only one authorized real identity was supplied; multiple-account isolation is exercised with separate synthetic device accounts.
+
+The versioned results below are snapshots of earlier phases, including the former browser-based prototype. They do not describe the current APK or override the newer live outcome record. A later build/test total must be recorded from its own run output rather than inferred from source test counts.
+
+## Version 0.3.1 actual service acceptance
+
+- **55 independent device tests passed in 2.176 seconds**, with all seven live classes excluded. This includes the real `now` start contract and cancellation readback regressions.
+- Actual native booking: two future reservations plus one current-day “现在” reservation. School receipts were matched and all three were canceled. Final server inventory has no active usage or violations.
+- Actual four-floor Canvas/list/pan checks passed. A real two-pointer map gesture test passed in 6.055 seconds and restored the original fit.
+- Saved login, persistent logout, automatic OCR re-login, bookmark persistence/removal, settings persistence/restoration, Wi-Fi loss/reconnect, landscape/narrow/large-font dialogs, keyboard and Back were exercised through adb. Cached statistics now identify “上次数据” after a failed refresh.
+- Debug/test APK builds and Lint passed with zero errors. The APK uses version 0.3.1 / code 5. Detailed pass/failure/deferral boundaries are in `ACTUAL_TEST_RESULTS.md`.
+
 ## Version 0.3.0 fully native migration
 
 - All application UI and interactions now use Kotlin/Compose. Removed SeatWebActivity, its manifest entry, mobile JavaScript/CSS adapter and adapter test. The installed APK declares only MainActivity and packages no HTML/JS/CSS assets.
@@ -8,7 +28,7 @@
 - **Both explicit live tests passed** in 5.503 seconds with JUnit completion code 0. The read-only test covers native seat search/number lookup/times/booking preparation/history and real map dates/floors/rooms/layout. The automatic verification test runs the bundled detector and recognizer on Android and obtains a successful proof from the school's server without human input.
 - Login CAPTCHA recognition is fully automatic: fresh challenges, bounded OCR attempts, immediate exit for credential/network/protocol failures. Ordered-click verification uses ddddocr `common_det.onnx` for text boxes and `common_old.onnx` for target/crop recognition, then submits computed coordinates. Four real image fixtures pass offline Android inference.
 - Native UI smoke checks passed search → start/end selection → booking review without submission → reservations/favorites/violations. Manual checks also passed map Canvas selection → native seat details → native time dialog, map/list toggle, native password-dialog field visibility, explicit logout and automatic re-login.
-- Password change and booking/cancellation submissions were exercised only against synthetic responses. No real password was changed and no real seat reservation was submitted. Native cancellation appears only for a fresh action actually provided by the account's server history.
+- At this initial migration checkpoint, password change and booking/cancellation submissions were exercised only against synthetic responses. The subsequent live reservation/cancellation and password-attempt outcomes appear above and in `ACTUAL_TEST_RESULTS.md`. Native cancellation appears only for a fresh action actually provided by the account's server history.
 - Screenshots and authenticated development captures remain under ignored `.private/`. Model assets and pixel-only CAPTCHA fixtures contain no credentials, session cookies or proof tokens.
 
 ## Version 0.2.1 device acceptance
@@ -32,40 +52,39 @@
 - The mobile adapter behavior test passed inherited/delegated handlers, AJAX-added seats, paging alignment after resize, token/form preservation, hidden dialogs, repeat injection, observer settling and original layout restoration.
 - The first 0.2.0 run could not complete manual UI acceptance while the device was locked; this was completed for 0.2.1 above.
 
-Booking/action writes are covered with synthetic responses and account-bound tokens. Actual reservation, check-in, departure, return, renewal and finish-usage submissions were not executed against the live account.
+At the 0.2.0 checkpoint, booking/action writes were covered with synthetic responses and account-bound tokens. Actual transaction outcomes are now tracked separately in `ACTUAL_TEST_RESULTS.md`.
 
-## Build
+## Current verification commands and coverage
 
-- `:app:assembleDebug` — passed.
-- `:app:assembleDebugAndroidTest` — passed.
-- `:app:lintDebug` — passed with 0 errors. Remaining warnings concern available dependency upgrades, synchronous vault writes, and optional KTX APIs.
-- `git diff --check` — passed.
+Android 16 / SDK 36, arm64 physical device; app minimum SDK 26, target SDK 35. Debug version is 0.3.1, versionCode 5. Dependencies and SDK values are defined in `app/build.gradle.kts`.
 
-## Device via adb
+```sh
+./gradlew :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb shell am instrument -w -e notClass cn.edu.bucea.library.LiveLibraryReadOnlyTest,cn.edu.bucea.library.LiveNativeVerificationInstrumentedTest,cn.edu.bucea.library.LiveLibraryFiltersTest,cn.edu.bucea.library.LiveLibraryInventoryTest,cn.edu.bucea.library.LivePasswordRoundTripTest,cn.edu.bucea.library.LiveNativeMapGestureTest,cn.edu.bucea.library.LiveCurrentDayReadOnlyTest cn.edu.bucea.library.test/androidx.test.runner.AndroidJUnitRunner
+git diff --check
+```
 
-Android 16 / SDK 36, arm64 physical device; app minimum SDK 26, target SDK 35.
+Device tests cover OCR inference and preprocessing, encrypted account/session isolation and expiry, fresh booking/cancellation tokens, state-restricted actions, uncertain mutation results, native map geometry, password parsing, automatic verification, and installed APK architecture. Test counts and elapsed times above belong to the specified historical runs.
 
-`adb shell am instrument -w cn.edu.bucea.library.test/androidx.test.runner.AndroidJUnitRunner` returned **OK (6 tests)**:
+The opt-in `LiveLibraryReadOnlyTest` restores the active identity and reads school-opened dates, filter/number search, times, booking preparation, history, violations and native map dates/floors/rooms/grid. It never invokes reservation, cancellation, password or seat-action writes. `LiveLibraryFiltersTest` checks actual filter choices, paging and missing-number results. The opt-in `LiveNativeVerificationInstrumentedTest` obtains a real automatic OCR proof without creating a reservation. A JUnit assumption caused by missing account, unavailable school data or verification restrictions is a skip, not proof of a completed check.
 
-1. Bundled ddddocr ONNX model recognizes the real captcha fixture twice on the phone.
-2. Encrypted fake accounts and separate cookies survive storage reload; deleting one leaves the other intact.
-3. Updating an account clears only its saved session.
-4. An invalidated cookie jar cannot restore a deleted session from a late response.
-5. Releasing a stale native cookie jar preserves the newer session saved by WebView.
-6. Restored cookies obey host, path, security and expiry restrictions.
+```sh
+adb shell am instrument -w -r -e class cn.edu.bucea.library.LiveLibraryReadOnlyTest -e live_library true cn.edu.bucea.library.test/androidx.test.runner.AndroidJUnitRunner
+adb shell am instrument -w -r -e class cn.edu.bucea.library.LiveLibraryFiltersTest -e live_library true cn.edu.bucea.library.test/androidx.test.runner.AndroidJUnitRunner
+adb shell am instrument -w -r -e class cn.edu.bucea.library.LiveNativeVerificationInstrumentedTest -e live_library true cn.edu.bucea.library.test/androidx.test.runner.AndroidJUnitRunner
+python3 tools/adb_library_smoke.py --serial YOUR_DEVICE_SERIAL --artifacts .private/native-qa
+python3 tools/adb_library_smoke.py --full --serial YOUR_DEVICE_SERIAL --artifacts .private/full-native-qa
+python3 tools/adb_library_smoke.py --map-only --serial YOUR_DEVICE_SERIAL --artifacts .private/map-native-qa
+```
 
-The test vault uses a unique fake preference namespace. These tests do not open or clear the user's production vault.
+The UI script checks native search, time selection and reservation review without submission, then records/favorites/violations. `--full` additionally opens server filter choices, checks native map Canvas/list presentation for returned floors, and verifies that empty password fields disable submission. `--map-only` runs only the map portion. It does not test successful password changes, reservation submissions or seat-use mutations; those need separate actual-service results. A floor without school-provided rooms produces an explicit `SKIP`.
 
-Manual adb checks confirmed adding a real account through the native UI, automatic captcha login, rendering real campus seat statistics, launching the authenticated mobile function center, and restoring the account after process restart / APK update.
+Run one UI test at a time on an unlocked device. UI screenshots may show names and account labels; keep them under ignored `.private/` paths. The script does not print or persist UI XML. Synthetic account tests use separate preference namespaces and do not clear the production vault.
 
 ## OCR reference parity
 
 Compared Kotlin image preprocessing with local ddddocr / Pillow on seven cases: real captcha, upstream sample, RGB upsampling/downsampling, grayscale, RGBA resampling, and unchanged-size RGBA. All output pixels matched. The Kotlin CTC check covers blanks and consecutive duplicate characters.
 
-## Official site on a mobile viewport
-
-Checked the authenticated `/self`, `/map`, `/freeBook/fav`, `/history?type=SEAT`, `/user/violations`, `/user/password` pages at a 412px viewport. Form, input-control and link counts remained identical before and after adaptation; document width stayed within the viewport. Private live page captures remain in ignored `.private/`.
-
-Verified original date/filter controls and AJAX seat search return seat results. Verified the room selector opens the original seat map, preserved horizontal map geometry inside a scrollable viewport, and selecting a seat opens the original time selection dialog. Fixed clipping of the password submit button and reservation/cancel action row. Verified toggling to original layout and back.
-
-Reservation, check-in, renewal, departure and password-change submissions were not executed against the live account. Their original controls, forms, hidden tokens and handlers remain present; transaction results require subsequent use on the campus network. No seat was reserved by these checks.
+The earlier mobile website adapter and layout-restoration checks are historical prototype evidence. The adapter, browser activity and embedded webpage assets have been removed; current acceptance checks the native screens and installed APK.

@@ -40,7 +40,7 @@ adb shell am start -n cn.edu.bucea.library/.MainActivity
 ```sh
 ./gradlew :app:assembleDebugAndroidTest :app:lintDebug
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
-adb shell am instrument -w -e notClass cn.edu.bucea.library.LiveLibraryReadOnlyTest,cn.edu.bucea.library.LiveNativeVerificationInstrumentedTest cn.edu.bucea.library.test/androidx.test.runner.AndroidJUnitRunner
+adb shell am instrument -w -e notClass cn.edu.bucea.library.LiveLibraryReadOnlyTest,cn.edu.bucea.library.LiveNativeVerificationInstrumentedTest,cn.edu.bucea.library.LiveLibraryFiltersTest,cn.edu.bucea.library.LiveLibraryInventoryTest,cn.edu.bucea.library.LivePasswordRoundTripTest,cn.edu.bucea.library.LiveNativeMapGestureTest,cn.edu.bucea.library.LiveCurrentDayReadOnlyTest cn.edu.bucea.library.test/androidx.test.runner.AndroidJUnitRunner
 python3 tools/adb_library_smoke.py --serial YOUR_DEVICE_SERIAL --artifacts .private/native-qa
 ```
 
@@ -48,10 +48,22 @@ python3 tools/adb_library_smoke.py --serial YOUR_DEVICE_SERIAL --artifacts .priv
 
 ```sh
 adb shell am instrument -w -r -e class cn.edu.bucea.library.LiveLibraryReadOnlyTest -e live_library true cn.edu.bucea.library.test/androidx.test.runner.AndroidJUnitRunner
+adb shell am instrument -w -r -e class cn.edu.bucea.library.LiveLibraryFiltersTest -e live_library true cn.edu.bucea.library.test/androidx.test.runner.AndroidJUnitRunner
 adb shell am instrument -w -r -e class cn.edu.bucea.library.LiveNativeVerificationInstrumentedTest -e live_library true cn.edu.bucea.library.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
-这些检查查询座位、时段、记录，准备预约表单并取得服务器验证码凭证，不提交真实预约或修改密码。合成测试验证修改密码、取消与座位操作的参数、账号绑定及重复提交保护。截图仅写入忽略目录。
+这些检查查询座位、时段、记录及地图，准备预约表单并取得服务器验证码凭证，不提交真实预约或修改密码。合成测试验证修改密码、取消与座位操作的参数、账号绑定及重复提交保护。截图仅写入忽略目录。
+
+扩展原生界面检查与单独地图检查：
+
+```sh
+python3 tools/adb_library_smoke.py --full --serial YOUR_DEVICE_SERIAL --artifacts .private/full-native-qa
+python3 tools/adb_library_smoke.py --map-only --serial YOUR_DEVICE_SERIAL --artifacts .private/map-native-qa
+```
+
+脚本检查筛选选项、学校返回的楼层和地图、列表切换及密码表单空值禁用；只核对预约预览，不点击提交。学校没有开放区域的楼层会记录为跳过。需要已解锁的手机、已登录账号和校园网，运行时避免其他 UI 自动化同时操作设备。
+
+真实服务已完成两次未来预约和一次当天“现在开始”预约，并全部取消，核实没有遗留活动测试预约。密码修改界面已实现，但本次两种临时密码提交均遇到学校错误页，不能视为修改功能通过实际验收；原密码已重新认证，保存值已恢复。按用户要求，本次跳过必须连接图书馆内部 Wi-Fi 的签到及依赖签到的后续操作。逐项结果与限制见 [实际测试结果](docs/ACTUAL_TEST_RESULTS.md)，真实操作流程见 [实际测试计划](docs/ACTUAL_TEST_PLAN.md)。
 
 所有工作按英文 Conventional Commits 分阶段提交。完整验证记录见 [docs/VALIDATION.md](docs/VALIDATION.md)，原生功能与服务接口对应见 [docs/LIBRARY_FUNCTIONS.md](docs/LIBRARY_FUNCTIONS.md)。
 
@@ -65,3 +77,5 @@ python tools/check_ocr.py --source /path/to/ddddocr --sample /path/to/captcha.pn
 ```
 
 许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。当前 APK 为开发用 debug 构建，正式分发需要自己的签名。
+
+测试版 APK：[v0.3.1-beta.1](https://github.com/miofelix/bucea-library-seat/releases/tag/v0.3.1-beta.1)，为通过 adb 验收的 Debug 签名测试包。0.3.1 修复当天“现在开始”预约；实际预约、取消及清理结果见 [实际测试记录](docs/ACTUAL_TEST_RESULTS.md)。

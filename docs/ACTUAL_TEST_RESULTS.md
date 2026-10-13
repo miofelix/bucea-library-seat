@@ -1,0 +1,33 @@
+# Actual test results — 2026-10-13
+
+The final test build is **0.3.1 (versionCode 5)**, Kotlin/Compose, installed on the physical Android 16 arm64 phone through adb. Tests used the saved authorized account against the real campus service. Completed mutations require school receipts or readback. Passwords, sessions, personal captures and screenshots are excluded from Git.
+
+| Function | Result | Actual evidence / limits |
+| --- | --- | --- |
+| Future reservations | Passed | Two next-day 07:30–08:00 reservations were created through native confirmation and matched to school history/details. Both were canceled. |
+| Same-day “start now” | Passed after fix | School returns the literal `now`, not numeric minutes. The native client retains this value only for the current school date. A real same-day booking ending at 20:00 displayed “预约成功”; its receipt matched the selected date and seat. It was canceled immediately. |
+| Reservation detail | Passed after fix | Actual `.layoutSeat` receipts contain spaced Chinese field labels/date/time formatting. Native details now show normalized date, times, location, receipt and status from the server. |
+| Reservation cancellation | Passed after fix | Fresh CSRF-bound `/reservation/cancel` POST forms were used. Generic POST responses are followed by one read-only history check. School history and detail readback confirm all three records canceled. No mutation is automatically replayed. |
+| Final reservation cleanup | Passed | Final strict inventory: three “已取消” records, zero cancellation forms, `NO_RESERVATION`, no active usage and zero violations. The school retains canceled audit records. |
+| Saved login / explicit logout | Passed | Logout survived a process restart and stopped automatic login. Explicit login completed with local ddddocr, then native account features returned. Saved authentication also survived ordinary restarts. |
+| Extra CAPTCHA | Passed | Android detector/recognizer obtained a real school verification proof without human input. One combined run lacked verification parameters; explicit re-login followed by a separate run passed with completion code 0. |
+| Seat queries and filters | Passed for exposed server cases | Real date, building, room, duration, power, window, start/end, combined filters and missing-number queries completed. Empty results were handled. Responses do not expose power/window/duration attributes, so those request results alone cannot prove the server's full filtering semantics. |
+| Search pagination | Passed | Real first and next pages contained 32 seats each with disjoint IDs. Native paging controls and alignment also have earlier device acceptance evidence in `VALIDATION.md`. |
+| Native maps | Passed | Canvas, pan, fit and accessible list worked for all four returned floors, using a returned room on each. A separate real two-pointer expansion changed canvas pixels; “适应区域” restored framing. This does not claim inspection of every seat in every room. |
+| History / load more / violations | Passed | Real canceled records and normalized detail receipts loaded. Actual load-more exhausted school history and removed further paging. The account has no violations; its empty violation view was checked. |
+| Bookmarks | Passed | Added one local bookmark, restarted, reopened its native time selector, then removed it. The original empty bookmark set was restored. |
+| Automatic-login/switch settings | Passed | Both toggles changed, persisted through restart and were restored to their original values. |
+| Disconnect / reconnect | Passed after fix | Wi-Fi was temporarily disabled and restored in `finally`. Connection failure produced the campus-network error. Cached statistics now say “上次数据”; reconnect refresh restored live statistics and the authenticated session. |
+| Mobile layout / keyboard / Back | Passed | Portrait, landscape receipt dialog, narrower display, 1.3 font scale, password fields, keyboard and Back were exercised. Dialog controls stayed reachable. Original display, font and rotation settings were restored. |
+| Password update — 12-character temporary | Not passed: school error | Actual POST returned “出错了 / Oops / 暂时无法处理您的请求”. Temporary credentials did not authenticate; the original authenticated and the vault was restored. |
+| Password update — six-digit temporary | Not passed: school error | Same error page. Restore-only verification confirmed original authentication and saved credentials; the encrypted recovery namespace was cleared. |
+| Password protocol / failure handling | Passed for inspected contract and regressions | Fresh form fields, ordinary POST encoding and referenced scripts were checked; no missing hash transformation or extra field was found. Unknown results do not overwrite saved credentials or trigger automatic resubmission. Empty native fields disable submission. Successful server password change remains unverified. |
+| Sign-in / leave / resume / extend / finish | Deferred at user's instruction | User is on campus but not on library-internal Wi-Fi. The same-day booking exposed the actual network restriction; these actions were not submitted or counted as completed transactions. |
+| Multiple live identities | Unavailable | Only one authorized identity was supplied. Account/session/bookmark isolation and persistent sign-out are covered by independent tests using synthetic identities. |
+| Installed native architecture | Passed | Device tests verify native activities and absence of HTML/JavaScript/CSS rendering assets. Business HTML is parsed for data, never displayed. |
+
+Final independent instrumentation: **55 tests passed in 2.176 seconds**, excluding all seven opt-in live classes. Debug/test APK builds and Lint completed successfully with zero errors. Real query/filter, verification, current-day diagnostic, strict inventory and map-gesture runs each returned test completion code 0; skipped prerequisites are not counted as passes.
+
+Live testing corrected receipt recognition, fresh POST cancellation, canceled status, server-backed detail loading, cancellation readback, the `now` start value, and cached-statistic labeling. Sanitized regression fixtures cover these contracts, invalid dates/times, duplicate or ambiguous mutations and conflicting error/success responses.
+
+Private evidence is under ignored `.private/actual-test/`, `.private/final-ui-qa/`, `.private/final-map-qa/` and device-private `files/live-inventory/`, `files/live-current-day/`, `files/live-map/`. Password candidates were kept in a separate Keystore-encrypted recovery namespace and removed only after original authentication and vault restoration. Passwords are never passed in adb arguments. No successful password round trip is claimed.
