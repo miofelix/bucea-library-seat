@@ -1,0 +1,11 @@
+{
+  "source": "https://github.com/sml2h3/ddddocr",
+  "model": "common_old.onnx",
+  "model_sha256": "b8f2ad9cbc1f2e3922a6cb9459e30824e7e2467f3fb4fd61420640e34ea0bf68",
+  "charset_size": 8210,
+  "height": 64,
+  "channels": 1,
+  "resize": "Pillow Lanczos3, preserve aspect ratio, floor target width",
+  "normalization": "pixel / 255.0",
+  "ctc_blank_index": 0
+}
