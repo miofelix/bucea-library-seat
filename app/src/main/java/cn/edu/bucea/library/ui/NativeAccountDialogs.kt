@@ -14,7 +14,6 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -48,7 +47,7 @@ fun PasswordChangeDialog(state: NativeAccountUiState, onSubmit: (String, String,
     LaunchedEffect(state.passwordChanged, state.outcomeUncertain) {
         if (state.passwordChanged || state.outcomeUncertain) { current = ""; new = ""; confirmation = "" }
     }
-    AlertDialog(
+    BusinessAlertDialog(
         onDismissRequest = { if (!state.busy) onDismiss() },
         icon = { Icon(Icons.Outlined.Lock, null) },
         title = { Text("修改图书馆密码") },
@@ -113,7 +112,7 @@ private fun PasswordField(label: String, value: String, onChange: (String) -> Un
 
 @Composable
 fun SignOutDialog(accountLabel: String, busy: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
+    BusinessAlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
         icon = { Icon(Icons.Outlined.Logout, null) },
         title = { Text("退出图书馆登录") },

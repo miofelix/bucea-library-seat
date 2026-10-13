@@ -3,7 +3,6 @@ package cn.edu.bucea.library.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,7 +24,7 @@ fun NativeVerificationDialog(
 ) {
     if (state.context == null) return
     LaunchedEffect(state.proof) { state.proof?.let(onVerified) }
-    AlertDialog(
+    BusinessAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("自动完成学校验证") },
         text = {

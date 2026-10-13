@@ -1,5 +1,3 @@
-import java.security.MessageDigest
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -14,13 +12,17 @@ android {
         applicationId = "cn.edu.bucea.library"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.3.3"
+        versionCode = 8
+        versionName = "0.3.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
+            isDebuggable = false
+            // Existing installs use this developer machine's debug certificate.
+            // Keep the keystore; migrating to another signing key is a separate change.
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
@@ -38,42 +40,31 @@ android {
     }
 }
 
-// Keep beta updates compatible with the debug-signed APKs already distributed.
-// The portable staged file name is also the actual GitHub download name, including version.
-tasks.register("stageBetaApk") {
-    group = "distribution"
-    description = "Stage the debug-signed beta APK and its SHA-256 checksum for GitHub Releases."
-    dependsOn("assembleDebug")
-
-    val releaseTag = "v${android.defaultConfig.versionName}-beta.1"
-    val sourceApk = layout.buildDirectory.file("outputs/apk/debug/app-debug.apk")
-    val outputDirectory = layout.buildDirectory.dir("outputs/beta-release")
-    val artifactName = "BUCEA-Library-Seat-$releaseTag.apk"
-    val stagedApk = outputDirectory.map { it.file(artifactName) }
-    val checksumFile = outputDirectory.map { it.file("SHA256SUMS") }
-
-    inputs.file(sourceApk)
-    inputs.property("releaseTag", releaseTag)
-    outputs.file(stagedApk)
-    outputs.file(checksumFile)
-
-    doLast {
-        val apk = stagedApk.get().asFile
-        apk.parentFile.mkdirs()
-        sourceApk.get().asFile.copyTo(apk, overwrite = true)
-        val digest = MessageDigest.getInstance("SHA-256")
-        apk.inputStream().use { input ->
-            val buffer = ByteArray(64 * 1024)
-            while (true) {
-                val length = input.read(buffer)
-                if (length < 0) break
-                digest.update(buffer, 0, length)
-            }
-        }
-        val sha256 = digest.digest().joinToString("") { "%02x".format(it) }
-        checksumFile.get().asFile.writeText("$sha256  $artifactName\n", Charsets.UTF_8)
+fun registerDistributionTask(taskName: String, beta: Boolean) {
+    tasks.register<Exec>(taskName) {
+        group = "distribution"
+        description = "Stage a signed, non-debuggable release APK, SHA256SUMS and update.json."
+        dependsOn("assembleRelease")
+        val tag = providers.gradleProperty("releaseTag").getOrElse(
+            "v${android.defaultConfig.versionName}" + if (beta) "-beta.1" else "")
+        val notes = rootProject.file(providers.gradleProperty("releaseNotesFile")
+            .getOrElse("docs/releases/${android.defaultConfig.versionName}.md"))
+        val apk = layout.buildDirectory.file("outputs/apk/release/app-release.apk")
+        val output = layout.buildDirectory.dir("outputs/" + if (beta) "beta-release" else "release")
+        inputs.file(apk)
+        inputs.file(notes)
+        inputs.file(rootProject.file("tools/stage_release.py"))
+        inputs.property("releaseTag", tag)
+        outputs.dir(output)
+        val sdkTools = android.sdkDirectory.resolve("build-tools/${android.buildToolsVersion}")
+        commandLine("python3", rootProject.file("tools/stage_release.py"),
+            "--apk", apk.get().asFile, "--aapt", sdkTools.resolve("aapt"),
+            "--apksigner", sdkTools.resolve("apksigner"), "--output", output.get().asFile,
+            "--tag", tag, "--notes", notes)
     }
 }
+registerDistributionTask("stageBetaApk", beta = true)
+registerDistributionTask("stageReleaseApk", beta = false)
 
 dependencies {
     implementation("androidx.core:core-ktx:1.16.0")
@@ -92,6 +83,9 @@ dependencies {
     implementation("org.jsoup:jsoup:1.20.1")
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
     debugImplementation("androidx.compose.ui:ui-tooling")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20250517")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

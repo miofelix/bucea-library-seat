@@ -1,0 +1,24 @@
+[Unit]
+Description=Cache verified BUCEA GitHub Release APKs
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=bucea-updates
+Group=bucea-updates
+StateDirectory=bucea-updates
+StateDirectoryMode=0755
+EnvironmentFile=-/etc/bucea-updates.env
+ExecStart=/usr/bin/python3 /opt/bucea-library/tools/update_mirror.py --root /var/lib/bucea-updates --repository miofelix/bucea-library-seat
+TimeoutStartSec=15min
+UMask=0022
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/bucea-updates
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true

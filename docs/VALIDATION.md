@@ -1,5 +1,7 @@
 # Validation — 2026-10-13
 
+The 2026-10-14 update-module implementation and MacBook-only results are in [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md). No ADB/device tests were run for 0.3.4; the device results below remain historical snapshots.
+
 ## Current actual campus-service run
 
 The current application uses native Kotlin/Compose screens and interactions. Website HTML is parsed only for business data; it is never rendered. Installed-APK architecture tests inspect native activity declarations and verify that the assets contain no HTML, JavaScript or CSS.

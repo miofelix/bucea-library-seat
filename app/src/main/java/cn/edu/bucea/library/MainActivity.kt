@@ -8,9 +8,11 @@ import androidx.activity.compose.setContent
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.core.view.WindowCompat
 import cn.edu.bucea.library.ui.LibraryApp
+import cn.edu.bucea.library.update.UpdateViewModel
 
 class MainActivity : ComponentActivity() {
     private val featureViewModel: LibraryFeatureViewModel by viewModels()
+    private val updateViewModel: UpdateViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -30,6 +32,8 @@ class MainActivity : ComponentActivity() {
                 maps = maps,
                 nativeAccount = nativeAccount,
                 verification = verification,
+                updates = updateViewModel,
+                onInstallUpdate = { updateViewModel.install(this) },
             )
         }
     }
@@ -37,5 +41,11 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         featureViewModel.onForeground()
+        updateViewModel.coordinator.onForeground()
+    }
+
+    override fun onPause() {
+        updateViewModel.coordinator.onBackground()
+        super.onPause()
     }
 }

@@ -52,7 +52,6 @@ import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.outlined.Wifi
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -75,9 +74,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.Typography
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -89,6 +90,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -104,6 +107,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.currentStateAsState
+import cn.edu.bucea.library.update.UpdateViewModel
+import kotlinx.coroutines.delay
 import cn.edu.bucea.library.AccountSummary
 import cn.edu.bucea.library.CampusAccess
 import cn.edu.bucea.library.R
@@ -129,7 +137,8 @@ private const val CommunityGroup = "1109482748"
 
 @Composable
 fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps: NativeMapViewModel,
-    nativeAccount: NativeAccountViewModel, verification: NativeVerificationViewModel) {
+    nativeAccount: NativeAccountViewModel, verification: NativeVerificationViewModel,
+    updates: UpdateViewModel, onInstallUpdate: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val seatState by features.search.collectAsStateWithLifecycle()
     val hubState by features.hub.collectAsStateWithLifecycle()
@@ -138,12 +147,28 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
     val mapState by maps.mapState.collectAsStateWithLifecycle()
     val accountState by nativeAccount.state.collectAsStateWithLifecycle()
     val verificationState by verification.state.collectAsStateWithLifecycle()
+    val updateState by updates.state.collectAsStateWithLifecycle()
+    val interactions = remember { BusinessInteractions() }
+    var lastTouch by remember { mutableLongStateOf(0L) }
+    var updateIdle by remember { mutableStateOf(false) }
+    val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var mapOpen by rememberSaveable { mutableStateOf(false) }
     var signOutOpen by remember { mutableStateOf(false) }
     var accountMessage by remember { mutableStateOf<String?>(null) }
     var verificationOrigin by remember { mutableStateOf("search") }
     val context = LocalContext.current
+    val businessBusy = state.busy || mutating || seatState.loading || hubState.loading || mapState.loading ||
+        seatState.reservationBusy || accountState.busy || interactions.focusedInputs.intValue > 0 ||
+        seatState.selectedSeat != null || hubState.selectedRecord != null || mapOpen || signOutOpen ||
+        verificationState.context != null || extensionOptions.isNotEmpty() || interactions.dialogs.intValue > 0
+    LaunchedEffect(businessBusy, lastTouch, lifecycleState) {
+        updateIdle = false
+        if (!businessBusy && lifecycleState == Lifecycle.State.RESUMED) {
+            delay(1500)
+            updateIdle = true
+        }
+    }
     val destinations = listOf("首页" to Icons.Outlined.Home, "选座" to Icons.Outlined.GridView,
         "我的" to Icons.Outlined.AutoStories, "账号" to Icons.Outlined.Person, "设置" to Icons.Outlined.Settings)
     LaunchedEffect(state.activeAccountId, state.authenticated) {
@@ -174,12 +199,20 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
     BackHandler(enabled = tab != 0 && !mapOpen) {
         if (!mutating && !seatState.reservationBusy && !accountState.busy && !state.busy && verificationState.context == null) tab = 0
     }
+    CompositionLocalProvider(LocalBusinessInteractions provides interactions) {
     MaterialTheme(colorScheme = lightColorScheme(primary = Teal, onPrimary = Color.White, secondary = Ink,
         secondaryContainer = SoftGreen, onSecondaryContainer = Ink, background = Paper, surface = Color.White,
         onBackground = Ink, onSurface = Ink, surfaceVariant = SoftGreen, onSurfaceVariant = Muted, outline = Line,
         surfaceContainerHigh = Color.White, surfaceContainerHighest = SoftGreen, surfaceContainer = Color.White,
         surfaceContainerLow = Paper, surfaceContainerLowest = Color.White), typography = Typography()) {
-        Scaffold(containerColor = Paper, bottomBar = {
+        Scaffold(modifier = Modifier.pointerInput(Unit) {
+            awaitPointerEventScope {
+                while (true) {
+                    awaitPointerEvent(PointerEventPass.Initial)
+                    lastTouch = android.os.SystemClock.elapsedRealtime()
+                }
+            }
+        }, containerColor = Paper, bottomBar = {
             NavigationBar(containerColor = Color.White, tonalElevation = 0.dp) {
                 destinations.forEachIndexed { index, (label, icon) -> NavigationBarItem(
                     selected = tab == index, enabled = !state.busy && !mutating && !seatState.reservationBusy && !accountState.busy && verificationState.context == null,
@@ -221,7 +254,9 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
                         accountMessage = "修改密码当前未实现"
                         Toast.makeText(context, "修改密码当前未实现", Toast.LENGTH_SHORT).show()
                     }, onLogout = { signOutOpen = true }, onCheckCampus = viewModel::refresh, message = accountMessage)
-                else -> SettingsScreen(state, Modifier.padding(padding), viewModel::setAutoLogin, viewModel::setAutoSwitch)
+                else -> SettingsScreen(state, Modifier.padding(padding), viewModel::setAutoLogin, viewModel::setAutoSwitch) {
+                    UpdateSettings(updateState, updates.installedVersionName, updates.coordinator)
+                }
             }
         }
         if (signOutOpen) SignOutDialog(accountState.accountLabel, state.busy,
@@ -233,7 +268,7 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
         if (extensionOptions.isNotEmpty()) {
             var selected by remember(extensionOptions) { mutableStateOf<String?>(null) }
             val maximumHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.45f).coerceAtMost(360.dp)
-            AlertDialog(onDismissRequest = features::dismissExtension, title = { Text("续约至") },
+            BusinessAlertDialog(onDismissRequest = features::dismissExtension, title = { Text("续约至") },
                 text = { Column(Modifier.fillMaxWidth().heightIn(max = maximumHeight).verticalScroll(rememberScrollState())) {
                     extensionOptions.forEach { option -> TextButton(onClick = { selected = option.value }, modifier = Modifier.fillMaxWidth()) {
                         Text(if (selected == option.value) "✓ ${option.label}" else option.label)
@@ -241,6 +276,10 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
                 } }, confirmButton = { TextButton(enabled = selected != null, onClick = { selected?.let(features::extendReservation) }) { Text("确认续约") } },
                 dismissButton = { TextButton(onClick = features::dismissExtension) { Text("取消") } })
         }
+        UpdateDialogs(updateState, updateIdle && !businessBusy && lifecycleState == Lifecycle.State.RESUMED &&
+            android.os.SystemClock.elapsedRealtime() - lastTouch >= 1500,
+            updates.coordinator, onInstallUpdate)
+    }
     }
 }
 
@@ -519,7 +558,7 @@ private fun AccountsScreen(
         })
     }
     deleting?.let { account ->
-        AlertDialog(
+        BusinessAlertDialog(
             onDismissRequest = { deleting = null },
             title = { Text("删除保存的账号") },
             text = { Text("将从此设备删除 ${account.username} 的登录信息。") },
@@ -535,7 +574,7 @@ private fun AccountDialog(account: AccountSummary?, onDismiss: () -> Unit, onRen
     var password by remember(account?.id) { mutableStateOf("") }
     var label by remember(account?.id) { mutableStateOf(account?.label.orEmpty()) }
     var visible by rememberSaveable { mutableStateOf(false) }
-    AlertDialog(
+    BusinessAlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Outlined.Person, contentDescription = null) },
         title = { Text(if (account == null) "添加图书馆账号" else "编辑账号") },
@@ -568,7 +607,8 @@ private fun AccountDialog(account: AccountSummary?, onDismiss: () -> Unit, onRen
 }
 
 @Composable
-private fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLogin: (Boolean) -> Unit, onAutoSwitch: (Boolean) -> Unit) {
+private fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLogin: (Boolean) -> Unit, onAutoSwitch: (Boolean) -> Unit,
+    updateContent: @Composable () -> Unit) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -579,6 +619,7 @@ private fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLogi
             PreferenceRow(Icons.Outlined.SwapHoriz, "失败时自动切换账号", "当前账号无法登录时，依次尝试其他已保存的账号。", state.autoSwitch, onAutoSwitch)
         }
         CampusNotice()
+        ContentCard("应用更新", Icons.Outlined.Refresh, updateContent)
         ContentCard("关于这个客户端", Icons.Outlined.AutoStories) {
             Text("为建大同学准备的图书馆入口", fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(10.dp))

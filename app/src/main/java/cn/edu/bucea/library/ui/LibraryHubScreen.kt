@@ -31,7 +31,6 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.Wifi
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -308,7 +307,7 @@ fun LibraryHubScreen(
     }
 
     state.selectedRecord?.let { record ->
-        AlertDialog(onDismissRequest = onDismissRecord, title = { Text(record.title.ifBlank { "记录详情" }) },
+        BusinessAlertDialog(onDismissRequest = onDismissRecord, title = { Text(record.title.ifBlank { "记录详情" }) },
             text = { Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (state.detailsLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                 record.status.takeIf { it.isNotBlank() }?.let { Text(it, color = HubTeal, fontWeight = FontWeight.Medium) }
@@ -322,7 +321,7 @@ fun LibraryHubScreen(
                 TextButton(enabled = !state.loading && !state.detailsLoading, onClick = { onDismissRecord(); cancellingRecord = record }) { Text("取消预约", color = MaterialTheme.colorScheme.error) } })
     }
     cancellingRecord?.let { record ->
-        AlertDialog(onDismissRequest = { cancellingRecord = null }, title = { Text("取消这次预约？") },
+        BusinessAlertDialog(onDismissRequest = { cancellingRecord = null }, title = { Text("取消这次预约？") },
             text = { Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(record.title, fontWeight = FontWeight.Medium)
                 record.details.forEach { Text(it) }; Text("取消后该时段的座位将释放。")
@@ -332,7 +331,7 @@ fun LibraryHubScreen(
 
     confirmingAction?.let { action ->
         val maximumHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.45f).coerceAtMost(360.dp)
-        AlertDialog(
+        BusinessAlertDialog(
             onDismissRequest = { if (!state.loading) confirmingAction = null },
             title = { Text("确认${action.label}") },
             text = {
@@ -352,7 +351,7 @@ fun LibraryHubScreen(
         )
     }
     removingFavorite?.let { favorite ->
-        AlertDialog(
+        BusinessAlertDialog(
             onDismissRequest = { if (!state.loading) removingFavorite = null },
             title = { Text("移除收藏座位") },
             text = { Text("将${favorite.name}从本机收藏中移除？") },

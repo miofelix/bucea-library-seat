@@ -175,7 +175,7 @@ fun NativeMapScreen(
     }
     choosing?.let { key ->
         val options = if (key == "building") state.options.buildings else state.options.floors
-        AlertDialog(onDismissRequest = { choosing = null }, title = { Text(if (key == "building") "选择场馆" else "选择楼层") }, text = {
+        BusinessAlertDialog(onDismissRequest = { choosing = null }, title = { Text(if (key == "building") "选择场馆" else "选择楼层") }, text = {
             Column(Modifier.fillMaxWidth().heightIn(max = dialogHeight).verticalScroll(rememberScrollState())) {
                 options.forEach { option -> TextButton(onClick = { choosing = null; onFilter(key, option.value) }, modifier = Modifier.fillMaxWidth()) { Text(option.label) } }
             }
@@ -183,7 +183,7 @@ fun NativeMapScreen(
     }
     selected?.let { cell ->
         val seat = cell.seat ?: return@let
-        AlertDialog(onDismissRequest = { selected = null }, title = { Text("${seat.label} · ${seat.room}") }, text = {
+        BusinessAlertDialog(onDismissRequest = { selected = null }, title = { Text("${seat.label} · ${seat.room}") }, text = {
             Column(Modifier.fillMaxWidth().heightIn(max = dialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(if (cell.localOnly) "该座位仅支持现场预约" else seat.status)
                 Text(state.filters["onDate"].orEmpty(), color = MapMuted)

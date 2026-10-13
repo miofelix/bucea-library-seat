@@ -43,7 +43,6 @@ import androidx.compose.material.icons.outlined.Power
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Window
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -79,6 +78,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -149,6 +149,7 @@ fun SeatSearchScreen(
     onOpenReservations: () -> Unit = {},
 ) {
     var advanced by rememberSaveable { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
     var onlyAvailable by rememberSaveable { mutableStateOf(false) }
     var choosing by remember { mutableStateOf<String?>(null) }
     val shownSeats = remember(state.seats, onlyAvailable) { SeatPresentationPolicy.visibleSeats(state.seats, onlyAvailable) }
@@ -244,7 +245,7 @@ fun SeatSearchScreen(
                         singleLine = true,
                         enabled = !state.loading,
                         shape = RoundedCornerShape(13.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth().pauseUpdatesWhileFocused()
                     )
                     if (byNumber) Text("按编号查询仅使用日期和区域，点选座位后确认可用时段。", fontSize = 11.sp, color = SeatMuted)
                     if (advanced && !byNumber) {
@@ -262,7 +263,7 @@ fun SeatSearchScreen(
                         Text(if (advanced) "收起筛选条件" else "时间、电源与靠窗", fontSize = 12.sp)
                         Icon(Icons.Outlined.ExpandMore, null, modifier = Modifier.size(18.dp))
                     }
-                    Button(onClick = onSearch, enabled = !state.loading && state.options.isNotEmpty() && !state.filters["onDate"].isNullOrBlank(), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().height(50.dp)) {
+                    Button(onClick = { focusManager.clearFocus(); onSearch() }, enabled = !state.loading && state.options.isNotEmpty() && !state.filters["onDate"].isNullOrBlank(), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().height(50.dp)) {
                         if (state.loading) CircularProgressIndicator(Modifier.size(17.dp), color = Color.White, strokeWidth = 2.dp)
                         else Icon(Icons.Outlined.Search, null, modifier = Modifier.size(19.dp))
                         Spacer(Modifier.width(9.dp))
@@ -434,7 +435,7 @@ private fun SeatCapability(icon: ImageVector, label: String, color: Color) {
 @Composable
 private fun OptionDialog(title: String, options: List<SeatOption>, selected: String?, onDismiss: () -> Unit, onSelect: (String) -> Unit) {
     val maximumHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.48f).coerceAtMost(340.dp)
-    AlertDialog(
+    BusinessAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title, fontSize = 20.sp, fontWeight = FontWeight.SemiBold) },
         text = {
@@ -457,7 +458,7 @@ fun NativeReservationDialog(state: SeatSearchState, seat: NativeSeat, onStart: (
     val maximumHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.5f).coerceAtMost(420.dp)
     val start = state.startOptions.firstOrNull { it.value == state.selectedStart }?.label
     val end = state.endOptions.firstOrNull { it.value == state.selectedEnd }?.label
-    AlertDialog(
+    BusinessAlertDialog(
         onDismissRequest = { if (!state.reservationBusy) onDismiss() },
         title = {
             Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
