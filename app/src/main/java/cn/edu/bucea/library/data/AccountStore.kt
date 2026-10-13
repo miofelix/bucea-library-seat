@@ -77,6 +77,16 @@ class AccountStore(context: Context) {
             .put("password", it.password).put("label", it.label)) }
     }.toString())
 
+    /** Update only the encrypted label, preserving credentials, cookies and account choices. */
+    @Synchronized fun updateLabel(id: String, label: String): SavedAccount {
+        val accounts = accounts()
+        val index = accounts.indexOfFirst { it.id == id }
+        require(index >= 0) { "账号不存在，请刷新账号列表" }
+        val updated = accounts[index].copy(label = label.trim())
+        writeAccounts(accounts.mapIndexed { position, account -> if (position == index) updated else account })
+        return updated
+    }
+
     @Synchronized fun delete(id: String) {
         val remaining = accounts().filterNot { it.id == id }
         writeAccounts(remaining)

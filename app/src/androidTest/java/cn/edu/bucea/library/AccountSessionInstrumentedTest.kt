@@ -54,6 +54,47 @@ class AccountSessionInstrumentedTest {
     }
 
     @Test
+    fun labelUpdatePersistsWithoutChangingCredentialsSessionsOrOtherAccount() {
+        val store = AccountStore(context)
+        val a = store.save("209999990009", "synthetic-password-A", "旧备注")
+        val b = store.save("209999990010", "synthetic-password-B", "乙")
+        SessionCookieJar(store, a.id).saveFromResponse(address, listOf(sessionCookie("synthetic-A-session")))
+        SessionCookieJar(store, b.id).saveFromResponse(address, listOf(sessionCookie("synthetic-B-session")))
+        store.setSignedOut(a.id, true)
+        store.activeAccountId = b.id
+        store.autoLogin = false
+        store.autoSwitch = true
+        val updated = store.updateLabel(a.id, " 新备注 ")
+        val reloaded = AccountStore(context)
+        assertEquals(a.copy(label = "新备注"), updated)
+        assertEquals(listOf(a.copy(label = "新备注"), b), reloaded.accounts())
+        assertEquals(b.id, reloaded.activeAccountId)
+        assertFalse(reloaded.autoLogin)
+        assertTrue(reloaded.autoSwitch)
+        assertTrue(reloaded.isSignedOut(a.id))
+        assertFalse(reloaded.isSignedOut(b.id))
+        assertEquals(listOf("synthetic-A-session"), SessionCookieJar(reloaded, a.id).loadForRequest(address).map { it.value })
+        assertEquals(listOf("synthetic-B-session"), SessionCookieJar(reloaded, b.id).loadForRequest(address).map { it.value })
+        assertCiphertext("accounts", listOf("新备注", a.password, b.password))
+        store.updateLabel(a.id, " ")
+        assertEquals("", AccountStore(context).accounts().first { it.id == a.id }.label)
+        assertEquals(a.password, AccountStore(context).accounts().first { it.id == a.id }.password)
+    }
+
+    @Test
+    fun labelUpdateForMissingIdCannotCreateAccountOrChangeVault() {
+        val store = AccountStore(context)
+        val account = store.save("209999990011", "synthetic-password", "备注")
+        store.saveCookies(account.id, "[]")
+        store.setSignedOut(account.id, true)
+        val before = preferences.all.toMap()
+        try { store.updateLabel("missing-account", "不可创建"); org.junit.Assert.fail("Missing account must fail") }
+        catch (_: IllegalArgumentException) { }
+        assertEquals(before, preferences.all)
+        assertEquals(listOf(account), AccountStore(context).accounts())
+    }
+
+    @Test
     fun encryptedAccountsAndSessionsSurviveReloadAndRemainSeparate() {
         val store = AccountStore(context)
         val a = store.save("209999990001", "test-A-password-only!", "测试甲")

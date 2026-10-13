@@ -61,7 +61,13 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     private val historyItems = mutableMapOf<String, LibraryHistoryItem>()
 
     fun bindAccount(id: String?, loggedIn: Boolean) {
-        if (boundAccountId == id && authenticated == loggedIn) return
+        if (boundAccountId == id && authenticated == loggedIn) {
+            val label = accounts.accounts().find { it.id == id }?.let {
+                if (it.label.isBlank()) it.username else "${it.label} · ${it.username}"
+            }.orEmpty()
+            searchState.update { it.copy(accountLabel = label) }
+            return
+        }
         cancelWork()
         boundAccountId?.let { repository.releaseSession(it) }
         boundAccountId = id

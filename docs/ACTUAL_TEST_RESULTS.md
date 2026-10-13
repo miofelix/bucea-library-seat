@@ -1,6 +1,16 @@
 # Actual test results — 2026-10-13
 
-The final test build is **0.3.1 (versionCode 5)**, Kotlin/Compose, installed on the physical Android 16 arm64 phone through adb. Tests used the saved authorized account against the real campus service. Completed mutations require school receipts or readback. Passwords, sessions, personal captures and screenshots are excluded from Git.
+## Latest UI and account run — 0.3.2
+
+64 independent tests passed. Actual current-day selection changed **32 / 32 → 13 / 32** immediately when the availability switch was enabled, without another query. Pagination retained the switch. A synthetic rendering test also covered all-unavailable pages and incoming page updates.
+
+Both actual account UI tests passed: password entry opens no form and emits “修改密码当前未实现”; remark editing with an empty password preserves credentials, cookies, sign-out, current account and other accounts. The temporary remark was restored. Transport failure produced visible campus requirements and disabled login; Wi-Fi settings and reconnection retry recovered native search. No new booking or password mutation was submitted.
+
+Version 0.3.2 / code 6 passed build and Lint. Private evidence is under `.private/qa-0.3.2/`. The mutation results below describe the earlier acceptance checkpoint.
+
+## Earlier actual mutations — 0.3.1
+
+That test build was **0.3.1 (versionCode 5)**, Kotlin/Compose, installed on the physical Android 16 arm64 phone through adb. Tests used the saved authorized account against the real campus service. Completed mutations require school receipts or readback. Passwords, sessions, personal captures and screenshots are excluded from Git.
 
 | Function | Result | Actual evidence / limits |
 | --- | --- | --- |

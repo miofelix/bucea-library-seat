@@ -1,0 +1,78 @@
+package cn.edu.bucea.library
+
+import androidx.test.ext.junit.runners.AndroidJUnit4
+import cn.edu.bucea.library.ui.NativeSeat
+import cn.edu.bucea.library.ui.SeatPresentationPolicy
+import cn.edu.bucea.library.ui.SeatSearchState
+import cn.edu.bucea.library.ui.SeatVisualState
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+
+/** Status and availability are independent server values; the local filter covers one loaded page. */
+@RunWith(AndroidJUnit4::class)
+class SeatPresentationInstrumentedTest {
+    @Test fun schoolTextAndCssStatusesRetainDistinctVisualMeaning() {
+        val cases = listOf(
+            Triple("座位空闲", true, SeatVisualState.FREE),
+            Triple("free power", true, SeatVisualState.FREE),
+            Triple("idle_both", true, SeatVisualState.FREE),
+            Triple("正在使用", false, SeatVisualState.OCCUPIED),
+            Triple("usre", false, SeatVisualState.OCCUPIED),
+            Triple("inuse_power", false, SeatVisualState.OCCUPIED),
+            Triple("已被预约", false, SeatVisualState.RESERVED),
+            Triple("待签到", false, SeatVisualState.RESERVED),
+            Triple("agreement", false, SeatVisualState.RESERVED),
+            Triple("暂离中", false, SeatVisualState.AWAY),
+            Triple("leave", false, SeatVisualState.AWAY),
+            Triple("不可使用", false, SeatVisualState.UNAVAILABLE),
+            Triple("noUsre", false, SeatVisualState.UNAVAILABLE),
+            Triple("school_status_v2", true, SeatVisualState.UNKNOWN),
+            Triple("", false, SeatVisualState.UNKNOWN),
+        )
+        cases.forEach { (text, available, expected) ->
+            assertEquals("Status classification for $text", expected, SeatPresentationPolicy.visualState(text, available))
+        }
+    }
+
+    @Test fun anIdleDescriptionNeverMakesAServerDisabledSeatGreenOrSelectable() {
+        for (status in listOf("座位空闲", "可用", "free", "idle_window")) {
+            assertEquals(SeatVisualState.UNAVAILABLE, SeatPresentationPolicy.visualState(status, false))
+            assertEquals("不可预约", SeatPresentationPolicy.availabilityLabel(false))
+        }
+        assertEquals(SeatVisualState.UNAVAILABLE, SeatPresentationPolicy.visualState("不可预约", true))
+        assertEquals(SeatVisualState.UNAVAILABLE, SeatPresentationPolicy.visualState("仅限现场预约", false))
+    }
+
+    @Test fun currentlyUsedSeatsMayStillOfferOtherTimesWithoutChangingTheirStatus() {
+        val original = NativeSeat("synthetic", "001A", "测试区域", status = "当前正在使用，可预约其他时段", available = true)
+        val visual = SeatPresentationPolicy.visualState(original.status, original.available)
+        assertEquals(SeatVisualState.OCCUPIED, visual)
+        assertEquals("可预约", SeatPresentationPolicy.availabilityLabel(original.available))
+        assertNotNull(SeatPresentationPolicy.availabilityDetail(visual, original.available))
+        assertTrue(SeatPresentationPolicy.availabilityDetail(visual, original.available)!!.contains("时段"))
+        assertEquals("当前正在使用，可预约其他时段", original.status)
+    }
+
+    @Test fun availabilityFilterUsesTheServerFlagAndOnlyTheLoadedPage() {
+        val page = SeatSearchState(page = 2, hasSearched = true, hasNextPage = true, seats = listOf(
+            NativeSeat("a", "001A", "测试区域", status = "正在使用", available = true),
+            NativeSeat("b", "001B", "测试区域", status = "空闲", available = false),
+            NativeSeat("c", "001C", "测试区域", status = "未知", available = true),
+        ))
+        val shown = SeatPresentationPolicy.visibleSeats(page.seats, true)
+        assertEquals(listOf("a", "c"), shown.map { it.id })
+        assertEquals(3, page.seats.size)
+        assertSame(page.seats, SeatPresentationPolicy.visibleSeats(page.seats, false))
+        assertTrue(page.hasNextPage)
+        assertEquals(2, page.page)
+        val unavailablePage = page.copy(seats = page.seats.filterNot { it.available })
+        assertTrue(SeatPresentationPolicy.visibleSeats(unavailablePage.seats, true).isEmpty())
+        assertTrue(unavailablePage.hasNextPage)
+        assertFalse(unavailablePage.seats.isEmpty())
+    }
+}

@@ -7,6 +7,7 @@ import cn.edu.bucea.library.data.*
 import cn.edu.bucea.library.ocr.DdddOcr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,15 +39,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             mutableState.update { it.copy(busy = true) }
             try { block() }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { mutableState.update { it.copy(status = repository.userMessage(e), authenticated = false) } }
+            catch (e: Exception) { mutableState.update {
+                val access = CampusAccessPolicy.afterFailure(it.campusAccess, e)
+                it.copy(status = if (access == CampusAccess.UNREACHABLE) "无法访问图书馆，请连接可访问校园内网的网络后重试" else repository.userMessage(e),
+                    campusAccess = access, authenticated = false,
+                    overviewStale = it.overviewStale || access == CampusAccess.UNREACHABLE)
+            } }
             finally { if (coroutineContext[Job]?.isActive == true) mutableState.update { it.copy(busy = false) } }
         }
     }
 
-    fun refresh() = run {
-        mutableState.update { it.copy(status = "正在连接图书馆…", overviewStale = true) }
-        val overview = repository.publicOverview()
+    private suspend fun checkCampusAccess(): LibraryOverview {
+        val checkJob = currentCoroutineContext()[Job]
+        mutableState.update { it.copy(status = "正在检查校园访问…", overviewStale = true) }
+        val overview = CampusAccessPolicy.check(repository::publicOverview) { access ->
+            if (checkJob?.isActive != false) mutableState.update { it.copy(campusAccess = access) }
+        }
         mutableState.update { it.copy(overview = overview, overviewStale = false) }
+        return overview
+    }
+
+    fun refresh() = run {
+        val overview = checkCampusAccess()
         val account = store.accounts().find { it.id == store.activeAccountId }
         if (account != null) {
             explicitlySignedOut = store.isSignedOut(account.id)
@@ -63,9 +77,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun login() = run {
-        explicitlySignedOut = false
         val account = store.accounts().find { it.id == store.activeAccountId }
             ?: throw IllegalArgumentException("请先添加图书馆账号")
+        checkCampusAccess()
+        explicitlySignedOut = false
         store.setSignedOut(account.id, false)
         loginAccounts(account)
     }
@@ -111,12 +126,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun saveAccount(username: String, password: String, label: String) {
         try {
             operation?.cancel()
+            val old = store.accounts().firstOrNull { it.username == username.trim() }
+            val wasSignedOut = old?.let { store.isSignedOut(it.id) } == true
             val account = store.save(username.trim(), password, label.trim())
+            if (wasSignedOut) store.setSignedOut(account.id, true)
             repository.forget(account.id)
             syncAccounts()
             mutableState.update { it.copy(authenticated = false, overview = it.overview?.copy(displayName = null)) }
             login()
         } catch (e: Exception) { mutableState.update { it.copy(status = e.message ?: "保存失败") } }
+    }
+
+    fun renameAccount(id: String, label: String) {
+        try {
+            store.updateLabel(id, label)
+            syncAccounts()
+            mutableState.update { it.copy(status = "备注已更新") }
+        } catch (error: Exception) {
+            mutableState.update { it.copy(status = error.message ?: "备注更新失败") }
+        }
     }
 
     fun selectAccount(id: String) {
@@ -131,7 +159,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         repository.forget(id)
         SeatFavoritesStore(getApplication()).clear(id)
         store.delete(id); syncAccounts()
-        mutableState.update { it.copy(authenticated = false, busy = false, status = "账号已删除", overview = it.overview?.copy(displayName = null)) }
+        mutableState.update { it.copy(authenticated = false, busy = false, status = "账号已删除", overview = it.overview?.copy(displayName = null),
+            campusAccess = if (it.campusAccess == CampusAccess.CHECKING) CampusAccess.UNKNOWN else it.campusAccess) }
         if (store.activeAccountId != null) refresh()
     }
 

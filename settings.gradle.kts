@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "BuceaLibrary"
+rootProject.name = "bucea-library-seat"
 include(":app")

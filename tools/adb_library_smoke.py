@@ -11,7 +11,7 @@ Usage:
     python3 tools/adb_library_smoke.py --map-only --artifacts .private/map-native-qa
 
 --full additionally inspects native filter choices, server floor/room maps, the
-accessible seat list, and the empty password-change form. It never submits a
+accessible seat list, and the unimplemented password-change entry. It never submits a
 booking, account change, reservation action, password change, or sign-out.
 
 Screenshots are optional and can contain personal information. Keep them in .private/.
@@ -323,7 +323,7 @@ class NativeSmoke:
         self.tap_exact("查找可用座位")
         self.wait(lambda: self.exact("查找可用座位"),
                   "座位查询未完成；请确认校园网连接，或稍后重试。")
-        self.find_scrolling(lambda: self.nodes(lambda node: label(node).startswith("已加载 ")),
+        self.find_scrolling(lambda: self.nodes(lambda node: label(node).startswith(("已加载 ", "本页显示 "))),
                             "查询未显示座位结果；请检查校园网或筛选条件。")
         self.pass_phase("01-native-search")
 
@@ -570,28 +570,37 @@ class NativeSmoke:
             self.pass_phase(f"08-native-map-floor-{index}-list")
             self.switch_map_mode("map")
 
-    def run_password_empty_check(self) -> None:
-        self.phase = "原生密码表单空值校验"
+    def run_password_unimplemented_check(self) -> None:
+        """Check that the unavailable entry shows a notice and opens no form."""
+        self.phase = "未实现密码修改入口"
         self.adb("shell", "input", "keyevent", "KEYCODE_BACK")
         self.tap_exact("账号", bottom=True)
         opener = self.find_scrolling(lambda: self.exact("修改图书馆密码"), "未找到原生密码修改入口。")
         self.tap(opener, "修改图书馆密码")
-        self.wait(lambda: self.exact("当前密码"), "未打开原生密码表单。")
-        for field in ["当前密码", "新密码", "再次输入新密码"]:
-            self.find_scrolling(lambda value=field: self.exact(value), "原生密码表单字段未完整显示。")
-        submit = self.nodes(lambda node: label(node) == "修改密码", enabled=False)
-        if not submit:
-            raise SmokeFailure("密码表单未提供提交按钮。")
-        if any(self.visible(node) for node in submit):
-            raise SmokeFailure("密码字段为空时提交按钮应禁用。")
-        self.pass_phase("09-native-password-empty-no-submit")
-        self.tap_exact("取消")
+        toast_seen = False
+        deadline = time.monotonic() + min(self.timeout, 6)
+        while time.monotonic() < deadline:
+            self.snapshot()
+            if self.nodes(lambda node: label(node) in {"当前密码", "新密码", "再次输入新密码", "修改密码"}, enabled=False):
+                raise SmokeFailure("未实现的密码入口不应打开表单或提供提交操作。")
+            # Android can expose a transient Toast under another system package.
+            # Inspect it in memory without logging the hierarchy or notice text.
+            if any("未实现" in label(node) for node in self.root.iter("node")):
+                toast_seen = True
+                break
+            time.sleep(.2)
+        self.wait(lambda: self.exact("账号管理"), "密码入口应保持在账号管理页面。")
+        self.pass_phase("09-password-entry-no-form-or-submit")
+        if toast_seen:
+            self.pass_phase("09-password-unimplemented-notice")
+        else:
+            print("SKIP password-unimplemented-notice: transient-toast-not-observed-use-instrumentation", flush=True)
 
     def run_full(self) -> None:
         """Bounded additional native UX checks; intentionally omits real mutations."""
         self.run_filter_checks()
         self.run_map_checks()
-        self.run_password_empty_check()
+        self.run_password_unimplemented_check()
 
     def cleanup(self) -> None:
         try:
@@ -605,7 +614,7 @@ def main() -> int:
     parser.add_argument("--serial", help="adb device serial; omit only when a single device is connected")
     parser.add_argument("--adb", help="path to adb executable")
     modes = parser.add_mutually_exclusive_group()
-    modes.add_argument("--full", action="store_true", help="also inspect native filters, all returned map floors (up to 6), and empty password validation")
+    modes.add_argument("--full", action="store_true", help="also inspect native filters, all returned map floors (up to 6), and the unimplemented password entry without form submission")
     modes.add_argument("--map-only", action="store_true", help="only inspect native map floors and canvas/list switching, without repeating search acceptance")
     parser.add_argument("--timeout", type=float, default=20, help="maximum wait per UI phase, 1–20 seconds (default 20)")
     parser.add_argument("--artifacts", type=Path, nargs="?", const=Path(".private/native-qa"), help="optional screenshot directory (default .private/native-qa when flag is supplied)")

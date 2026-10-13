@@ -2,6 +2,8 @@ package cn.edu.bucea.library
 
 data class AccountSummary(val id: String, val username: String, val label: String)
 
+enum class CampusAccess { UNKNOWN, CHECKING, REACHABLE, UNREACHABLE }
+
 data class LibraryOverview(
     val available: Int? = null,
     val inUse: Int? = null,
@@ -21,4 +23,5 @@ data class LibraryUiState(
     val authenticated: Boolean = false,
     val overview: LibraryOverview? = null,
     val overviewStale: Boolean = true,
+    val campusAccess: CampusAccess = CampusAccess.UNKNOWN,
 )

@@ -1,6 +1,7 @@
 package cn.edu.bucea.library.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +29,11 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Chair
+import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.HelpOutline
+import androidx.compose.material.icons.outlined.Logout
+import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.GridView
@@ -54,6 +60,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -68,9 +76,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -137,7 +149,9 @@ fun SeatSearchScreen(
     onOpenReservations: () -> Unit = {},
 ) {
     var advanced by rememberSaveable { mutableStateOf(false) }
+    var onlyAvailable by rememberSaveable { mutableStateOf(false) }
     var choosing by remember { mutableStateOf<String?>(null) }
+    val shownSeats = remember(state.seats, onlyAvailable) { SeatPresentationPolicy.visibleSeats(state.seats, onlyAvailable) }
     val resultsRequester = remember { BringIntoViewRequester() }
     val byNumber = state.filters["name"].orEmpty().isNotBlank()
     LaunchedEffect(state.page, state.hasSearched, state.loading) {
@@ -256,22 +270,41 @@ fun SeatSearchScreen(
                 }
             }
             Row(Modifier.fillMaxWidth().bringIntoViewRequester(resultsRequester), verticalAlignment = Alignment.CenterVertically) {
-                Text("可用座位", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = SeatInk, modifier = Modifier.weight(1f))
-                if (state.hasSearched) Text("已加载 ${state.seats.size} 个 · 第 ${state.page + 1} 页", fontSize = 12.sp, color = SeatMuted)
+                Text("座位结果", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = SeatInk, modifier = Modifier.weight(1f))
+                if (state.hasSearched) Text("第 ${state.page + 1} 页", fontSize = 12.sp, color = SeatMuted)
             }
-            if (state.seats.isEmpty() && !state.loading) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("仅看可用", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SeatInk)
+                    Text("只筛选本页已加载座位", fontSize = 11.sp, color = SeatMuted)
+                }
+                Switch(checked = onlyAvailable, onCheckedChange = { onlyAvailable = it },
+                    modifier = Modifier.semantics {
+                        contentDescription = "仅看可用"
+                        stateDescription = if (onlyAvailable) "仅显示本页可预约座位" else "显示本页全部座位"
+                    },
+                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = SeatTeal))
+            }
+            if (state.hasSearched) Text("本页显示 ${shownSeats.size} / 已加载 ${state.seats.size} 个", fontSize = 12.sp, color = SeatMuted)
+            if (shownSeats.isEmpty() && !state.loading) {
+                val noAvailableOnPage = onlyAvailable && state.seats.isNotEmpty()
                 Column(Modifier.fillMaxWidth().padding(vertical = 26.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(11.dp)) {
                     Box(Modifier.size(62.dp).clip(RoundedCornerShape(20.dp)).background(SeatSoft), contentAlignment = Alignment.Center) {
                         Icon(Icons.Outlined.Chair, null, tint = SeatTeal, modifier = Modifier.size(30.dp))
                     }
-                    Text(if (state.hasSearched) "暂时没有符合条件的座位" else "先选择日期，再找到你的座位", fontSize = 15.sp, color = SeatInk, fontWeight = FontWeight.Medium)
-                    Text(if (state.hasSearched) "试试其他阅览区域或时间条件。" else "座位与可用时段将从图书馆实时查询。", fontSize = 12.sp, color = SeatMuted)
+                    Text(when { noAvailableOnPage -> "本页没有可预约座位"; state.hasSearched -> "暂时没有符合条件的座位"; else -> "先选择日期，再找到你的座位" }, fontSize = 15.sp, color = SeatInk, fontWeight = FontWeight.Medium)
+                    Text(when {
+                        noAvailableOnPage && state.hasNextPage -> "可继续翻页，或关闭“仅看可用”查看本页全部状态。"
+                        noAvailableOnPage -> "关闭“仅看可用”可查看本页全部状态，或调整查询条件。"
+                        state.hasSearched -> "试试其他阅览区域或时间条件。"
+                        else -> "座位与可用时段将从图书馆实时查询。"
+                    }, fontSize = 12.sp, color = SeatMuted)
                 }
             }
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val columns = if (LocalDensity.current.fontScale >= 1.3f) 2 else if (maxWidth >= 620.dp) 4 else if (maxWidth >= 410.dp) 3 else 2
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    state.seats.chunked(columns).forEach { seats ->
+                    shownSeats.chunked(columns).forEach { seats ->
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             seats.forEach { seat ->
                                 SeatCard(seat, !state.loading && !state.reservationBusy, Modifier.weight(1f), { onToggleFavorite(seat) }) { onSelectSeat(seat) }
@@ -327,10 +360,20 @@ private fun FilterField(title: String, selected: String, enabled: Boolean, modif
 
 @Composable
 private fun SeatCard(seat: NativeSeat, enabled: Boolean, modifier: Modifier, onFavorite: () -> Unit, onSelect: () -> Unit) {
-    Card(modifier.clickable(enabled = enabled && seat.available, onClick = onSelect), shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+    val visualState = SeatPresentationPolicy.visualState(seat.status, seat.available)
+    val palette = seatPalette(visualState)
+    val status = seat.status.ifBlank { "状态未知" }
+    val availability = SeatPresentationPolicy.availabilityLabel(seat.available)
+    Card(
+        modifier.semantics { stateDescription = "$status，$availability" }
+            .clickable(enabled = enabled && seat.available, onClick = onSelect),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = if (seat.available) palette.background else Color(0xFFF1F3F4)),
+        border = BorderStroke(1.dp, if (seat.available) palette.border else palette.foreground.copy(alpha = 0.45f)),
+    ) {
         Column(Modifier.fillMaxWidth().padding(15.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.Chair, null, tint = SeatTeal, modifier = Modifier.size(23.dp))
+                Icon(palette.icon, null, tint = palette.foreground, modifier = Modifier.size(23.dp))
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = onFavorite, enabled = enabled, modifier = Modifier.size(48.dp)) {
                     Icon(if (seat.localFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder, if (seat.localFavorite) "取消收藏 ${seat.name}" else "收藏 ${seat.name}", tint = if (seat.localFavorite) Color(0xFFB99345) else SeatMuted, modifier = Modifier.size(19.dp))
@@ -338,22 +381,40 @@ private fun SeatCard(seat: NativeSeat, enabled: Boolean, modifier: Modifier, onF
             }
             Text(seat.name, fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold, color = SeatInk)
             Text(seat.location, fontSize = 11.sp, lineHeight = 17.sp, color = SeatMuted)
-            Text(seat.status, fontSize = 10.sp, color = if (seat.available) SeatTeal else SeatMuted)
+            Surface(color = palette.background, shape = RoundedCornerShape(7.dp)) {
+                Text(status, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp), fontSize = 11.sp,
+                    lineHeight = 17.sp, fontWeight = FontWeight.Medium, color = palette.foreground)
+            }
+            Text(availability, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = palette.foreground)
+            SeatPresentationPolicy.availabilityDetail(visualState, seat.available)?.let { detail ->
+                Text(detail, fontSize = 10.sp, lineHeight = 16.sp, color = SeatMuted)
+            }
             if (seat.power == true || seat.window == true) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    if (seat.power == true) SeatCapability(Icons.Outlined.Power, "电源")
-                    if (seat.window == true) SeatCapability(Icons.Outlined.Window, "靠窗")
+                    if (seat.power == true) SeatCapability(Icons.Outlined.Power, "电源", palette.foreground)
+                    if (seat.window == true) SeatCapability(Icons.Outlined.Window, "靠窗", palette.foreground)
                 }
             }
         }
     }
 }
 
+private data class SeatPalette(val background: Color, val border: Color, val foreground: Color, val icon: ImageVector)
+
+private fun seatPalette(state: SeatVisualState): SeatPalette = when (state) {
+    SeatVisualState.FREE -> SeatPalette(Color(0xFFEDF7F0), Color(0xFFB9DCC7), Color(0xFF216847), Icons.Outlined.CheckCircle)
+    SeatVisualState.OCCUPIED -> SeatPalette(Color(0xFFFFF0ED), Color(0xFFE8C2BB), Color(0xFFA33C30), Icons.Outlined.Person)
+    SeatVisualState.RESERVED -> SeatPalette(Color(0xFFFFF4E5), Color(0xFFE6CEAB), Color(0xFF956013), Icons.Outlined.CalendarMonth)
+    SeatVisualState.AWAY -> SeatPalette(Color(0xFFF3EEF9), Color(0xFFD5C8E8), Color(0xFF705097), Icons.Outlined.Logout)
+    SeatVisualState.UNAVAILABLE -> SeatPalette(Color(0xFFF0F2F3), Color(0xFFD4DADF), Color(0xFF606C73), Icons.Outlined.Block)
+    SeatVisualState.UNKNOWN -> SeatPalette(Color(0xFFF0F2F3), Color(0xFFD4DADF), Color(0xFF606C73), Icons.Outlined.HelpOutline)
+}
+
 @Composable
-private fun SeatCapability(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String) {
+private fun SeatCapability(icon: ImageVector, label: String, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        Icon(icon, null, tint = SeatTeal, modifier = Modifier.size(12.dp))
-        Text(label, fontSize = 10.sp, color = SeatTeal)
+        Icon(icon, null, tint = color, modifier = Modifier.size(12.dp))
+        Text(label, fontSize = 10.sp, color = color)
     }
 }
 

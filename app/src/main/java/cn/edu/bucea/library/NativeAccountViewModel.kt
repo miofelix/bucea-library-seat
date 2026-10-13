@@ -31,7 +31,13 @@ class NativeAccountViewModel(application: Application) : AndroidViewModel(applic
     private var operation: Job? = null
 
     fun bindAccount(id: String?, loggedIn: Boolean) {
-        if (accountId == id && authenticated == loggedIn) return
+        if (accountId == id && authenticated == loggedIn) {
+            val label = store.accounts().find { it.id == id }?.let {
+                if (it.label.isBlank()) it.username else "${it.label} · ${it.username}"
+            }.orEmpty()
+            mutableState.update { it.copy(accountLabel = label) }
+            return
+        }
         operation?.cancel()
         accountId?.let(library::releaseSession)
         accountId = id

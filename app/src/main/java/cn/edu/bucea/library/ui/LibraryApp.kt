@@ -1,6 +1,9 @@
 package cn.edu.bucea.library.ui
 
 import android.graphics.BitmapFactory
+import android.content.Intent
+import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -8,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -80,6 +84,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -89,6 +98,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.edu.bucea.library.AccountSummary
+import cn.edu.bucea.library.CampusAccess
+import cn.edu.bucea.library.R
 import cn.edu.bucea.library.LibraryUiState
 import cn.edu.bucea.library.MainViewModel
 import cn.edu.bucea.library.LibraryFeatureViewModel
@@ -120,10 +131,10 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
     val verificationState by verification.state.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var mapOpen by rememberSaveable { mutableStateOf(false) }
-    var passwordOpen by remember { mutableStateOf(false) }
     var signOutOpen by remember { mutableStateOf(false) }
     var accountMessage by remember { mutableStateOf<String?>(null) }
     var verificationOrigin by remember { mutableStateOf("search") }
+    val context = LocalContext.current
     val destinations = listOf("首页" to Icons.Outlined.Home, "选座" to Icons.Outlined.GridView,
         "我的" to Icons.Outlined.AutoStories, "账号" to Icons.Outlined.Person, "设置" to Icons.Outlined.Settings)
     LaunchedEffect(state.activeAccountId, state.authenticated) {
@@ -131,17 +142,17 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
         maps.bindAccount(state.activeAccountId, state.authenticated)
         nativeAccount.bindAccount(state.activeAccountId, state.authenticated)
         verification.dismiss()
-        if (!state.authenticated) { mapOpen = false; passwordOpen = false; signOutOpen = false }
+        if (!state.authenticated) { mapOpen = false; signOutOpen = false }
+    }
+    val activeAccountLabel = state.accounts.firstOrNull { it.id == state.activeAccountId }?.label
+    LaunchedEffect(state.activeAccountId, activeAccountLabel, state.authenticated) {
+        features.bindAccount(state.activeAccountId, state.authenticated)
+        nativeAccount.bindAccount(state.activeAccountId, state.authenticated)
     }
     LaunchedEffect(tab, mapOpen, state.authenticated) {
         if (state.authenticated && tab == 1 && !mapOpen) features.loadSearch()
         if (state.authenticated && tab == 2) features.refreshHub()
         if (state.authenticated && mapOpen) maps.refresh()
-    }
-    LaunchedEffect(accountState.passwordChanged, accountState.credentialsSaved, accountState.busy) {
-        if (accountState.passwordChanged && !accountState.busy) {
-            accountMessage = accountState.message; passwordOpen = false; viewModel.credentialsChanged()
-        }
     }
     LaunchedEffect(seatState.verificationRequired, mapState.verificationRequired, state.activeAccountId) {
         val id = state.activeAccountId
@@ -187,20 +198,23 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
                         onSelectStart = features::selectStart, onSelectEnd = features::selectEnd, onConfirmReservation = features::confirmReservation,
                         onDismissReservation = features::dismissReservation, onRefresh = features::refreshSearch, onVerify = verifySearch,
                         onOpenReservations = { features.dismissReservation(); tab = 2 })
-                } else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login) { tab = 3 }
+                } else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login, viewModel::refresh) { tab = 3 }
                 tab == 2 -> if (state.authenticated) LibraryHubScreen(hubState, Modifier.padding(padding), features::refreshHub,
                     features::selectHubSection, features::loadMoreHistory, onSearch = { tab = 1 }, onOpenMap = { tab = 1; mapOpen = true },
                     onFavorite = { favorite -> tab = 1; features.loadSearch(features.favoriteSeat(favorite)) },
                     onRemoveFavorite = features::removeFavorite, onAction = features::performAction, onCancelRecord = features::cancelRecord,
                     onOpenRecord = features::openRecord, onDismissRecord = features::dismissRecord)
-                else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login) { tab = 3 }
+                else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login, viewModel::refresh) { tab = 3 }
                 tab == 3 -> AccountsScreen(state.copy(busy = state.busy || seatState.reservationBusy || mutating || accountState.busy),
                     Modifier.padding(padding), viewModel::saveAccount, viewModel::selectAccount, viewModel::deleteAccount, viewModel::login,
-                    onChangePassword = { nativeAccount.clearResult(); passwordOpen = true }, onLogout = { signOutOpen = true }, message = accountMessage)
+                    onRename = viewModel::renameAccount,
+                    onChangePassword = {
+                        accountMessage = "修改密码当前未实现"
+                        Toast.makeText(context, "修改密码当前未实现", Toast.LENGTH_SHORT).show()
+                    }, onLogout = { signOutOpen = true }, onCheckCampus = viewModel::refresh, message = accountMessage)
                 else -> SettingsScreen(state, Modifier.padding(padding), viewModel::setAutoLogin, viewModel::setAutoSwitch)
             }
         }
-        if (passwordOpen) PasswordChangeDialog(accountState, nativeAccount::changePassword) { if (!accountState.busy) passwordOpen = false }
         if (signOutOpen) SignOutDialog(accountState.accountLabel, state.busy,
             onConfirm = { signOutOpen = false; viewModel.logout() }, onDismiss = { if (!state.busy) signOutOpen = false })
         NativeVerificationDialog(verificationState, verification::refresh, verification::dismiss, onVerified = { proof ->
@@ -222,11 +236,14 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
 }
 
 @Composable
-private fun FeatureLoginPrompt(state: LibraryUiState, modifier: Modifier, onLogin: () -> Unit, onAccounts: () -> Unit) {
-    Column(modifier.fillMaxSize().padding(24.dp), verticalArrangement = Arrangement.Center) {
+private fun FeatureLoginPrompt(state: LibraryUiState, modifier: Modifier, onLogin: () -> Unit, onCheckCampus: () -> Unit, onAccounts: () -> Unit) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Spacer(Modifier.height(16.dp))
         Text("登录后使用图书馆功能", style = MaterialTheme.typography.titleLarge)
-        Text(state.status, Modifier.padding(vertical = 16.dp), color = Muted)
-        Button(onClick = if (state.accounts.isEmpty()) onAccounts else onLogin, enabled = !state.busy) {
+        CampusAccessNotice(state, onCheckCampus)
+        Text(state.status, color = Muted)
+        Button(onClick = if (state.accounts.isEmpty()) onAccounts else onLogin,
+            enabled = !state.busy && (state.accounts.isEmpty() || state.campusAccess == CampusAccess.REACHABLE)) {
             Text(if (state.accounts.isEmpty()) "添加账号" else "登录图书馆")
         }
     }
@@ -254,13 +271,15 @@ private fun Dashboard(
                 Icon(Icons.Outlined.AutoStories, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
             }
             Column(Modifier.padding(start = 12.dp).weight(1f)) {
-                Text("建大 · 图书馆", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Ink)
+                Text(stringResource(R.string.app_name), fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Ink)
                 Text("BUCEA LIBRARY", fontSize = 9.sp, letterSpacing = 1.8.sp, color = Muted)
             }
             IconButton(onClick = onRefresh, enabled = !state.busy) {
                 Icon(Icons.Outlined.Refresh, contentDescription = "刷新图书馆数据", tint = if (state.busy) Muted else Teal)
             }
         }
+
+        CampusAccessNotice(state, onRefresh)
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -312,7 +331,7 @@ private fun Dashboard(
                         else -> onAccounts()
                     }
                 },
-                enabled = !state.busy,
+                enabled = !state.busy && (account == null || state.campusAccess == CampusAccess.REACHABLE),
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(17.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Teal)
@@ -324,15 +343,15 @@ private fun Dashboard(
                     Icon(if (state.authenticated) Icons.Outlined.GridView else Icons.Outlined.Lock, contentDescription = null, modifier = Modifier.size(19.dp))
                     Spacer(Modifier.width(10.dp))
                 }
-                Text(when { state.busy -> "正在连接图书馆…"; state.authenticated -> "查询并预约座位"; account != null -> "登录并同步"; else -> "添加账号，开始使用" }, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Text(when { state.busy -> "正在连接图书馆…"; account != null && state.campusAccess != CampusAccess.REACHABLE -> "连接校园网后登录"; state.authenticated -> "查询并预约座位"; account != null -> "登录并同步"; else -> "添加账号，开始使用" }, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 if (!state.busy) {
                     Spacer(Modifier.weight(1f))
                     Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, modifier = Modifier.size(19.dp))
                 }
             }
             if (state.authenticated) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                TextButton(onClick = onOpenMap) { Text("布局选座") }
-                TextButton(onClick = onReservations) { Text("我的预约") }
+                TextButton(onClick = onOpenMap, enabled = !state.busy) { Text("布局选座") }
+                TextButton(onClick = onReservations, enabled = !state.busy) { Text("我的预约") }
             }
         }
 
@@ -381,7 +400,7 @@ private fun SessionCard(state: LibraryUiState, account: AccountSummary?, onAccou
                 Text(account.label.takeIf { it.isNotBlank() } ?: account.username, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }
             Text(state.status.ifBlank { "添加账号后，可自动识别验证码并登录。" }, color = Muted, fontSize = 12.sp, lineHeight = 19.sp)
-            if (!state.authenticated && !state.busy && account != null) {
+            if (!state.authenticated && !state.busy && account != null && state.campusAccess == CampusAccess.REACHABLE) {
                 TextButton(onClick = onLogin, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), modifier = Modifier.height(28.dp)) {
                     Text("重新登录", fontSize = 12.sp)
                 }
@@ -400,6 +419,8 @@ private fun AccountsScreen(
     onLogin: () -> Unit,
     onChangePassword: () -> Unit,
     onLogout: () -> Unit,
+    onCheckCampus: () -> Unit,
+    onRename: (String, String) -> Unit,
     message: String? = null,
 ) {
     var editing by remember { mutableStateOf<AccountSummary?>(null) }
@@ -407,6 +428,7 @@ private fun AccountsScreen(
     var deleting by remember { mutableStateOf<AccountSummary?>(null) }
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(22.dp)) {
         ScreenHeading("账号管理", "一次保存，下次直接开始。", Icons.Outlined.Person)
+        CampusAccessNotice(state, onCheckCampus)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("已保存的账号", color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
             Text("${state.accounts.size} 个", color = Muted, fontSize = 12.sp)
@@ -416,7 +438,7 @@ private fun AccountsScreen(
                 Column(Modifier.fillMaxWidth().padding(30.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     IconTile(Icons.Outlined.Person, 58)
                     Text("添加第一个账号", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    Text("保存图书馆账号后，即可自动识别\n验证码并恢复登录。", color = Muted, fontSize = 13.sp, lineHeight = 21.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text("保存图书馆账号，连接校园网后\n自动识别验证码并登录。", color = Muted, fontSize = 13.sp, lineHeight = 21.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                 }
             }
         }
@@ -440,7 +462,7 @@ private fun AccountsScreen(
                     }
                     HorizontalDivider(color = if (selected) Teal.copy(alpha = 0.12f) else Line)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (selected) "当前使用" else "点击切换并登录", color = if (selected) Teal else Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                        Text(if (selected) "当前使用" else if (state.campusAccess == CampusAccess.REACHABLE) "点击切换并登录" else "点击选择；连接校园网后登录", color = if (selected) Teal else Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
                         IconButton(onClick = { editing = account; showEditor = true }, enabled = !state.busy, modifier = Modifier.size(32.dp)) {
                             Icon(Icons.Outlined.Edit, contentDescription = "修改 ${account.username}", tint = Muted, modifier = Modifier.size(18.dp))
                         }
@@ -481,7 +503,10 @@ private fun AccountsScreen(
         CampusNotice()
     }
     if (showEditor) {
-        AccountDialog(editing, onDismiss = { showEditor = false }, onSave = { username, password, label ->
+        AccountDialog(editing, onDismiss = { showEditor = false }, onRename = { id, label ->
+            onRename(id, label)
+            showEditor = false
+        }, onSave = { username, password, label ->
             onSave(username, password, label)
             showEditor = false
         })
@@ -498,7 +523,7 @@ private fun AccountsScreen(
 }
 
 @Composable
-private fun AccountDialog(account: AccountSummary?, onDismiss: () -> Unit, onSave: (String, String, String) -> Unit) {
+private fun AccountDialog(account: AccountSummary?, onDismiss: () -> Unit, onRename: (String, String) -> Unit, onSave: (String, String, String) -> Unit) {
     var username by remember(account?.id) { mutableStateOf(account?.username.orEmpty()) }
     var password by remember(account?.id) { mutableStateOf("") }
     var label by remember(account?.id) { mutableStateOf(account?.label.orEmpty()) }
@@ -506,15 +531,15 @@ private fun AccountDialog(account: AccountSummary?, onDismiss: () -> Unit, onSav
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Outlined.Person, contentDescription = null) },
-        title = { Text(if (account == null) "添加图书馆账号" else "修改登录信息") },
+        title = { Text(if (account == null) "添加图书馆账号" else "编辑账号") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(if (account == null) "使用与图书馆网站相同的账号和密码。" else "请重新输入密码，保存后更新此账号。", color = Muted, fontSize = 12.sp, lineHeight = 19.sp)
+                Text(if (account == null) "使用与图书馆网站相同的账号和密码。" else "可直接修改备注。密码留空时保留已保存的密码；填写新密码后才更新登录信息。", color = Muted, fontSize = 12.sp, lineHeight = 19.sp)
                 OutlinedTextField(username, { username = it.trim() }, label = { Text("学号 / 账号") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), readOnly = account != null)
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
-                    label = { Text("密码") },
+                    label = { Text(if (account == null) "密码" else "密码（留空不修改）") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -525,7 +550,12 @@ private fun AccountDialog(account: AccountSummary?, onDismiss: () -> Unit, onSav
                 OutlinedTextField(label, { label = it }, label = { Text("备注名（可选）") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(username.trim(), password, label.trim()) }, enabled = username.isNotBlank() && password.isNotBlank()) { Text("保存账号") } },
+        confirmButton = { TextButton(onClick = {
+            if (account != null && password.isEmpty()) onRename(account.id, label.trim())
+            else onSave(username.trim(), password, label.trim())
+        }, enabled = username.isNotBlank() && (account != null || password.isNotBlank())) {
+            Text(if (account != null && password.isEmpty()) "保存备注" else "保存账号")
+        } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
     )
 }
@@ -589,6 +619,48 @@ private fun ContentCard(title: String, icon: ImageVector, content: @Composable (
             }
             Spacer(Modifier.height(19.dp))
             content()
+        }
+    }
+}
+
+@Composable
+private fun CampusAccessNotice(state: LibraryUiState, onCheckCampus: () -> Unit) {
+    if (state.campusAccess == CampusAccess.REACHABLE) return
+    val context = LocalContext.current
+    val unavailable = state.campusAccess == CampusAccess.UNREACHABLE
+    val checking = state.campusAccess == CampusAccess.CHECKING
+    val foreground = if (unavailable) Color(0xFF923D2B) else Ink
+    Surface(
+        modifier = Modifier.fillMaxWidth().semantics {
+            liveRegion = if (unavailable) LiveRegionMode.Assertive else LiveRegionMode.Polite
+        },
+        color = if (unavailable) Color(0xFFFFEAE2) else SoftGreen,
+        shape = RoundedCornerShape(18.dp),
+    ) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Icon(Icons.Outlined.Wifi, null, tint = foreground, modifier = Modifier.size(24.dp))
+                Text(when {
+                    unavailable -> "请先连接校园网"
+                    checking -> "正在检测校园网"
+                    else -> "登录需要校园网"
+                }, color = foreground, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            }
+            Text(if (unavailable) "当前无法访问图书馆内网。请连接学校校园 Wi-Fi，再重新检测连接。"
+                else "请连接学校校园网；确认能访问图书馆后才能登录。",
+                color = foreground, fontSize = 13.sp, lineHeight = 21.sp)
+            if (checking) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                CircularProgressIndicator(Modifier.size(16.dp), color = Teal, strokeWidth = 2.dp)
+                Text("正在检查连接…", color = foreground, fontSize = 12.sp)
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) }) {
+                    Text("连接校园 Wi-Fi", color = foreground)
+                }
+                Button(onClick = onCheckCampus, enabled = !state.busy && !checking) {
+                    Text("重新检测连接")
+                }
+            }
         }
     }
 }
