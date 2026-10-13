@@ -1,5 +1,17 @@
 # Validation — 2026-10-13
 
+## Version 0.2.1 device acceptance
+
+- Debug builds and Lint passed (0 errors). Installed using adb on the same physical device.
+- **25 independent instrumentation tests passed** in 0.694 seconds. Four new checks cover rolling booking-date/filter reconciliation and the distinction between retryable reads and nonretryable mutation requests.
+- The final 0.2.1 APK also passed the explicit live read-only business check in 2.636 seconds, including real number lookup, available times, account-bound booking preparation and record reads.
+- After the user unlocked the phone, `tools/adb_library_smoke.py` passed all five native UI phases: future-date query, selecting real start/end times, checking the booking preview without submitting, booking records, favorites and violations.
+- Additional manual checks passed for building/room selection, numbered query, bookmark add → open available times → remove, real page 2 loading, and landscape time-dialog controls. The test bookmark was removed and original rotation settings restored.
+- Live device inspection found a grid rounding bug that left the right half empty on a high-density display. Equal-weight rows now show two real seat cards side by side. Paging scrolls to the result heading rather than staying at the previous page's bottom.
+- Fixed stale booking dates, missing unrestricted-room choice after selecting a building, misleading empty-time loading copy and confirmations that outlived their reservation context.
+- Read-only requests can recover stale connections; every redirect target is checked against an exact read allowlist. Booking POSTs, seat mutation GETs, logout and unknown routes retain no automatic retry. Uncertain seat actions require a fresh status check before action buttons are reenabled.
+- Screenshots and temporary UI hierarchies are in ignored `.private/` paths and are not committed. No real booking, check-in, renewal or finish-usage transaction was submitted.
+
 ## Version 0.2.0 native library functions
 
 - Debug application and test APK builds passed; installed on the existing device through adb.
@@ -7,7 +19,7 @@
 - Explicitly enabled `LiveLibraryReadOnlyTest` returned **OK (1 test)** in 3.805 seconds against the campus service. It verified identity, school-opened future dates, rooms, free-seat search, native number lookup, start/end times, fresh booking-token preparation, booking history, violations and current reservation state. It stopped before any reservation or seat action submission.
 - Real testing exposed a school endpoint issue: the original numeric name search did not find lettered labels such as `001D`. Native number lookup now uses the documented room map API, matches labels locally and excludes unavailable or local-only seats. Ordinary filter search continues using the paginated search API.
 - The mobile adapter behavior test passed inherited/delegated handlers, AJAX-added seats, paging alignment after resize, token/form preservation, hidden dialogs, repeat injection, observer settling and original layout restoration.
-- New native-screen manual click acceptance remains pending because the physical device is locked. No lock settings were changed. The earlier first-version manual checks below remain historical evidence for login and original-page navigation.
+- The first 0.2.0 run could not complete manual UI acceptance while the device was locked; this was completed for 0.2.1 above.
 
 Booking/action writes are covered with synthetic responses and account-bound tokens. Actual reservation, check-in, departure, return, renewal and finish-usage submissions were not executed against the live account.
 

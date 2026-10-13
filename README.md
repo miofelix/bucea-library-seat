@@ -39,6 +39,8 @@ adb shell am start -n cn.edu.bucea.library/.MainActivity
 
 座位号可输入数字前缀（如 `001`）或完整编号（如 `001D`）。按编号查询时，以日期、场馆和阅览区域为条件，不同时应用时长、电源和靠窗筛选；点击结果后再查询实时可用时段。
 
+“选座”右上角可刷新开放日期与筛选项，仍有效的选择会保留。跨天重新进入页面或恢复 App 时会更新日期。查询与翻页完成后自动滚动到结果标题。
+
 ```sh
 ./gradlew :app:assembleDebugAndroidTest
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
@@ -72,7 +74,15 @@ python tools/check_ocr.py --source /path/to/ddddocr --sample /path/to/captcha.pn
 
 六个功能页面已检查适配前后的表单、输入控件和链接数量一致，并检查 412px 视口布局。交易操作沿用学校原站实现；预约、签到、续约等真实写操作需要在实际使用时验证，开发测试不占用座位。
 
-0.2.0 的构建、Lint、21 项 adb 真机回归测试及 1 项真实服务只读流程测试均已通过。真实服务覆盖编号选座、可用时段、预约表单准备和记录读取，未提交预约。新增原生页面的手动点击验收因手机锁屏尚未完成。首版的账号添加、真实验证码登录、完整功能中心跳转和重启恢复已验证。详细记录见 [docs/VALIDATION.md](docs/VALIDATION.md)，功能对应关系见 [docs/LIBRARY_FUNCTIONS.md](docs/LIBRARY_FUNCTIONS.md)。
+0.2.1 的构建、Lint 和 25 项 adb 真机回归测试通过。手机解锁后已完成原生查询、可用时段选择、预约预览、收藏添加/进入/移除、分页和三个记录页的点击验收，并检查横屏弹窗。真实服务只读检查也已通过，覆盖编号选座、预约表单准备和记录读取；未提交真实预约。详细记录见 [docs/VALIDATION.md](docs/VALIDATION.md)，功能对应关系见 [docs/LIBRARY_FUNCTIONS.md](docs/LIBRARY_FUNCTIONS.md)。
+
+可重复运行原生界面验收脚本，手机需解锁、账号已登录并连接校园网：
+
+```sh
+python3 tools/adb_library_smoke.py --serial YOUR_DEVICE_SERIAL --artifacts .private/native-qa
+```
+
+脚本核对预约预览后取消，禁止点击最终预约或座位操作按钮；截图保存在忽略目录。
 
 ## 实现边界
 
