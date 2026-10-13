@@ -1,6 +1,7 @@
 package cn.edu.bucea.library.data
 
 import android.util.Base64
+import android.util.Log
 import cn.edu.bucea.library.LibraryOverview
 import cn.edu.bucea.library.ocr.DdddOcr
 import kotlinx.coroutines.CancellationException
@@ -25,9 +26,22 @@ class LoginFailure(val kind: FailureKind, override val message: String) : IOExce
 data class CaptchaChallenge(val fields: Map<String, String>, val id: String, val image: ByteArray)
 data class LoginResult(val overview: LibraryOverview?, val challenge: CaptchaChallenge? = null)
 
+/** Only these GETs may recover a stale connection; mutation and unknown paths fail once. */
+internal object LibraryReadPolicy {
+    private val retryablePaths = setOf(
+        "/", "/login", "/self", "/map", "/history", "/freeBook/fav", "/user/violations",
+        "/auth/createCaptcha", "/freeBook/ajaxGetRooms", "/freeBook/ajaxSearch",
+        "/freeBook/ajaxGetTime", "/freeBook/ajaxGetEndTime", "/mapBook/ajaxGetFloor",
+        "/mapBook/ajaxGetRooms", "/mapBook/getSeatsByRoom", "/user/viewMoreHistory",
+        "/user/viewMoreViolations", "/user/getRollText", "/user/getTimeExtend",
+    )
+
+    fun permitsRetry(method: String, path: String): Boolean = method == "GET" && path.substringBefore('?') in retryablePaths
+}
+
 class LibraryRepository(private val store: AccountStore, private val ocr: DdddOcr) {
     companion object { const val BASE_URL = "http://10.1.20.7" }
-    private data class Session(val jar: SessionCookieJar, val client: OkHttpClient)
+    private data class Session(val jar: SessionCookieJar, val client: OkHttpClient, val readClient: OkHttpClient)
     private data class Reply(val code: Int, val headers: Headers, val body: String)
     private val sessions = mutableMapOf<String, Session>()
 
@@ -50,7 +64,13 @@ class LibraryRepository(private val store: AccountStore, private val ocr: DdddOc
 
     @Synchronized private fun session(id: String): Session = sessions.getOrPut(id) {
         val jar = SessionCookieJar(store, id)
-        Session(jar, client(jar))
+        val base = client(jar)
+        Session(jar, base, base.newBuilder().retryOnConnectionFailure(true).build())
+    }
+
+    private fun logFailure(request: Request, error: Throwable) {
+        // No query, message, body, account, cookie or token is written to Logcat.
+        Log.w("LibraryNetwork", "${request.url.encodedPath} ${error.javaClass.simpleName} cause=${error.cause?.javaClass?.simpleName.orEmpty()}")
     }
 
     private suspend fun exchange(client: OkHttpClient, request: Request): Reply = suspendCancellableCoroutine { continuation ->
@@ -58,6 +78,7 @@ class LibraryRepository(private val store: AccountStore, private val ocr: DdddOc
         continuation.invokeOnCancellation { call.cancel() }
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, error: IOException) {
+                if (!call.isCanceled()) logFailure(request, error)
                 if (continuation.isActive) continuation.resumeWithException(error)
             }
             override fun onResponse(call: Call, response: Response) {
@@ -67,6 +88,7 @@ class LibraryRepository(private val store: AccountStore, private val ocr: DdddOc
                         val body = it.body?.string() ?: throw LoginFailure(FailureKind.PROTOCOL, "服务返回了空内容")
                         if (continuation.isActive) continuation.resume(Reply(it.code, it.headers, body))
                     } catch (error: Exception) {
+                        if (error is IOException && !call.isCanceled()) logFailure(request, error)
                         if (continuation.isActive) continuation.resumeWithException(error)
                     }
                 }
@@ -74,11 +96,12 @@ class LibraryRepository(private val store: AccountStore, private val ocr: DdddOc
         })
     }
 
-    private suspend fun execute(client: OkHttpClient, request: Request): String {
+    private suspend fun execute(client: OkHttpClient, request: Request, readClient: OkHttpClient? = null): String {
         var next = request
         repeat(6) { hop ->
             requireCampusUrl(next)
-            val response = exchange(client, next)
+            val chosen = if (LibraryReadPolicy.permitsRetry(next.method, next.url.encodedPath)) readClient ?: client else client
+            val response = exchange(chosen, next)
                 if (response.code in listOf(301, 302, 303, 307, 308)) {
                     val target = response.headers["Location"]?.let { next.url.resolve(it) }
                         ?: throw LoginFailure(FailureKind.PROTOCOL, "服务跳转地址无效")
@@ -96,12 +119,13 @@ class LibraryRepository(private val store: AccountStore, private val ocr: DdddOc
         throw LoginFailure(FailureKind.PROTOCOL, "服务跳转次数过多")
     }
 
-    private suspend fun get(client: OkHttpClient, path: String) = execute(client, Request.Builder().url(BASE_URL + path).build())
+    private suspend fun get(session: Session, path: String) = execute(session.client,
+        Request.Builder().url(BASE_URL + path).build(), session.readClient)
 
     /** Authenticated, cancellable campus-only GET for native library business pages/APIs. */
     suspend fun request(account: SavedAccount, path: String): String = withContext(Dispatchers.IO) {
         require(path.startsWith("/") && !path.startsWith("//")) { "功能路径无效" }
-        get(session(account.id).client, path)
+        get(session(account.id), path)
     }
 
     suspend fun post(account: SavedAccount, path: String, fields: Map<String, String>): String = withContext(Dispatchers.IO) {
@@ -111,19 +135,22 @@ class LibraryRepository(private val store: AccountStore, private val ocr: DdddOc
     }
 
     suspend fun publicOverview(): LibraryOverview = withContext(Dispatchers.IO) {
-        LibraryHtml.overview(LibraryHtml.parse(get(client(), "/login?targetUri=%2F")))
+        val base = client()
+        val response = execute(base, Request.Builder().url("$BASE_URL/login?targetUri=%2F").build(),
+            base.newBuilder().retryOnConnectionFailure(true).build())
+        LibraryHtml.overview(LibraryHtml.parse(response))
     }
 
     suspend fun restore(account: SavedAccount): LibraryOverview? = withContext(Dispatchers.IO) {
         if (store.isSignedOut(account.id)) return@withContext null
-        val document = LibraryHtml.parse(get(session(account.id).client, "/"))
+        val document = LibraryHtml.parse(get(session(account.id), "/"))
         if (LibraryHtml.authenticated(document, account.username)) LibraryHtml.overview(document) else null
     }
 
     suspend fun challenge(account: SavedAccount): CaptchaChallenge = withContext(Dispatchers.IO) {
-        val client = session(account.id).client
-        val fields = LibraryHtml.hiddenFields(LibraryHtml.parse(get(client, "/login?targetUri=%2F")))
-        val json = JSONObject(get(client, "/auth/createCaptcha?_=${System.currentTimeMillis()}"))
+        val activeSession = session(account.id)
+        val fields = LibraryHtml.hiddenFields(LibraryHtml.parse(get(activeSession, "/login?targetUri=%2F")))
+        val json = JSONObject(get(activeSession, "/auth/createCaptcha?_=${System.currentTimeMillis()}"))
         val data = json.getString("captchaImage")
         if (!data.startsWith("data:image/") || !data.contains(";base64,"))
             throw LoginFailure(FailureKind.PROTOCOL, "验证码格式已变更")

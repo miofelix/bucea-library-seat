@@ -13,6 +13,17 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
+import java.time.ZoneId
+
+internal object SearchFilterPolicy {
+    fun reconcile(previous: Map<String, String>, options: Map<String, List<SeatOption>>): Map<String, String> =
+        options.mapValues { (key, values) ->
+            previous[key]?.takeIf { old -> values.any { it.value == old } }
+                ?: if (key == "onDate") values.firstOrNull()?.value.orEmpty()
+                else values.firstOrNull { it.value == "null" }?.value ?: values.firstOrNull()?.value ?: "null"
+        } + ("name" to previous["name"].orEmpty())
+}
 
 /** Seat search and booking use only options/times returned by the active account's server. */
 class LibraryFeatureViewModel(application: Application) : AndroidViewModel(application) {
@@ -28,6 +39,7 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     private var boundAccountId: String? = null
     private var authenticated = false
     private var searchJob: Job? = null
+    private var optionsJob: Job? = null
     private var roomsJob: Job? = null
     private var timesJob: Job? = null
     private var hubJob: Job? = null
@@ -41,6 +53,9 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     private val mutationState = MutableStateFlow(false)
     val mutationBusy = mutationState.asStateFlow()
     private var lastActionMessage: String? = null
+    private var optionsDate: LocalDate? = null
+    private var pendingFavorite: NativeSeat? = null
+    private var actionRefreshRequired = false
 
     fun bindAccount(id: String?, loggedIn: Boolean) {
         if (boundAccountId == id && authenticated == loggedIn) return
@@ -51,6 +66,7 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
         pages.clear(); backendSeats.clear(); requestedQuery = null
         selectedDate = null; historyOffset = null; extensionState.value = emptyList()
         mutationState.value = false; lastActionMessage = null
+        optionsDate = null; pendingFavorite = null; actionRefreshRequired = false
         searchState.value = SeatSearchState(accountLabel = accounts.accounts().find { it.id == id }?.let { "${it.label} · ${it.username}" }.orEmpty())
         hubState.value = LibraryHubState()
         if (loggedIn && id != null) refreshHub()
@@ -67,28 +83,44 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
         if (authenticated) refreshHub()
     }
 
-    fun loadSearch(favorite: NativeSeat? = null) {
-        if (searchState.value.options.isNotEmpty()) { favorite?.let(::selectSeat); return }
-        if (searchState.value.loading) return
-        searchJob?.cancel()
-        searchJob = viewModelScope.launch {
+    fun loadSearch(favorite: NativeSeat? = null, force: Boolean = false) {
+        if (favorite != null) pendingFavorite = favorite
+        if (optionsJob?.isActive == true || searchState.value.reservationBusy) return
+        val today = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+        if (!force && optionsDate == today && searchState.value.options.isNotEmpty()) {
+            pendingFavorite?.also { pendingFavorite = null }?.let(::selectSeat)
+            return
+        }
+        searchJob?.cancel(); roomsJob?.cancel(); timesJob?.cancel()
+        val previousFilters = searchState.value.filters
+        optionsJob = viewModelScope.launch {
             searchState.update { it.copy(loading = true, error = null) }
             try {
                 val options = functions.options(account())
+                require(options.dates.isNotEmpty()) { "图书馆暂未开放可预约日期，请稍后刷新" }
                 val mapped = mapOf("onDate" to options.dates, "building" to options.buildings, "room" to options.rooms,
                     "hour" to options.durations, "startMin" to options.startTimes, "endMin" to options.endTimes,
                     "power" to options.powers, "window" to options.windows)
                     .mapValues { (_, list) -> list.map { SeatOption(it.value, it.label) } }
-                val filters = mapped.mapValues { (key, list) ->
-                    if (key == "onDate") list.firstOrNull()?.value.orEmpty()
-                    else list.firstOrNull { it.value == "null" }?.value ?: list.firstOrNull()?.value ?: "null"
-                } + ("name" to "")
-                searchState.update { it.copy(options = mapped, filters = filters, status = "选择日期与条件后查询座位") }
-                favorite?.let(::selectSeat)
+                val filters = SearchFilterPolicy.reconcile(previousFilters, mapped)
+                optionsDate = today
+                pages.clear(); requestedQuery = null; selectedDate = null
+                searchState.update { it.copy(options = mapped, filters = filters, seats = emptyList(), hasSearched = false,
+                    page = 0, hasNextPage = false, selectedSeat = null, startOptions = emptyList(), endOptions = emptyList(),
+                    selectedStart = null, selectedEnd = null, reservationRequiresOfficial = false,
+                    reservationOutcomeUncertain = false, status = "可用日期与条件已更新，请查询座位") }
+                pendingFavorite?.also { pendingFavorite = null }?.let(::selectSeat)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { searchState.update { it.copy(error = repository.userMessage(e)) } }
             finally { if (coroutineContext[Job]?.isActive == true) searchState.update { it.copy(loading = false) } }
         }
+    }
+
+    fun refreshSearch() = loadSearch(force = true)
+
+    fun onForeground() {
+        if (authenticated && searchState.value.options.isNotEmpty() &&
+            optionsDate != LocalDate.now(ZoneId.of("Asia/Shanghai"))) loadSearch(force = true)
     }
 
     fun setFilter(key: String, value: String) {
@@ -102,7 +134,8 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
             searchState.update { it.copy(filters = it.filters + ("room" to "null")) }
             roomsJob = viewModelScope.launch {
                 try {
-                    val rooms = functions.rooms(account(), value).map { SeatOption(it.value, it.label) }
+                    val returned = functions.rooms(account(), value).map { SeatOption(it.value, it.label) }
+                    val rooms = if (returned.any { it.value == "null" }) returned else listOf(SeatOption("null", "不限房间")) + returned
                     searchState.update { it.copy(options = it.options + ("room" to rooms)) }
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) { searchState.update { it.copy(error = repository.userMessage(e)) } }
@@ -119,6 +152,7 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     fun searchSeats() {
         if (searchState.value.loading || searchState.value.reservationBusy) return
         if (searchState.value.options.isEmpty()) { loadSearch(); return }
+        if (optionsDate != LocalDate.now(ZoneId.of("Asia/Shanghai"))) { loadSearch(force = true); return }
         pages.clear(); requestedQuery = query()
         requestPage(0, 0)
     }
@@ -173,7 +207,11 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     }
 
     fun selectSeat(seat: NativeSeat) {
-        if (!seat.available || searchState.value.reservationBusy) return
+        if (searchState.value.reservationBusy) return
+        if (!seat.available) {
+            searchState.update { it.copy(error = "该座位当前不可预约，请刷新后选择其他座位") }
+            return
+        }
         timesJob?.cancel()
         selectedDate = searchState.value.filters["onDate"]
         if (selectedDate.isNullOrBlank()) { loadSearch(); return }
@@ -257,15 +295,16 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
-    fun refreshHub() {
+    fun refreshHub() = refreshHub(null)
+
+    private fun refreshHub(retainedError: String?) {
         hubJob?.cancel()
         hubJob = viewModelScope.launch {
-            hubState.update { it.copy(loading = true, error = null) }
+            hubState.update { it.copy(loading = true, error = retainedError,
+                actions = if (actionRefreshRequired) emptyList() else it.actions) }
             try {
                 val current = account()
                 val user = functions.userState(current)
-                hubState.update { it.copy(currentStatus = user.status, currentDetails = user.details,
-                    actions = user.actions.map(::hubAction)) }
                 when (hubState.value.section) {
                     HubSection.RESERVATIONS -> {
                         val result = functions.history(current)
@@ -288,8 +327,12 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
                         historyOffset = result.nextOffset
                     }
                 }
+                actionRefreshRequired = false
+                hubState.update { it.copy(currentStatus = user.status, currentDetails = user.details,
+                    actions = user.actions.map(::hubAction), error = retainedError) }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { hubState.update { it.copy(error = repository.userMessage(e)) } }
+            catch (e: Exception) { hubState.update { it.copy(error = listOfNotNull(retainedError, repository.userMessage(e)).joinToString("\n"),
+                actions = if (actionRefreshRequired) emptyList() else it.actions) } }
             finally { if (coroutineContext[Job]?.isActive == true) hubState.update { it.copy(loading = false) } }
         }
     }
@@ -332,11 +375,13 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     }
 
     fun performAction(action: HubAction) {
-        if (hubState.value.loading || actionJob?.isActive == true) return
+        if (hubState.value.loading || actionJob?.isActive == true || actionRefreshRequired) return
         if (hubState.value.actions.none { it.id == action.id }) return
         actionJob = viewModelScope.launch {
             mutationState.value = true
             var refresh = false
+            var attemptedMutation = false
+            var retainedError: String? = null
             hubState.update { it.copy(loading = true, error = null) }
             try {
                 if (action.id == "getTimeExtend") {
@@ -344,38 +389,50 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
                     extensionState.value = options
                     if (options.isEmpty()) hubState.update { it.copy(notice = "当前没有可续约的时段") }
                 } else {
+                    attemptedMutation = true
+                    actionRefreshRequired = true
                     val result = functions.performAction(account(), action.id)
                     lastActionMessage = result.message
                     hubState.update { it.copy(notice = result.message) }
                     refresh = true
                 }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { hubState.update { it.copy(error = repository.userMessage(e) + "；请刷新预约状态确认结果") } }
+            catch (e: Exception) {
+                retainedError = repository.userMessage(e) + if (attemptedMutation) "；正在同步预约状态，请确认结果后再操作" else ""
+                hubState.update { it.copy(error = retainedError, actions = if (attemptedMutation) emptyList() else it.actions) }
+                refresh = attemptedMutation
+            }
             finally { if (coroutineContext[Job]?.isActive == true) { mutationState.value = false; hubState.update { it.copy(loading = false) } } }
-            if (refresh) refreshHub()
+            if (refresh) refreshHub(retainedError)
         }
     }
 
     fun extendReservation(value: String) {
-        if (actionJob?.isActive == true || extensionState.value.none { it.value == value }) return
+        if (actionJob?.isActive == true || actionRefreshRequired || extensionState.value.none { it.value == value }) return
         extensionState.value = emptyList()
         actionJob = viewModelScope.launch {
             mutationState.value = true
             var refresh = false
+            var retainedError: String? = null
+            actionRefreshRequired = true
             hubState.update { it.copy(loading = true, error = null) }
             try {
                 val result = functions.performAction(account(), "extend", value)
                 lastActionMessage = result.message
                 hubState.update { it.copy(notice = result.message) }; refresh = true
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { hubState.update { it.copy(error = repository.userMessage(e) + "；请刷新预约状态确认结果") } }
+            catch (e: Exception) {
+                retainedError = repository.userMessage(e) + "；正在同步预约状态，请确认结果后再操作"
+                hubState.update { it.copy(error = retainedError, actions = emptyList()) }
+                refresh = true
+            }
             finally { if (coroutineContext[Job]?.isActive == true) { mutationState.value = false; hubState.update { it.copy(loading = false) } } }
-            if (refresh) refreshHub()
+            if (refresh) refreshHub(retainedError)
         }
     }
 
     fun dismissExtension() { extensionState.value = emptyList() }
 
-    private fun cancelWork() { listOf(searchJob, roomsJob, timesJob, hubJob, actionJob).forEach { it?.cancel() } }
+    private fun cancelWork() { listOf(optionsJob, searchJob, roomsJob, timesJob, hubJob, actionJob).forEach { it?.cancel() } }
     override fun onCleared() { cancelWork(); if (ocrResource.isInitialized()) ocrResource.value.close(); super.onCleared() }
 }

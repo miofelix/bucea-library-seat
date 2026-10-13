@@ -3,6 +3,7 @@ package cn.edu.bucea.library
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.viewModels
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -12,6 +13,7 @@ import androidx.core.view.WindowCompat
 import cn.edu.bucea.library.ui.LibraryApp
 
 class MainActivity : ComponentActivity() {
+    private val featureViewModel: LibraryFeatureViewModel by viewModels()
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -21,7 +23,7 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             val mainViewModel: MainViewModel = viewModel()
-            val features: LibraryFeatureViewModel = viewModel()
+            val features = featureViewModel
             val libraryLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.StartActivityForResult()
             ) { result ->
@@ -40,5 +42,10 @@ class MainActivity : ComponentActivity() {
                 }
             )
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        featureViewModel.onForeground()
     }
 }
