@@ -129,7 +129,7 @@ class NativeSmoke:
     def require_unlocked(self) -> None:
         policy = self.adb("shell", "dumpsys", "window", "policy").decode("utf-8", "replace")
         locked = re.search(
-            r"(?im)^\s*(?:showing|mShowingLockscreen|mKeyguardShowing|isKeyguardShowing)\s*=\s*true\b",
+            r"(?im)^\s*(?:showing|mIsShowing|mShowingLockscreen|mKeyguardShowing|isKeyguardShowing)\s*=\s*true\b",
             policy,
         ) or re.search(r"(?im)^.*keyguard[^\n]*\bshowing\s*=\s*true\b", policy)
         if locked:
@@ -384,9 +384,9 @@ class NativeSmoke:
                 if node is None:
                     raise SmokeFailure(f"“{title}”标签暂不可操作。")
                 self.tap(node, title)
-            # The section header shares the tab label; the selected tab and enabled
-            # native refresh action indicate the data request has completed.
-            self.wait(lambda value=title: self.selected_tab(value) and self.exact("刷新预约与座位") is not None,
+            # Tab controls are disabled while syncing. selected_tab only inspects
+            # enabled nodes; the refresh icon can be above the visible scroll area.
+            self.wait(lambda value=title: self.selected_tab(value),
                       f"“{title}”页面尚未同步完成。")
             if self.exact("暂时无法同步") is not None:
                 raise SmokeFailure(f"“{title}”未能同步校园数据。")

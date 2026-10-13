@@ -42,7 +42,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.TabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -230,9 +230,8 @@ fun LibraryHubScreen(
             }
         }
         item {
-            ScrollableTabRow(
+            TabRow(
                 selectedTabIndex = state.section.ordinal,
-                edgePadding = 0.dp,
                 containerColor = Color.Transparent,
                 contentColor = HubTeal,
                 divider = { HorizontalDivider(color = HubLine) },
@@ -242,13 +241,14 @@ fun LibraryHubScreen(
                         selected = state.section == section,
                         onClick = { onSection(section) },
                         enabled = !state.loading,
-                        text = { Text(when (section) {
+                    ) {
+                        Text(when (section) {
                             HubSection.RESERVATIONS -> "我的预约"
                             HubSection.FAVORITES -> "收藏座位"
                             HubSection.FREQUENT -> "常用座位"
                             HubSection.VIOLATIONS -> "违约记录"
-                        }, fontWeight = FontWeight.SemiBold) },
-                    )
+                        }, modifier = Modifier.padding(vertical = 14.dp), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }
