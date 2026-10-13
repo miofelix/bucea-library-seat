@@ -39,6 +39,7 @@ data class SeatPage(
     val nextOffset: Int?,
     val verificationRequired: Boolean = false,
     val message: String = "",
+    val verificationUserId: String = "",
 )
 
 data class SeatTimes(
@@ -47,6 +48,7 @@ data class SeatTimes(
     val room: String = "",
     val message: String = "",
     val verificationRequired: Boolean = false,
+    val verificationUserId: String = "",
 )
 
 data class ReservationSelection(
@@ -61,6 +63,7 @@ data class PreparedReservation(
     val fields: Map<String, String>,
     val verificationRequired: Boolean,
     val accountId: String = "",
+    val verificationAuthId: String? = null,
 )
 
 data class ReservationReceipt(

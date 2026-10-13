@@ -20,5 +20,4 @@ data class LibraryUiState(
     val status: String = "连接校园网后，添加账号即可开始",
     val authenticated: Boolean = false,
     val overview: LibraryOverview? = null,
-    val captcha: ByteArray? = null,
 )

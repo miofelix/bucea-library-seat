@@ -89,6 +89,11 @@ import cn.edu.bucea.library.AccountSummary
 import cn.edu.bucea.library.LibraryUiState
 import cn.edu.bucea.library.MainViewModel
 import cn.edu.bucea.library.LibraryFeatureViewModel
+import cn.edu.bucea.library.NativeMapViewModel
+import cn.edu.bucea.library.NativeAccountViewModel
+import cn.edu.bucea.library.NativeVerificationViewModel
+import androidx.compose.material.icons.outlined.Logout
+import androidx.compose.material.icons.outlined.Password
 import androidx.compose.foundation.layout.consumeWindowInsets
 
 private val Ink = Color(0xFF183334)
@@ -100,105 +105,101 @@ private val Line = Color(0xFFE2E8E1)
 private val Warm = Color(0xFFD4B87D)
 
 @Composable
-fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, onOpenPage: (String) -> Unit) {
+fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps: NativeMapViewModel,
+    nativeAccount: NativeAccountViewModel, verification: NativeVerificationViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val seatState by features.search.collectAsStateWithLifecycle()
     val hubState by features.hub.collectAsStateWithLifecycle()
     val extensionOptions by features.extensionTimes.collectAsStateWithLifecycle()
     val mutating by features.mutationBusy.collectAsStateWithLifecycle()
+    val mapState by maps.mapState.collectAsStateWithLifecycle()
+    val accountState by nativeAccount.state.collectAsStateWithLifecycle()
+    val verificationState by verification.state.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var mapOpen by rememberSaveable { mutableStateOf(false) }
+    var passwordOpen by remember { mutableStateOf(false) }
+    var signOutOpen by remember { mutableStateOf(false) }
+    var accountMessage by remember { mutableStateOf<String?>(null) }
+    var verificationOrigin by remember { mutableStateOf("search") }
     val destinations = listOf("首页" to Icons.Outlined.Home, "选座" to Icons.Outlined.GridView,
         "我的" to Icons.Outlined.AutoStories, "账号" to Icons.Outlined.Person, "设置" to Icons.Outlined.Settings)
-    LaunchedEffect(state.activeAccountId, state.authenticated) { features.bindAccount(state.activeAccountId, state.authenticated) }
-    LaunchedEffect(tab, state.authenticated) {
-        if (state.authenticated && tab == 1) features.loadSearch()
-        if (state.authenticated && tab == 2) features.refreshHub()
+    LaunchedEffect(state.activeAccountId, state.authenticated) {
+        features.bindAccount(state.activeAccountId, state.authenticated)
+        maps.bindAccount(state.activeAccountId, state.authenticated)
+        nativeAccount.bindAccount(state.activeAccountId, state.authenticated)
+        verification.dismiss()
+        if (!state.authenticated) { mapOpen = false; passwordOpen = false; signOutOpen = false }
     }
-
-    MaterialTheme(
-        colorScheme = lightColorScheme(
-            primary = Teal,
-            onPrimary = Color.White,
-            secondary = Ink,
-            background = Paper,
-            surface = Color.White,
-            onBackground = Ink,
-            onSurface = Ink,
-            surfaceVariant = SoftGreen,
-            onSurfaceVariant = Muted,
-            outline = Line
-        ),
-        typography = Typography()
-    ) {
-        Scaffold(
-            containerColor = Paper,
-            bottomBar = {
-                NavigationBar(containerColor = Color.White, tonalElevation = 0.dp) {
-                    destinations.forEachIndexed { index, (label, icon) ->
-                        NavigationBarItem(
-                            selected = tab == index,
-                            enabled = !mutating && !seatState.reservationBusy,
-                            onClick = { tab = index },
-                            icon = { Icon(icon, contentDescription = null, modifier = Modifier.size(23.dp)) },
-                            label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Teal,
-                                selectedTextColor = Teal,
-                                indicatorColor = SoftGreen,
-                                unselectedIconColor = Muted,
-                                unselectedTextColor = Muted
-                            )
-                        )
-                    }
+    LaunchedEffect(tab, mapOpen, state.authenticated) {
+        if (state.authenticated && tab == 1 && !mapOpen) features.loadSearch()
+        if (state.authenticated && tab == 2) features.refreshHub()
+        if (state.authenticated && mapOpen) maps.refresh()
+    }
+    LaunchedEffect(accountState.passwordChanged, accountState.credentialsSaved, accountState.busy) {
+        if (accountState.passwordChanged && !accountState.busy) {
+            accountMessage = accountState.message; passwordOpen = false; viewModel.credentialsChanged()
+        }
+    }
+    LaunchedEffect(seatState.verificationRequired, mapState.verificationRequired, state.activeAccountId) {
+        val id = state.activeAccountId
+        if (state.authenticated && id != null && verificationState.context == null) {
+            if (mapOpen && mapState.verificationRequired) { verificationOrigin = "map"; verification.begin(id, mapState.verificationUserId) }
+            else if (seatState.verificationRequired) { verificationOrigin = "search"; verification.begin(id, seatState.verificationUserId) }
+        }
+    }
+    val verifySearch: () -> Unit = { state.activeAccountId?.let { verificationOrigin = "search"; verification.begin(it, seatState.verificationUserId) } }
+    MaterialTheme(colorScheme = lightColorScheme(primary = Teal, onPrimary = Color.White, secondary = Ink,
+        secondaryContainer = SoftGreen, onSecondaryContainer = Ink, background = Paper, surface = Color.White,
+        onBackground = Ink, onSurface = Ink, surfaceVariant = SoftGreen, onSurfaceVariant = Muted, outline = Line,
+        surfaceContainerHigh = Color.White, surfaceContainerHighest = SoftGreen, surfaceContainer = Color.White,
+        surfaceContainerLow = Paper, surfaceContainerLowest = Color.White), typography = Typography()) {
+        Scaffold(containerColor = Paper, bottomBar = {
+            NavigationBar(containerColor = Color.White, tonalElevation = 0.dp) {
+                destinations.forEachIndexed { index, (label, icon) -> NavigationBarItem(
+                    selected = tab == index, enabled = !mutating && !seatState.reservationBusy && !accountState.busy && verificationState.context == null,
+                    onClick = { mapOpen = false; tab = index }, icon = { Icon(icon, null, Modifier.size(23.dp)) },
+                    label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium) },
+                    colors = NavigationBarItemDefaults.colors(selectedIconColor = Teal, selectedTextColor = Teal,
+                        indicatorColor = SoftGreen, unselectedIconColor = Muted, unselectedTextColor = Muted)) }
+            }
+        }) { padding ->
+            when {
+                mapOpen && state.authenticated -> {
+                    NativeMapScreen(mapState, Modifier.padding(padding), maps::onFilter, maps::refresh, maps::loadRoom,
+                        maps::setListMode, onSeat = features::selectMappedSeat,
+                        onBack = { if (!seatState.reservationBusy) { features.dismissReservation(); mapOpen = false } },
+                        onVerify = { state.activeAccountId?.let { verificationOrigin = "map"; verification.begin(it, mapState.verificationUserId) } })
+                    seatState.selectedSeat?.let { seat -> NativeReservationDialog(seatState, seat, features::selectStart,
+                        features::selectEnd, features::confirmReservation, features::dismissReservation, verifySearch,
+                        onOpenReservations = { features.dismissReservation(); mapOpen = false; tab = 2 }) }
                 }
-            }
-        ) { padding ->
-            when (tab) {
-                0 -> Dashboard(
-                    state = state,
-                    modifier = Modifier.padding(padding),
-                    onLogin = viewModel::login,
-                    onRefresh = viewModel::refresh,
-                    onOpenLibrary = { tab = 1 },
-                    onOpenPage = onOpenPage,
-                    onAccounts = { tab = 3 }
-                )
-                1 -> if (state.authenticated) Box(Modifier.padding(padding).consumeWindowInsets(padding)) {
-                    SeatSearchScreen(seatState, features::setFilter, features::searchSeats,
-                        features::nextPage, features::previousPage, features::selectSeat,
-                        onBack = { tab = 0 }, onOpenOfficial = { onOpenPage(when {
-                            seatState.reservationOutcomeUncertain -> "/history?type=SEAT"
-                            seatState.reservationRequiresOfficial -> "/self"
-                            else -> "/map"
-                        }) },
-                        onToggleFavorite = features::toggleFavorite, onSelectStart = features::selectStart,
-                        onSelectEnd = features::selectEnd, onConfirmReservation = features::confirmReservation,
-                        onDismissReservation = features::dismissReservation, onRefresh = features::refreshSearch)
+                tab == 0 -> Dashboard(state, Modifier.padding(padding), viewModel::login, viewModel::refresh,
+                    onOpenLibrary = { tab = 1 }, onOpenMap = { tab = 1; mapOpen = true }, onReservations = { tab = 2 }, onAccounts = { tab = 3 })
+                tab == 1 -> if (state.authenticated) Box(Modifier.padding(padding).consumeWindowInsets(padding)) {
+                    SeatSearchScreen(seatState, features::setFilter, features::searchSeats, features::nextPage, features::previousPage,
+                        features::selectSeat, onBack = { tab = 0 }, onOpenMap = { tab = 1; mapOpen = true }, onToggleFavorite = features::toggleFavorite,
+                        onSelectStart = features::selectStart, onSelectEnd = features::selectEnd, onConfirmReservation = features::confirmReservation,
+                        onDismissReservation = features::dismissReservation, onRefresh = features::refreshSearch, onVerify = verifySearch,
+                        onOpenReservations = { features.dismissReservation(); tab = 2 })
                 } else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login) { tab = 3 }
-                2 -> if (state.authenticated) LibraryHubScreen(hubState, Modifier.padding(padding), features::refreshHub,
-                    features::selectHubSection, features::loadMoreHistory, onSearch = { tab = 1 }, onOpenPage = onOpenPage,
+                tab == 2 -> if (state.authenticated) LibraryHubScreen(hubState, Modifier.padding(padding), features::refreshHub,
+                    features::selectHubSection, features::loadMoreHistory, onSearch = { tab = 1 }, onOpenMap = { tab = 1; mapOpen = true },
                     onFavorite = { favorite -> tab = 1; features.loadSearch(features.favoriteSeat(favorite)) },
-                    onRemoveFavorite = features::removeFavorite, onAction = features::performAction)
+                    onRemoveFavorite = features::removeFavorite, onAction = features::performAction, onCancelRecord = features::cancelRecord)
                 else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login) { tab = 3 }
-                3 -> AccountsScreen(
-                    state = state.copy(busy = state.busy || seatState.reservationBusy || mutating),
-                    modifier = Modifier.padding(padding),
-                    onSave = viewModel::saveAccount,
-                    onSelect = viewModel::selectAccount,
-                    onDelete = viewModel::deleteAccount,
-                    onLogin = viewModel::login
-                )
-                else -> SettingsScreen(
-                    state = state,
-                    modifier = Modifier.padding(padding),
-                    onAutoLogin = viewModel::setAutoLogin,
-                    onAutoSwitch = viewModel::setAutoSwitch
-                )
+                tab == 3 -> AccountsScreen(state.copy(busy = state.busy || seatState.reservationBusy || mutating || accountState.busy),
+                    Modifier.padding(padding), viewModel::saveAccount, viewModel::selectAccount, viewModel::deleteAccount, viewModel::login,
+                    onChangePassword = { nativeAccount.clearResult(); passwordOpen = true }, onLogout = { signOutOpen = true }, message = accountMessage)
+                else -> SettingsScreen(state, Modifier.padding(padding), viewModel::setAutoLogin, viewModel::setAutoSwitch)
             }
         }
-        state.captcha?.let { bytes ->
-            CaptchaDialog(bytes, state.busy, state.status, viewModel::submitCaptcha, viewModel::dismissCaptcha)
-        }
+        if (passwordOpen) PasswordChangeDialog(accountState, nativeAccount::changePassword) { if (!accountState.busy) passwordOpen = false }
+        if (signOutOpen) SignOutDialog(accountState.accountLabel, state.busy,
+            onConfirm = { signOutOpen = false; viewModel.logout() }, onDismiss = { if (!state.busy) signOutOpen = false })
+        NativeVerificationDialog(verificationState, verification::refresh, verification::dismiss, onVerified = { proof ->
+            features.verificationCompleted(proof, resumeSearch = verificationOrigin == "search")
+            verification.dismiss(); if (verificationOrigin == "map") maps.refresh()
+        })
         if (extensionOptions.isNotEmpty()) {
             var selected by remember(extensionOptions) { mutableStateOf<String?>(null) }
             AlertDialog(onDismissRequest = features::dismissExtension, title = { Text("续约至") },
@@ -230,7 +231,8 @@ private fun Dashboard(
     onLogin: () -> Unit,
     onRefresh: () -> Unit,
     onOpenLibrary: () -> Unit,
-    onOpenPage: (String) -> Unit,
+    onOpenMap: () -> Unit,
+    onReservations: () -> Unit,
     onAccounts: () -> Unit
 ) {
     val account = state.accounts.firstOrNull { it.id == state.activeAccountId }
@@ -316,8 +318,8 @@ private fun Dashboard(
                 }
             }
             if (state.authenticated) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                TextButton(onClick = { onOpenPage("/map") }) { Text("布局选座") }
-                TextButton(onClick = { onOpenPage("/self") }) { Text("完整网页功能") }
+                TextButton(onClick = onOpenMap) { Text("布局选座") }
+                TextButton(onClick = onReservations) { Text("我的预约") }
             }
         }
 
@@ -382,7 +384,10 @@ private fun AccountsScreen(
     onSave: (String, String, String) -> Unit,
     onSelect: (String) -> Unit,
     onDelete: (String) -> Unit,
-    onLogin: () -> Unit
+    onLogin: () -> Unit,
+    onChangePassword: () -> Unit,
+    onLogout: () -> Unit,
+    message: String? = null,
 ) {
     var editing by remember { mutableStateOf<AccountSummary?>(null) }
     var showEditor by rememberSaveable { mutableStateOf(false) }
@@ -443,6 +448,18 @@ private fun AccountsScreen(
             Spacer(Modifier.width(8.dp))
             Text("添加账号", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
+        if (state.authenticated) {
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color.White)) {
+                TextButton(onClick = onChangePassword, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.Password, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("修改图书馆密码")
+                }
+                HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = Line)
+                TextButton(onClick = onLogout, enabled = !state.busy, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Outlined.Logout, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("退出登录")
+                }
+            }
+        }
+        message?.let { Text(it, color = Teal, fontSize = 12.sp) }
         if (state.accounts.isNotEmpty()) SessionCard(state, state.accounts.firstOrNull { it.id == state.activeAccountId }, null, onLogin)
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             Icon(Icons.Outlined.Shield, contentDescription = null, tint = Muted, modifier = Modifier.size(17.dp))
@@ -513,7 +530,7 @@ private fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLogi
         ContentCard("关于这个客户端", Icons.Outlined.AutoStories) {
             Text("为建大同学准备的图书馆入口", fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(10.dp))
-            Text("原生账号管理与自动登录，配合适配手机的完整网站功能。此应用为第三方客户端。", color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
+            Text("选座、地图、预约与账号操作均使用 Android 原生界面，验证码在本机自动识别。此应用为第三方客户端。", color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
             Spacer(Modifier.height(14.dp))
             Text("验证码识别 · ddddocr / ONNX", color = Teal, fontSize = 11.sp)
         }
@@ -572,27 +589,4 @@ private fun CampusNotice() {
             Text("请连接能访问 10.1.20.7 的校园网络。", fontSize = 11.sp, color = Muted, lineHeight = 18.sp)
         }
     }
-}
-
-@Composable
-private fun CaptchaDialog(bytes: ByteArray, busy: Boolean, status: String, onSubmit: (String) -> Unit, onDismiss: () -> Unit) {
-    var answer by remember(bytes) { mutableStateOf("") }
-    val image = remember(bytes) { BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }
-    AlertDialog(
-        onDismissRequest = { if (!busy) onDismiss() },
-        title = { Text("请确认验证码") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text(status.ifBlank { "自动识别未通过，请输入图片中的字符继续登录。" }, fontSize = 13.sp, color = Muted, lineHeight = 21.sp)
-                if (image != null) {
-                    Surface(color = Paper, shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        Image(image, contentDescription = "登录验证码", modifier = Modifier.height(90.dp).padding(12.dp))
-                    }
-                } else Text("验证码图片无法显示，请取消后重新登录。", fontSize = 12.sp)
-                OutlinedTextField(answer, { answer = it.trim() }, label = { Text("验证码") }, singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii), modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
-            }
-        },
-        confirmButton = { TextButton(onClick = { onSubmit(answer) }, enabled = answer.isNotBlank() && !busy) { Text(if (busy) "正在验证…" else "继续登录") } },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("取消") } }
-    )
 }

@@ -25,7 +25,7 @@ object LibraryHtml {
 
     fun hiddenFields(document: Document): Map<String, String> {
         val form = document.selectFirst("form[action='/auth/signIn']")
-            ?: throw LoginFailure(FailureKind.PROTOCOL, "登录页面已变更，请在完整功能中心查看原页面")
+            ?: throw LoginFailure(FailureKind.PROTOCOL, "登录接口已变更，请稍后更新应用后重试")
         return form.select("input[type=hidden][name]").associate { it.attr("name") to it.attr("value") }
             .also { require(it["SYNCHRONIZER_TOKEN"].orEmpty().isNotBlank()) { "登录页面缺少校验令牌" } }
     }

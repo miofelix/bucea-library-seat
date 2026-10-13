@@ -114,6 +114,27 @@ class LibraryFunctionsInstrumentedTest {
     }
 
     @Test
+    fun verifiedReservationReplacesPlaceholderWithValidatedProof() = runBlocking {
+        val account = SavedAccount("fake", "209999990001", "fake", "测试")
+        var submitted: Map<String, String>? = null
+        val repository = LibraryFunctionsRepository(
+            request = { _, _ -> """<form id="reserveForm" action="/selfRes">
+                <input type="hidden" name="SYNCHRONIZER_TOKEN" value="fresh-csrf-token">
+                <input type="hidden" name="SYNCHRONIZER_URI" value="/self">
+                <input type="hidden" name="authid" value="placeholder-needs-verification"></form>""" },
+            post = { _, _, fields -> submitted = fields; "<p>预约成功</p>" },
+        )
+        val selection = ReservationSelection("2026-10-14", LibrarySeat("1", "001", "阅览室", "空闲", true),
+            LibraryOption("450", "07:30"), LibraryOption("480", "08:00"))
+        val prepared = repository.prepareReservation(account, selection)
+        assertTrue(prepared.verificationRequired)
+        val verified = prepared.copy(verificationAuthId = "server-validated-synthetic-proof")
+        assertTrue(repository.reserve(account, verified).success)
+        assertEquals("server-validated-synthetic-proof", submitted?.get("authid"))
+        assertEquals("fresh-csrf-token", submitted?.get("SYNCHRONIZER_TOKEN"))
+    }
+
+    @Test
     fun reservationActionsRespectServerModeAndLocationRestrictions() {
         fun state(json: String) = LibraryFunctionsRepository.parseUserState(LibraryHtml.parse("<script>var userInfo='$json';</script>"))
         assertTrue(state("""{"currentReservationStatus":"CHECK_IN","softMode":false}""").actions.isEmpty())

@@ -56,6 +56,8 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     private var optionsDate: LocalDate? = null
     private var pendingFavorite: NativeSeat? = null
     private var actionRefreshRequired = false
+    private var verificationProof: VerificationProof? = null
+    private val historyItems = mutableMapOf<String, LibraryHistoryItem>()
 
     fun bindAccount(id: String?, loggedIn: Boolean) {
         if (boundAccountId == id && authenticated == loggedIn) return
@@ -67,20 +69,16 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
         selectedDate = null; historyOffset = null; extensionState.value = emptyList()
         mutationState.value = false; lastActionMessage = null
         optionsDate = null; pendingFavorite = null; actionRefreshRequired = false
+        verificationProof = null; historyItems.clear()
         searchState.value = SeatSearchState(accountLabel = accounts.accounts().find { it.id == id }?.let { "${it.label} · ${it.username}" }.orEmpty())
         hubState.value = LibraryHubState()
         if (loggedIn && id != null) refreshHub()
     }
 
     private fun account(): SavedAccount {
-        check(authenticated) { "请先登录图书馆账号" }
+        check(authenticated && accounts.activeAccountId == boundAccountId) { "请先登录当前图书馆账号" }
         return accounts.accounts().find { it.id == boundAccountId }
             ?: throw IllegalStateException("账号已移除，请重新选择账号")
-    }
-
-    fun returnedFromWeb() {
-        boundAccountId?.let { repository.releaseSession(it) }
-        if (authenticated) refreshHub()
     }
 
     fun loadSearch(favorite: NativeSeat? = null, force: Boolean = false) {
@@ -107,7 +105,7 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
                 pages.clear(); requestedQuery = null; selectedDate = null
                 searchState.update { it.copy(options = mapped, filters = filters, seats = emptyList(), hasSearched = false,
                     page = 0, hasNextPage = false, selectedSeat = null, startOptions = emptyList(), endOptions = emptyList(),
-                    selectedStart = null, selectedEnd = null, reservationRequiresOfficial = false,
+                    selectedStart = null, selectedEnd = null, verificationRequired = false,
                     reservationOutcomeUncertain = false, status = "可用日期与条件已更新，请查询座位") }
                 pendingFavorite?.also { pendingFavorite = null }?.let(::selectSeat)
             } catch (e: CancellationException) { throw e }
@@ -128,7 +126,7 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
         searchJob?.cancel(); timesJob?.cancel(); pages.clear(); requestedQuery = null
         searchState.update { it.copy(filters = it.filters + (key to value), seats = emptyList(), hasSearched = false,
             page = 0, hasNextPage = false, selectedSeat = null, error = null, status = null,
-            loading = false, reservationRequiresOfficial = false) }
+            loading = false, verificationRequired = false) }
         if (key == "building") {
             roomsJob?.cancel()
             searchState.update { it.copy(filters = it.filters + ("room" to "null")) }
@@ -180,7 +178,7 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     private fun showPage(index: Int, page: SeatPage) {
         searchState.update { it.copy(seats = page.seats.map(::nativeSeat), page = index, hasSearched = true,
             hasNextPage = page.nextOffset != null, total = page.seats.size, status = page.message.ifBlank { null },
-            reservationRequiresOfficial = page.verificationRequired) }
+            verificationRequired = page.verificationRequired, verificationUserId = page.verificationUserId) }
     }
 
     fun nextPage() {
@@ -217,13 +215,14 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
         if (selectedDate.isNullOrBlank()) { loadSearch(); return }
         backendSeats.putIfAbsent(seat.id, LibrarySeat(seat.id, seat.name, seat.location, seat.status, seat.available))
         searchState.update { it.copy(selectedSeat = seat, startOptions = emptyList(), endOptions = emptyList(), selectedStart = null,
-            selectedEnd = null, reservationBusy = true, error = null, status = null, reservationRequiresOfficial = false,
+            selectedEnd = null, reservationBusy = true, error = null, status = null, verificationRequired = false,
             reservationOutcomeUncertain = false) }
         timesJob = viewModelScope.launch {
             try {
                 val result = functions.startTimes(account(), seat.id, requireNotNull(selectedDate))
                 searchState.update { it.copy(startOptions = result.options.map { option -> SeatOption(option.value, option.label) },
-                    status = result.message.ifBlank { null }, reservationRequiresOfficial = result.verificationRequired) }
+                    status = result.message.ifBlank { null }, verificationRequired = result.verificationRequired,
+                    verificationUserId = result.verificationUserId) }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { searchState.update { it.copy(error = repository.userMessage(e)) } }
             finally { if (coroutineContext[Job]?.isActive == true) searchState.update { it.copy(reservationBusy = false) } }
@@ -240,7 +239,8 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
             try {
                 val result = functions.endTimes(account(), seat.id, requireNotNull(selectedDate), value)
                 searchState.update { it.copy(endOptions = result.options.map { option -> SeatOption(option.value, option.label) },
-                    status = result.message.ifBlank { null }, reservationRequiresOfficial = result.verificationRequired) }
+                    status = result.message.ifBlank { null }, verificationRequired = result.verificationRequired,
+                    verificationUserId = result.verificationUserId) }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { searchState.update { it.copy(error = repository.userMessage(e)) } }
             finally { if (coroutineContext[Job]?.isActive == true) searchState.update { it.copy(reservationBusy = false) } }
@@ -260,7 +260,7 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     /** The screen asks for a final confirmation before invoking this mutation. Never auto-retry it. */
     fun confirmReservation() {
         val state = searchState.value
-        if (state.reservationBusy || state.reservationRequiresOfficial || state.reservationOutcomeUncertain) return
+        if (state.reservationBusy || state.verificationRequired || state.reservationOutcomeUncertain) return
         val seat = state.selectedSeat ?: return
         val start = state.startOptions.find { it.value == state.selectedStart } ?: return
         val end = state.endOptions.find { it.value == state.selectedEnd } ?: return
@@ -274,17 +274,21 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
                 val freshStarts = functions.startTimes(current, seat.id, onDate)
                 val freshEnds = functions.endTimes(current, seat.id, onDate, start.value)
                 if (freshStarts.verificationRequired || freshEnds.verificationRequired) {
-                    searchState.update { it.copy(reservationRequiresOfficial = true, status = "请在网页中完成学校要求的验证") }; return@launch
+                    searchState.update { it.copy(verificationRequired = true, verificationUserId = freshStarts.verificationUserId.ifBlank { freshEnds.verificationUserId }, status = "正在自动处理学校图片验证") }; return@launch
                 }
                 require(freshStarts.options.any { it.value == start.value } && freshEnds.options.any { it.value == end.value }) {
                     "该时段已不可预约，请重新选择座位或时间"
                 }
-                val prepared = functions.prepareReservation(current, selection)
-                if (prepared.verificationRequired) {
-                    searchState.update { it.copy(reservationRequiresOfficial = true, status = "请在网页中完成学校要求的验证") }; return@launch
+                val prepared = functions.prepareReservation(current, selection).let { form ->
+                    val proof = verificationProof?.takeIf { it.accountId == current.id && System.currentTimeMillis() - it.validatedAt in 0..120_000 }
+                    if (proof != null) form.copy(verificationAuthId = proof.authId) else form
+                }
+                if (prepared.verificationRequired && prepared.verificationAuthId == null) {
+                    searchState.update { it.copy(verificationRequired = true, status = "正在自动处理学校图片验证") }; return@launch
                 }
                 submitted = true
                 val result = functions.reserve(current, prepared)
+                verificationProof = null
                 searchState.update { it.copy(selectedSeat = if (result.success) null else it.selectedSeat, status = result.message,
                     reservationOutcomeUncertain = !result.success && result.message.contains("确认结果")) }
                 refreshHub()
@@ -339,7 +343,46 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
 
     private var historyOffset: Int? = null
     private fun operationNotice(message: String) = listOfNotNull(lastActionMessage, message.takeIf { it.isNotBlank() }).joinToString("\n").ifBlank { null }
-    private fun hubRecord(item: LibraryHistoryItem) = HubRecord(item.id, item.title.ifBlank { "座位记录" }, item.status, item.details)
+    private fun hubRecord(item: LibraryHistoryItem): HubRecord {
+        historyItems[item.id] = item
+        return HubRecord(item.id, item.title.ifBlank { "座位记录" }, item.status, item.details, canCancel = item.cancelPath != null)
+    }
+
+    fun selectMappedSeat(seat: LibrarySeat, onDate: String) {
+        if (searchState.value.reservationBusy || !seat.available) return
+        backendSeats[seat.id] = seat
+        searchState.update { it.copy(filters = it.filters + ("onDate" to onDate)) }
+        selectSeat(nativeSeat(seat))
+    }
+
+    fun verificationCompleted(proof: VerificationProof, resumeSearch: Boolean = true) {
+        if (proof.accountId != boundAccountId || !authenticated || System.currentTimeMillis() - proof.validatedAt !in 0..120_000) return
+        repository.releaseSession(proof.accountId)
+        verificationProof = proof
+        searchState.update { it.copy(verificationRequired = false, verificationUserId = "", status = "图片验证已自动完成") }
+        if (resumeSearch) {
+            val current = searchState.value
+            when {
+                current.selectedSeat == null -> searchSeats()
+                current.startOptions.isEmpty() -> selectSeat(current.selectedSeat)
+                current.endOptions.isEmpty() && current.selectedStart != null -> selectStart(current.selectedStart)
+            }
+        }
+    }
+
+    fun cancelRecord(record: HubRecord) {
+        if (hubState.value.loading || actionJob?.isActive == true || !record.canCancel) return
+        val item = historyItems[record.id] ?: return
+        actionJob = viewModelScope.launch {
+            mutationState.value = true; hubState.update { it.copy(loading = true, error = null) }
+            var error: String? = null
+            try { lastActionMessage = functions.cancelHistory(account(), item).message }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { error = repository.userMessage(e) + "；请同步记录核实取消结果" }
+            finally { if (coroutineContext[Job]?.isActive == true) { mutationState.value = false; hubState.update { it.copy(loading = false) } } }
+            actionRefreshRequired = true; refreshHub(error)
+        }
+    }
 
     fun selectHubSection(section: HubSection) {
         hubState.update { it.copy(section = section, records = emptyList(), favorites = emptyList(), hasMore = false, notice = null) }

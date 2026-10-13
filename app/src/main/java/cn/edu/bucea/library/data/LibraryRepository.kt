@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit
 enum class FailureKind { NETWORK, CREDENTIALS, CAPTCHA, PROTOCOL }
 class LoginFailure(val kind: FailureKind, override val message: String) : IOException(message)
 data class CaptchaChallenge(val fields: Map<String, String>, val id: String, val image: ByteArray)
-data class LoginResult(val overview: LibraryOverview?, val challenge: CaptchaChallenge? = null)
+data class LoginResult(val overview: LibraryOverview)
 
 /** Only these GETs may recover a stale connection; mutation and unknown paths fail once. */
 internal object LibraryReadPolicy {
@@ -70,7 +70,8 @@ class LibraryRepository(private val store: AccountStore, private val ocr: DdddOc
 
     private fun logFailure(request: Request, error: Throwable) {
         // No query, message, body, account, cookie or token is written to Logcat.
-        Log.w("LibraryNetwork", "${request.url.encodedPath} ${error.javaClass.simpleName} cause=${error.cause?.javaClass?.simpleName.orEmpty()}")
+        val path = if (request.url.encodedPath.startsWith("/cap/captcha/")) "/cap/captcha/[redacted]" else request.url.encodedPath
+        Log.w("LibraryNetwork", "$path ${error.javaClass.simpleName} cause=${error.cause?.javaClass?.simpleName.orEmpty()}")
     }
 
     private suspend fun exchange(client: OkHttpClient, request: Request): Reply = suspendCancellableCoroutine { continuation ->
@@ -170,6 +171,7 @@ class LibraryRepository(private val store: AccountStore, private val ocr: DdddOc
         }
         val error = LibraryHtml.error(document)
         val kind = when {
+            error == "登录未成功，请检查账号密码或验证码" -> FailureKind.PROTOCOL
             error.contains("验证码") -> FailureKind.CAPTCHA
             listOf("密码", "不存在", "用户", "账号", "帐号").any { error.contains(it) } -> FailureKind.CREDENTIALS
             else -> FailureKind.PROTOCOL
@@ -180,18 +182,22 @@ class LibraryRepository(private val store: AccountStore, private val ocr: DdddOc
     suspend fun login(account: SavedAccount, progress: (String) -> Unit): LoginResult {
         progress("正在检查已保存的登录状态…")
         restore(account)?.let { return LoginResult(it) }
-        repeat(3) { attempt ->
-            progress("正在识别验证码（${attempt + 1}/3）…")
+        var recognitionFailures = 0
+        repeat(5) { attempt ->
+            progress("正在自动识别验证码（${attempt + 1}/5）…")
             val challenge = challenge(account)
             val answer = try { ocr.recognize(challenge.image) } catch (e: CancellationException) { throw e }
-            catch (_: Exception) { return LoginResult(null, challenge) }
-            if (answer.isBlank()) return LoginResult(null, challenge)
+            catch (_: Exception) { "" }
+            if (answer.isBlank()) {
+                recognitionFailures++
+                if (recognitionFailures >= 3) throw LoginFailure(FailureKind.CAPTCHA, "验证码自动识别未通过，请稍后重试")
+                return@repeat
+            }
             progress("正在登录…")
             try { return LoginResult(submit(account, challenge, answer)) }
             catch (e: LoginFailure) { if (e.kind != FailureKind.CAPTCHA) throw e }
         }
-        // Failed submissions can invalidate tokens: manual fallback always gets a fresh challenge.
-        return LoginResult(null, challenge(account))
+        throw LoginFailure(FailureKind.CAPTCHA, "验证码自动识别未通过，请稍后重试")
     }
 
     @Synchronized fun forget(id: String) {
@@ -199,7 +205,7 @@ class LibraryRepository(private val store: AccountStore, private val ocr: DdddOc
         store.clearCookies(id)
     }
 
-    /** The WebView has saved newer cookies; drop the in-memory session without erasing them. */
+    /** Drop an in-memory session so another native repository's newer saved cookies are restored. */
     @Synchronized fun releaseSession(id: String) {
         sessions.remove(id)?.let { it.jar.invalidate(clearSaved = false); it.client.dispatcher.cancelAll() }
     }

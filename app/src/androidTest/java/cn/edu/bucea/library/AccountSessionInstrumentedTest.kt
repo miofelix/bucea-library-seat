@@ -127,28 +127,6 @@ class AccountSessionInstrumentedTest {
     }
 
     @Test
-    fun browserSnapshotRemovesDeletedCookiesAndEmptySnapshotClearsSession() {
-        val store = AccountStore(context)
-        val account = store.save("209999990007", "fake-browser-snapshot", "测试")
-        val root = "http://10.1.20.7/".toHttpUrl()
-        val jar = SessionCookieJar(store, account.id)
-        val original = Cookie.Builder().name("session").value("old").hostOnlyDomain(root.host)
-            .path("/").httpOnly().expiresAt(System.currentTimeMillis() + 60_000).build()
-        val deleted = Cookie.Builder().name("server_deleted").value("gone").hostOnlyDomain(root.host).path("/").build()
-        jar.saveFromResponse(root, listOf(original, deleted))
-
-        jar.replaceBrowserCookies("session=new; preference=compact")
-        val restored = SessionCookieJar(AccountStore(context), account.id).loadForRequest(root)
-        assertEquals(setOf("session", "preference"), restored.map { it.name }.toSet())
-        assertEquals("new", restored.first { it.name == "session" }.value)
-        assertTrue(restored.first { it.name == "session" }.httpOnly)
-        assertEquals(original.expiresAt, restored.first { it.name == "session" }.expiresAt)
-
-        jar.replaceBrowserCookies(null)
-        assertTrue(SessionCookieJar(AccountStore(context), account.id).all().isEmpty())
-    }
-
-    @Test
     fun invalidatedJarCannotRestoreSessionFromLateResponse() {
         val store = AccountStore(context)
         val account = store.save("209999990004", "fake-late-response-password", "测试")
@@ -163,7 +141,7 @@ class AccountSessionInstrumentedTest {
     }
 
     @Test
-    fun releasingCachedJarPreservesLatestWebSession() {
+    fun releasingCachedJarPreservesNewerStoredSession() {
         val store = AccountStore(context)
         val account = store.save("209999990005", "fake-web-return-password", "测试")
         val cached = SessionCookieJar(store, account.id)

@@ -59,7 +59,7 @@ import androidx.compose.ui.unit.sp
 
 enum class HubSection { RESERVATIONS, FAVORITES, VIOLATIONS }
 
-data class HubRecord(val id: String, val title: String, val status: String, val details: List<String>)
+data class HubRecord(val id: String, val title: String, val status: String, val details: List<String>, val canCancel: Boolean = false)
 data class HubFavorite(val id: String, val name: String, val location: String, val local: Boolean = false)
 data class HubAction(val id: String, val label: String, val description: String, val destructive: Boolean = false)
 data class LibraryHubState(
@@ -81,7 +81,7 @@ private val HubMuted = Color(0xFF778583)
 private val HubSoft = Color(0xFFE5EFE8)
 private val HubLine = Color(0xFFE2E8E1)
 
-/** Native account-specific records; verified website forms remain available through deep links. */
+/** Account-specific records, details and actions rendered entirely in Compose. */
 @Composable
 fun LibraryHubScreen(
     state: LibraryHubState,
@@ -90,13 +90,16 @@ fun LibraryHubScreen(
     onSection: (HubSection) -> Unit,
     onLoadMore: () -> Unit,
     onSearch: () -> Unit,
-    onOpenPage: (String) -> Unit,
+    onOpenMap: () -> Unit,
     onFavorite: (HubFavorite) -> Unit,
     onRemoveFavorite: (HubFavorite) -> Unit,
     onAction: (HubAction) -> Unit,
+    onCancelRecord: (HubRecord) -> Unit,
 ) {
     var confirmingAction by remember(state.currentStatus, state.currentDetails) { mutableStateOf<HubAction?>(null) }
     var removingFavorite by remember { mutableStateOf<HubFavorite?>(null) }
+    var selectedRecord by remember(state.section) { mutableStateOf<HubRecord?>(null) }
+    var cancellingRecord by remember { mutableStateOf<HubRecord?>(null) }
     LaunchedEffect(state.actions, state.favorites) {
         if (confirmingAction?.id?.let { id -> state.actions.none { it.id == id } } == true) confirmingAction = null
         if (removingFavorite?.id?.let { id -> state.favorites.none { it.id == id } } == true) removingFavorite = null
@@ -105,11 +108,6 @@ fun LibraryHubScreen(
         HubSection.RESERVATIONS -> "我的预约"
         HubSection.FAVORITES -> "常用座位"
         HubSection.VIOLATIONS -> "违约记录"
-    }
-    val originalPath = when (state.section) {
-        HubSection.RESERVATIONS -> "/history?type=SEAT"
-        HubSection.FAVORITES -> "/freeBook/fav"
-        HubSection.VIOLATIONS -> "/user/violations"
     }
 
     LazyColumn(
@@ -180,7 +178,7 @@ fun LibraryHubScreen(
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 HubShortcut("查找座位", "按日期与房间筛选", Icons.Outlined.Search, !state.loading, Modifier.weight(1f), onSearch)
-                HubShortcut("布局选座", "查看房间座位地图", Icons.Outlined.GridView, !state.loading, Modifier.weight(1f)) { onOpenPage("/map") }
+                HubShortcut("布局选座", "查看房间座位地图", Icons.Outlined.GridView, !state.loading, Modifier.weight(1f), onOpenMap)
             }
         }
         state.notice?.takeIf { it.isNotBlank() }?.let { notice ->
@@ -215,10 +213,6 @@ fun LibraryHubScreen(
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(sectionTitle, fontWeight = FontWeight.SemiBold, color = HubInk, modifier = Modifier.weight(1f))
-                TextButton(enabled = !state.loading, onClick = { onOpenPage(originalPath) }) {
-                    Text("查看完整页面", fontSize = 12.sp)
-                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, Modifier.size(15.dp).padding(start = 3.dp))
-                }
             }
         }
         if (state.section == HubSection.FAVORITES) {
@@ -226,7 +220,7 @@ fun LibraryHubScreen(
                 FavoriteCard(favorite, state.loading, { onFavorite(favorite) }, { removingFavorite = favorite })
             }
         } else {
-            items(state.records, key = { "record_${it.id}" }) { record -> HubRecordCard(record) }
+            items(state.records, key = { "record_${it.id}" }) { record -> HubRecordCard(record) { selectedRecord = record } }
         }
         val empty = if (state.section == HubSection.FAVORITES) state.favorites.isEmpty() else state.records.isEmpty()
         if (empty && !state.loading && state.error == null) item {
@@ -257,12 +251,28 @@ fun LibraryHubScreen(
             }
         }
         item {
-            OutlinedButton(onClick = { onOpenPage("/self") }, enabled = !state.loading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                Text("进入完整功能中心")
+            OutlinedButton(onClick = onSearch, enabled = !state.loading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                Text("查找可用座位")
                 Spacer(Modifier.width(8.dp))
                 Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, Modifier.size(17.dp))
             }
         }
+    }
+
+    selectedRecord?.let { record ->
+        AlertDialog(onDismissRequest = { selectedRecord = null }, title = { Text(record.title.ifBlank { "记录详情" }) },
+            text = { Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                record.details.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
+            } }, confirmButton = { TextButton(onClick = { selectedRecord = null }) { Text("关闭") } },
+            dismissButton = { if (record.canCancel && state.section == HubSection.RESERVATIONS)
+                TextButton(enabled = !state.loading, onClick = { selectedRecord = null; cancellingRecord = record }) { Text("取消预约", color = MaterialTheme.colorScheme.error) } })
+    }
+    cancellingRecord?.let { record ->
+        AlertDialog(onDismissRequest = { cancellingRecord = null }, title = { Text("取消这次预约？") },
+            text = { Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                record.details.forEach { Text(it) }; Text("取消后该时段的座位将释放。")
+            } }, confirmButton = { TextButton(enabled = !state.loading, onClick = { cancellingRecord = null; onCancelRecord(record) }) { Text("确认取消预约") } },
+            dismissButton = { TextButton(onClick = { cancellingRecord = null }) { Text("保留预约") } })
     }
 
     confirmingAction?.let { action ->
@@ -324,8 +334,8 @@ private fun HubShortcut(title: String, detail: String, icon: androidx.compose.ui
 }
 
 @Composable
-private fun HubRecordCard(record: HubRecord) {
-    Card(shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+private fun HubRecordCard(record: HubRecord, onClick: () -> Unit) {
+    Card(onClick = onClick, shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(Modifier.fillMaxWidth().padding(17.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text(record.title, color = HubInk, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             record.status.takeIf { it.isNotBlank() }?.let { status ->

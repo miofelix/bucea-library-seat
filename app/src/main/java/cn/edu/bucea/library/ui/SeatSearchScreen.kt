@@ -104,8 +104,9 @@ data class SeatSearchState(
     val selectedStart: String? = null,
     val selectedEnd: String? = null,
     val reservationBusy: Boolean = false,
-    val reservationRequiresOfficial: Boolean = false,
+    val verificationRequired: Boolean = false,
     val reservationOutcomeUncertain: Boolean = false,
+    val verificationUserId: String = "",
     val accountLabel: String = "",
 )
 
@@ -125,13 +126,15 @@ fun SeatSearchScreen(
     onPreviousPage: () -> Unit,
     onSelectSeat: (NativeSeat) -> Unit,
     onBack: () -> Unit,
-    onOpenOfficial: () -> Unit,
+    onOpenMap: () -> Unit,
     onToggleFavorite: (NativeSeat) -> Unit = {},
     onSelectStart: (String) -> Unit = {},
     onSelectEnd: (String) -> Unit = {},
     onConfirmReservation: () -> Unit = {},
     onDismissReservation: () -> Unit = {},
     onRefresh: () -> Unit = {},
+    onVerify: () -> Unit = {},
+    onOpenReservations: () -> Unit = {},
 ) {
     var advanced by rememberSaveable { mutableStateOf(false) }
     var choosing by remember { mutableStateOf<String?>(null) }
@@ -166,7 +169,7 @@ fun SeatSearchScreen(
                 IconButton(onClick = onRefresh, enabled = !state.loading && !state.reservationBusy) {
                     Icon(Icons.Outlined.Refresh, "刷新座位筛选", tint = SeatTeal)
                 }
-                TextButton(onClick = onOpenOfficial) { Text("布局选座", fontSize = 12.sp) }
+                TextButton(onClick = onOpenMap) { Text("布局选座", fontSize = 12.sp) }
             }
         }
     ) { padding ->
@@ -247,9 +250,9 @@ fun SeatSearchScreen(
                 }
             }
             state.status?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.sp, lineHeight = 19.sp, color = SeatMuted) }
-            if (state.reservationRequiresOfficial && state.selectedSeat == null) {
-                OutlinedButton(onClick = onOpenOfficial, enabled = !state.loading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                    Text("进入完整功能中心验证")
+            if (state.verificationRequired && state.selectedSeat == null) {
+                OutlinedButton(onClick = onVerify, enabled = !state.loading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                    Text("自动完成图片验证")
                 }
             }
             Row(Modifier.fillMaxWidth().bringIntoViewRequester(resultsRequester), verticalAlignment = Alignment.CenterVertically) {
@@ -292,7 +295,7 @@ fun SeatSearchScreen(
                 }
             }
             Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalArrangement = Arrangement.Center) {
-                TextButton(onClick = onOpenOfficial) { Icon(Icons.Outlined.GridView, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(7.dp)); Text("使用座位地图与完整功能", fontSize = 12.sp) }
+                TextButton(onClick = onOpenMap) { Icon(Icons.Outlined.GridView, null, modifier = Modifier.size(16.dp)); Spacer(Modifier.width(7.dp)); Text("查看座位地图", fontSize = 12.sp) }
             }
         }
     }
@@ -304,7 +307,7 @@ fun SeatSearchScreen(
         }
     }
     state.selectedSeat?.let { seat ->
-        ReservationDialog(state, seat, onSelectStart, onSelectEnd, onConfirmReservation, onDismissReservation, onOpenOfficial)
+        NativeReservationDialog(state, seat, onSelectStart, onSelectEnd, onConfirmReservation, onDismissReservation, onVerify, onOpenReservations)
     }
 }
 
@@ -375,7 +378,7 @@ private fun OptionDialog(title: String, options: List<SeatOption>, selected: Str
 }
 
 @Composable
-private fun ReservationDialog(state: SeatSearchState, seat: NativeSeat, onStart: (String) -> Unit, onEnd: (String) -> Unit, onConfirm: () -> Unit, onDismiss: () -> Unit, onOpenOfficial: () -> Unit) {
+fun NativeReservationDialog(state: SeatSearchState, seat: NativeSeat, onStart: (String) -> Unit, onEnd: (String) -> Unit, onConfirm: () -> Unit, onDismiss: () -> Unit, onVerify: () -> Unit, onOpenReservations: () -> Unit) {
     var confirming by remember(seat.id, state.filters["onDate"], state.selectedStart, state.selectedEnd, state.accountLabel) { mutableStateOf(false) }
     val maximumHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.5f).coerceAtMost(420.dp)
     val start = state.startOptions.firstOrNull { it.value == state.selectedStart }?.label
@@ -418,17 +421,17 @@ private fun ReservationDialog(state: SeatSearchState, seat: NativeSeat, onStart:
                     if (state.startOptions.isEmpty() && !state.reservationBusy && state.error == null) Text("可以返回选择其他日期或座位。", fontSize = 12.sp, color = SeatMuted)
                 }
                 state.status?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.sp, lineHeight = 19.sp, color = SeatMuted) }
-                if (state.reservationRequiresOfficial) {
-                    Text("图书馆需要额外验证，请在完整功能中心完成验证后继续。", fontSize = 12.sp, lineHeight = 20.sp, color = SeatMuted)
-                    OutlinedButton(onClick = onOpenOfficial, modifier = Modifier.fillMaxWidth()) { Text("进入完整功能中心验证") }
+                if (state.verificationRequired) {
+                    Text("图书馆要求图片验证，应用将自动识别并完成验证。", fontSize = 12.sp, lineHeight = 20.sp, color = SeatMuted)
+                    OutlinedButton(onClick = onVerify, modifier = Modifier.fillMaxWidth()) { Text("自动完成图片验证") }
                 }
                 if (state.reservationOutcomeUncertain) {
                     Text("预约结果尚未确认，请先查看“我的预约”。核实前无法重复提交。", fontSize = 12.sp, lineHeight = 20.sp, color = SeatMuted)
-                    OutlinedButton(onClick = onOpenOfficial, modifier = Modifier.fillMaxWidth()) { Text("查看我的预约") }
+                    OutlinedButton(onClick = onOpenReservations, modifier = Modifier.fillMaxWidth()) { Text("查看我的预约") }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { if (confirming) onConfirm() else confirming = true }, enabled = !state.reservationBusy && !state.reservationRequiresOfficial && !state.reservationOutcomeUncertain && start != null && end != null) { Text(if (state.reservationBusy) "正在处理…" else if (confirming) "确认预约" else "下一步") } },
+        confirmButton = { TextButton(onClick = { if (confirming) onConfirm() else confirming = true }, enabled = !state.reservationBusy && !state.verificationRequired && !state.reservationOutcomeUncertain && start != null && end != null) { Text(if (state.reservationBusy) "正在处理…" else if (confirming) "确认预约" else "下一步") } },
         dismissButton = { TextButton(onClick = { if (confirming) confirming = false else onDismiss() }, enabled = !state.reservationBusy) { Text(if (confirming) "修改时间" else "取消") } }
     )
 }
