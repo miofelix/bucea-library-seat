@@ -3,6 +3,7 @@ package cn.edu.bucea.library.data
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -40,6 +41,41 @@ class SessionCookieJar(private val store: AccountStore, private val accountId: S
     }
 
     @Synchronized fun all(): List<Cookie> = cookies.filter { it.expiresAt > System.currentTimeMillis() }.toList()
+    /** Replace the WebView's campus-root snapshot, including cookies deleted by the server. */
+    @Synchronized fun replaceBrowserCookies(header: String?) {
+        if (!active) return
+        if (header.isNullOrBlank()) { clear(); return }
+        val origin = LibraryRepository.BASE_URL.toHttpUrl()
+        val incoming = header.split(';').mapNotNull { part ->
+            val separator = part.indexOf('=')
+            if (separator <= 0) null else part.substring(0, separator).trim() to part.substring(separator + 1).trim()
+        }.toMutableList()
+        val snapshot = mutableListOf<Cookie>()
+        val now = System.currentTimeMillis()
+        for (cookie in cookies.filter { it.expiresAt > now }) {
+            // A root Cookie header cannot describe path-specific cookies; retain their scope.
+            if (!cookie.matches(origin)) { snapshot += cookie; continue }
+            val index = incoming.indexOfFirst { it.first == cookie.name }
+            if (index < 0) continue
+            val (_, value) = incoming.removeAt(index)
+            cookieWithValue(cookie, value)?.let(snapshot::add)
+        }
+        incoming.forEach { (name, value) ->
+            try { snapshot += Cookie.Builder().name(name).value(value).hostOnlyDomain(origin.host).path("/").build() }
+            catch (_: IllegalArgumentException) { /* Ignore malformed browser cookie pairs. */ }
+        }
+        cookies.clear()
+        cookies += snapshot
+        persist()
+    }
+
+    private fun cookieWithValue(cookie: Cookie, value: String): Cookie? = try {
+        Cookie.Builder().name(cookie.name).value(value).path(cookie.path).expiresAt(cookie.expiresAt).apply {
+            if (cookie.hostOnly) hostOnlyDomain(cookie.domain) else domain(cookie.domain)
+            if (cookie.secure) secure()
+            if (cookie.httpOnly) httpOnly()
+        }.build()
+    } catch (_: IllegalArgumentException) { null }
     @Synchronized fun clear() { cookies.clear(); store.clearCookies(accountId) }
     @Synchronized fun invalidate(clearSaved: Boolean = true) {
         active = false

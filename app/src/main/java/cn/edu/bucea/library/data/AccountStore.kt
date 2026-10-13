@@ -67,6 +67,7 @@ class AccountStore(context: Context) {
         accounts.add(account)
         writeAccounts(accounts)
         clearCookies(account.id)
+        setSignedOut(account.id, false)
         activeAccountId = account.id
         return account
     }
@@ -80,6 +81,7 @@ class AccountStore(context: Context) {
         val remaining = accounts().filterNot { it.id == id }
         writeAccounts(remaining)
         clearCookies(id)
+        check(preferences.edit().remove("signed_out_$id").commit())
         if (activeAccountId == id) activeAccountId = remaining.firstOrNull()?.id
     }
 
@@ -96,4 +98,11 @@ class AccountStore(context: Context) {
     fun cookies(id: String): String = read("cookies_$id") ?: "[]"
     fun saveCookies(id: String, json: String) = write("cookies_$id", json)
     fun clearCookies(id: String) { preferences.edit().remove("cookies_$id").commit() }
+
+    fun isSignedOut(id: String): Boolean = preferences.getBoolean("signed_out_$id", false)
+    fun setSignedOut(id: String, signedOut: Boolean) {
+        check(preferences.edit().putBoolean("signed_out_$id", signedOut).commit()) {
+            "无法保存退出状态，请检查设备存储空间"
+        }
+    }
 }
