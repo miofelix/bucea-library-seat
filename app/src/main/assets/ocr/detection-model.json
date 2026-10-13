@@ -1,0 +1,21 @@
+{
+  "source": "https://github.com/sml2h3/ddddocr",
+  "model": "common_det.onnx",
+  "model_sha256": "6faa8ea85a8c1a634e5050c4a138fca10f30194e0d7abbe9ade1fcd423af6ed6",
+  "input": [
+    1,
+    3,
+    416,
+    416
+  ],
+  "channels": "BGR",
+  "normalization": "none; 0..255",
+  "padding": 114,
+  "strides": [
+    8,
+    16,
+    32
+  ],
+  "score_threshold": 0.1,
+  "nms_threshold": 0.45
+}

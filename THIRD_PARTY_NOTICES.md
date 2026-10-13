@@ -1,6 +1,6 @@
 # Third-party notices
 
-The Android application's offline captcha recognition bundles `common_old.onnx`
+The Android application's offline captcha recognition bundles `common_old.onnx`, `common_det.onnx`
 and `CHARSET_OLD` from [sml2h3/ddddocr](https://github.com/sml2h3/ddddocr), version
 1.6.1. The initial source export was made from local revision
 `c40f56f95412e10bcb9bd0bd24411e92f896d238`.

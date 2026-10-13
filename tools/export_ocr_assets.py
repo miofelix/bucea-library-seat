@@ -32,6 +32,14 @@ def export(source: Path, destination: Path) -> dict:
         raise ValueError("Invalid charset")
     destination.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(model, destination / model.name)
+    detection = package / "common_det.onnx"
+    shutil.copyfile(detection, destination / detection.name)
+    (destination / "detection-model.json").write_text(json.dumps({
+        "source": "https://github.com/sml2h3/ddddocr", "model": detection.name,
+        "model_sha256": hashlib.sha256(detection.read_bytes()).hexdigest(),
+        "input": [1, 3, 416, 416], "channels": "BGR", "normalization": "none; 0..255",
+        "padding": 114, "strides": [8, 16, 32], "score_threshold": 0.1, "nms_threshold": 0.45,
+    }, indent=2) + "\n", encoding="utf-8")
     (destination / "charset.json").write_text(
         json.dumps(charset, ensure_ascii=False, separators=(",", ":")) + "\n",
         encoding="utf-8",
