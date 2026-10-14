@@ -1,9 +1,11 @@
 package cn.edu.bucea.library
 
+import android.os.Bundle
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import cn.edu.bucea.library.data.AccountStore
 import cn.edu.bucea.library.data.LibraryRepository
+import cn.edu.bucea.library.data.NativeMapRepository
 import cn.edu.bucea.library.data.RegionOverviewRepository
 import cn.edu.bucea.library.ocr.DdddOcr
 import java.time.LocalDate
@@ -33,7 +35,18 @@ class LiveRegionOverviewTest {
             val library = LibraryRepository(accounts, ocr)
             try {
                 assertNotNull("The saved account session must authenticate", library.restore(selected))
-                val state = RegionOverviewRepository(library).load(selected)
+                var layoutNumber = 0
+                val maps = NativeMapRepository { account, endpoint ->
+                    library.request(account, endpoint).also { response ->
+                        if (endpoint.startsWith("/mapBook/getSeatsByRoom") &&
+                            InstrumentationRegistry.getArguments().getString("captureRegionLayouts") == "true") {
+                            val folder = java.io.File(instrumentation.targetContext.filesDir, "region-layout-diagnostic")
+                            folder.mkdirs()
+                            java.io.File(folder, "layout-${++layoutNumber}.html").writeText(response)
+                        }
+                    }
+                }
+                val state = RegionOverviewRepository(maps).load(selected)
                 assertFalse("School verification must not be mistaken for successful data", state.verificationRequired)
                 assertEquals("Every returned building/floor must be discovered", emptyList<String>(), state.discoveryErrors)
                 assertTrue("Complete discovery is required", state.discoveryComplete)
@@ -55,8 +68,11 @@ class LiveRegionOverviewTest {
                     assertEquals(counts.total, categories.sum())
                     assertNotNull(region.updatedAt)
                 }
-                println("REGION_OVERVIEW regions=${state.totalRegions} seats=${state.regions.sumOf { it.counts!!.total }} " +
-                    "unknown=${state.regions.sumOf { it.counts!!.unknown }}")
+                instrumentation.sendStatus(0, Bundle().apply {
+                    putInt("region_count", state.totalRegions)
+                    putInt("seat_count", state.regions.sumOf { it.counts!!.total })
+                    putInt("unknown_status_count", state.regions.sumOf { it.counts!!.unknown })
+                })
             } finally { library.releaseSession(selected.id) }
         }
     }

@@ -39,7 +39,7 @@ class NativeMapRepository(private val request: suspend (SavedAccount, String) ->
     private suspend fun authenticatedPage(account: SavedAccount, endpoint: String): Document {
         val response = request(account, endpoint)
         requireData(response)
-        verificationUserId(response)?.let { throw VerificationRequired(it) }
+        verificationUserId(response, fullPage = true)?.let { throw VerificationRequired(it) }
         val document = LibraryHtml.parse(response)
         document.selectFirst("#sysUsername")?.attr("value")?.let {
             if (it != account.username) throw LoginFailure(FailureKind.CREDENTIALS, "登录状态已变化，请重新登录")
@@ -62,10 +62,18 @@ class NativeMapRepository(private val request: suspend (SavedAccount, String) ->
         }
 
         /** An empty ID is still a challenge; null alone means no rate-limit/verification response. */
-        private fun verificationUserId(response: String): String? {
+        private fun verificationUserId(response: String, fullPage: Boolean = false): String? {
             val data = if (response.trimStart().startsWith("{")) runCatching { JSONObject(response) }.getOrNull() else null
-            return if (response.contains("clickVerifyCode(") || response.contains("您操作的频率太快") ||
-                data?.optBoolean("limit") == true) data?.optString("userId").orEmpty() else null
+            val verification = if (fullPage) {
+                val document = LibraryHtml.parse(response)
+                // Authenticated /map pages wire clickVerifyCode into callbacks even without a challenge.
+                // Only a direct standalone invocation or a visible rate-limit is evidence on a full page.
+                val directCall = Regex("""^clickVerifyCode\s*\([\s\S]*?\)\s*;?\s*$""")
+                document.body().text().contains("您操作的频率太快") ||
+                    document.select("script").any { directCall.matches(it.data().trim()) }
+            } else response.contains("clickVerifyCode(") || response.contains("您操作的频率太快")
+            return if (verification || data?.optBoolean("limit") == true)
+                data?.optString("userId").orEmpty() else null
         }
 
         fun parseRooms(response: String): NativeMapRooms {

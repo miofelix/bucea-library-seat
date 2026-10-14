@@ -17,15 +17,31 @@ class NativeVerificationRepository(
 
     suspend fun context(account: SavedAccount, userId: String = ""): VerificationContext {
         val page = LibraryHtml.parse(request(account, "/self"))
-        val username = page.selectFirst("#sysUsername")?.attr("value").orEmpty()
-        val token = page.selectFirst("#sysToken")?.attr("value").orEmpty()
-        require(username == account.username && token.isNotBlank()) { "无法读取学校验证参数，请重新登录" }
+        val scripts = page.select("script:not([src])").joinToString("\n") { it.data() }
+        fun values(name: String): List<String> {
+            // Read only literal assignments, including nested school verification callbacks.
+            // Empty declarations are placeholders until the school issues a verification token.
+            val assignments = Regex("""(?:^|[;{},\r\n])\s*(?:(?:var|let|const)\s+)?$name\s*=\s*(["'])([^"'\r\n]*)\1\s*(?=[;,}\r\n]|$)""")
+                .findAll(scripts).map { it.groupValues[2] }
+            val inputs = page.select("input#$name").map { it.attr("value") }
+            return (inputs.asSequence() + assignments).toList()
+        }
+        val usernames = values("sysUsername").filter(String::isNotEmpty).toSet()
+        val tokenFields = values("sysToken")
+        val tokens = tokenFields.filter(String::isNotEmpty).toSet()
+        val token = tokens.singleOrNull().orEmpty()
+        require(page.selectFirst("form[action='/auth/signIn']") == null &&
+            usernames == setOf(account.username)) { "登录状态已变化，请重新登录" }
+        require(tokenFields.isNotEmpty() && tokens.size == 1 && token.matches(Regex("[A-Za-z0-9-]+"))) {
+            "学校暂未提供有效验证参数，请刷新区域后重试"
+        }
+        val username = usernames.single()
         return VerificationContext(account.id, userId = userId, username = username, sysToken = token)
     }
 
     suspend fun challenge(account: SavedAccount, context: VerificationContext): VerificationChallenge {
         require(context.accountId == account.id) { "账号已切换，请重新验证" }
-        require(context.sysToken.matches(Regex("[A-Za-z0-9-]*"))) { "学校验证参数无效" }
+        require(context.sysToken.matches(Regex("[A-Za-z0-9-]+"))) { "学校暂未提供有效验证参数，请刷新区域后重试" }
         val path = "/cap/captcha/" + context.sysToken
         val data = response(post(account, path, mapOf("username" to context.username)))
         requireSuccess(data)

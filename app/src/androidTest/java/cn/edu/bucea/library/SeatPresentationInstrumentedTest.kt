@@ -27,6 +27,7 @@ class SeatPresentationInstrumentedTest {
             Triple("usre", false, SeatVisualState.OCCUPIED),
             Triple("inuse_power", false, SeatVisualState.OCCUPIED),
             Triple("已被预约", false, SeatVisualState.RESERVED),
+            Triple("当前已有预约", false, SeatVisualState.RESERVED),
             Triple("待签到", false, SeatVisualState.RESERVED),
             Triple("agreement", false, SeatVisualState.RESERVED),
             Triple("暂离中", false, SeatVisualState.AWAY),

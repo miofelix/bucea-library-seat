@@ -15,7 +15,7 @@ internal object SeatPresentationPolicy {
             listOf("使用", "占用", "占座").any(text::contains) ||
                 matches("usre", "inuse", "in_use", "using", "occupied", "checked_in") -> SeatVisualState.OCCUPIED
             text.contains("待签到") || text.contains("未签到") || text.contains("等待签到") ||
-                text.contains("已预约") || text.contains("被预约") || text.contains("已预订") ||
+                text.contains("已预约") || text.contains("已有预约") || text.contains("被预约") || text.contains("已预订") ||
                 text == "预约" || matches("agreement", "order", "reserved", "reserve", "booked", "awaiting_check_in") -> SeatVisualState.RESERVED
             listOf("空闲", "可用", "可预约", "可预订").any(text::contains) ||
                 matches("idle", "free", "available") -> SeatVisualState.FREE

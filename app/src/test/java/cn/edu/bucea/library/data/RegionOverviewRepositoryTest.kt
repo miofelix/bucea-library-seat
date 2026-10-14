@@ -73,7 +73,7 @@ class RegionOverviewRepositoryTest {
             <ul>
               <li id='seat_free'><a class='idle_both'>001</a></li>
               <li id='seat_using'><a class='usre_power'>002</a></li>
-              <li id='seat_reserved'><a class='agreement'>003</a></li>
+              <li id='seat_reserved'><a class='agreement' title='当前已有预约'>003</a></li>
               <li id='seat_away'><a class='leave'>004</a></li>
               <li id='seat_off'><a class='noUsre'>005</a></li>
               <li id='seat_unknown'><a class='new-school-status'>006</a></li>
@@ -129,6 +129,44 @@ class RegionOverviewRepositoryTest {
         assertTrue(state.regions.isEmpty())
         assertFalse(state.discoveryComplete)
         assertTrue(state.error!!.contains(today))
+    }
+
+    @Test fun normalFullMapPageVerificationWiringAndScriptMessagesDoNotTriggerChallenge() = runTest {
+        val calls = mutableListOf<HttpUrl>()
+        val state = repository(calls) { url -> when (url.encodedPath) {
+            "/map" -> options() + """
+                <input id='sysUsername' value='${account.username}'>
+                <script>
+                    function clickVerifyCode(userId) { return userId; }
+                    function loadRooms() { if (limited) { clickVerifyCode('fixture'); } }
+                    var rateLimitMessage = '您操作的频率太快';
+                    document.querySelector('#verify').onclick = function() { clickVerifyCode('fixture'); };
+                </script>
+            """
+            "/mapBook/getSeatsByRoom" -> seats("idle")
+            else -> commonDiscovery(url)
+        } }.load(account)
+        assertFalse(state.verificationRequired)
+        assertNull(state.error)
+        assertEquals(3, state.completedRegions)
+        assertTrue(state.regions.all { it.counts?.free == 1 })
+    }
+
+    @Test fun standaloneFullMapPageChallengeStillStopsEvenWithAuthenticatedIdentityAndOptions() = runTest {
+        val calls = mutableListOf<HttpUrl>()
+        val state = repository(calls) {
+            options() + "<input id='sysUsername' value='${account.username}'><script>clickVerifyCode('fixture');</script>"
+        }.load(account)
+        assertTrue(state.verificationRequired)
+        assertEquals(1, calls.size)
+        assertTrue(state.regions.isEmpty())
+    }
+
+    @Test fun visibleFullMapRateLimitStopsEvenIfPageIncludesOptions() = runTest {
+        val calls = mutableListOf<HttpUrl>()
+        val state = repository(calls) { options() + "<p>您操作的频率太快</p>" }.load(account)
+        assertTrue(state.verificationRequired)
+        assertEquals(1, calls.size)
     }
 
     @Test fun malformedRoomDiscoveryLeavesKnownRegionsButMarksListIncomplete() = runTest {

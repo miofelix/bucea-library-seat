@@ -32,7 +32,9 @@ class NativeVerificationViewModel(application: Application) : AndroidViewModel(a
         job = viewModelScope.launch {
             try {
                 val account = store.accounts().first { it.id == accountId }
-                check(!store.isSignedOut(accountId)) { "请先登录图书馆账号" }
+                check(store.activeAccountId == accountId && !store.isSignedOut(accountId)) { "请先登录当前图书馆账号" }
+                // Login and verification use separate repositories; reload their latest saved cookies.
+                library.releaseSession(accountId)
                 val context = repository.context(account, userId)
                 mutable.update { it.copy(context = context, loading = true, error = null) }
                 val proof = repository.automaticallyVerify(account, context, solve = { challenge ->
