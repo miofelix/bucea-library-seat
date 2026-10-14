@@ -81,6 +81,7 @@ fun NativeMapScreen(
     onSeat: (LibrarySeat, String) -> Unit,
     onBack: () -> Unit,
     onVerify: () -> Unit = {},
+    showHeader: Boolean = true,
 ) {
     var choosing by remember { mutableStateOf<String?>(null) }
     var selected by remember(state.layout?.roomId, state.filters["onDate"], state.layout) { mutableStateOf<NativeMapCell?>(null) }
@@ -98,7 +99,7 @@ fun NativeMapScreen(
         labelColor = Muted, selectedContainerColor = SoftAccent, selectedLabelColor = Accent,
         selectedLeadingIconColor = Accent)
     LazyColumn(modifier.fillMaxSize().background(Paper), contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        item {
+        if (showHeader) item {
             LibraryPageHeader(title = if (state.directRegionView) roomName else "布局选座",
                 subtitle = if (state.directRegionView) listOfNotNull(
                     state.filters["onDate"],
@@ -106,6 +107,16 @@ fun NativeMapScreen(
                     state.options.floors.find { it.value == state.filters["floor"] }?.label,
                 ).joinToString(" · ") else "沿着真实布局，找到喜欢的位置。",
                 onBack = onBack, onRefresh = onRefresh, refreshDescription = "刷新座位地图", refreshEnabled = !state.loading)
+        }
+        else if (state.directRegionView) item {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                LibrarySectionTitle(roomName)
+                Text(listOfNotNull(
+                    state.filters["onDate"],
+                    state.options.buildings.find { it.value == state.filters["building"] }?.label,
+                    state.options.floors.find { it.value == state.filters["floor"] }?.label,
+                ).joinToString(" · "), color = Muted, fontSize = 12.sp)
+            }
         }
         if (state.loading) item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -74,7 +74,6 @@ class SeatFilterUiInstrumentedTest {
                                 onSelectSeat = { selected.incrementAndGet() },
                                 onToggleFavorite = { favorites.incrementAndGet() },
                                 onBack = {},
-                                onOpenMap = {},
                             )
                         }
                     }

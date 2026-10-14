@@ -6,7 +6,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -34,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -86,13 +86,14 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
     var updateIdle by remember { mutableStateOf(false) }
     val lifecycleState by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     var tab by rememberSaveable { mutableIntStateOf(0) }
-    var mapOpen by rememberSaveable { mutableStateOf(false) }
+    var layoutSelected by rememberSaveable { mutableStateOf(false) }
     var signOutOpen by remember { mutableStateOf(false) }
     var accountMessage by remember { mutableStateOf<String?>(null) }
     var verificationOrigin by remember { mutableStateOf("search") }
     var refreshRegionsAfterSync by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val mapVisible = tab == 1 && layoutSelected && state.authenticated
     LaunchedEffect(features, lifecycleOwner, context) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             features.feedback.collect { message ->
@@ -102,7 +103,7 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
     }
     val businessBusy = state.busy || mutating || seatState.loading || hubState.loading || mapState.loading || regionState.loading ||
         seatState.reservationBusy || accountState.busy || interactions.focusedInputs.intValue > 0 ||
-        seatState.selectedSeat != null || hubState.selectedRecord != null || mapOpen || signOutOpen ||
+        seatState.selectedSeat != null || hubState.selectedRecord != null || mapVisible || signOutOpen ||
         verificationState.context != null || extensionOptions.isNotEmpty() || interactions.dialogs.intValue > 0
     LaunchedEffect(businessBusy, lastTouch, lifecycleState) {
         updateIdle = false
@@ -119,22 +120,22 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
         maps.bindAccount(state.activeAccountId, state.authenticated)
         nativeAccount.bindAccount(state.activeAccountId, state.authenticated)
         verification.dismiss()
-        if (!state.authenticated) { mapOpen = false; signOutOpen = false }
+        if (!state.authenticated) { layoutSelected = false; signOutOpen = false }
     }
     val activeAccountLabel = state.accounts.firstOrNull { it.id == state.activeAccountId }?.label
     LaunchedEffect(state.activeAccountId, activeAccountLabel, state.authenticated) {
         features.bindAccount(state.activeAccountId, state.authenticated)
         nativeAccount.bindAccount(state.activeAccountId, state.authenticated)
     }
-    LaunchedEffect(tab, mapOpen, state.authenticated) {
-        if (state.authenticated && tab == 1 && !mapOpen) features.loadSearch()
+    LaunchedEffect(tab, layoutSelected, state.authenticated) {
+        if (state.authenticated && tab == 1 && !layoutSelected) features.loadSearch()
         if (state.authenticated && tab == 2) features.refreshHub()
-        if (state.authenticated && mapOpen) maps.refresh()
+        if (mapVisible) maps.refresh()
     }
-    LaunchedEffect(tab, mapOpen, state.activeAccountId, state.authenticated, state.busy,
+    LaunchedEffect(tab, state.activeAccountId, state.authenticated, state.busy,
         mutating, seatState.reservationBusy, accountState.busy, lifecycleState, refreshRegionsAfterSync) {
         if (!state.busy && !state.authenticated) refreshRegionsAfterSync = false
-        if (tab == 0 && !mapOpen && state.authenticated && !state.busy && !mutating &&
+        if (tab == 0 && state.authenticated && !state.busy && !mutating &&
             !seatState.reservationBusy && !accountState.busy && lifecycleState == Lifecycle.State.RESUMED) {
             regions.bindAccount(state.activeAccountId, state.authenticated)
             if (refreshRegionsAfterSync) {
@@ -143,15 +144,15 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
             } else regions.ensureFresh()
         }
     }
-    LaunchedEffect(seatState.verificationRequired, mapState.verificationRequired, state.activeAccountId) {
+    LaunchedEffect(seatState.verificationRequired, mapState.verificationRequired, state.activeAccountId, mapVisible) {
         val id = state.activeAccountId
         if (state.authenticated && id != null && verificationState.context == null) {
-            if (mapOpen && mapState.verificationRequired) { verificationOrigin = "map"; verification.begin(id, mapState.verificationUserId) }
+            if (mapVisible && mapState.verificationRequired) { verificationOrigin = "map"; verification.begin(id, mapState.verificationUserId) }
             else if (seatState.verificationRequired) { verificationOrigin = "search"; verification.begin(id, seatState.verificationUserId) }
         }
     }
     val verifySearch: () -> Unit = { state.activeAccountId?.let { verificationOrigin = "search"; verification.begin(it, seatState.verificationUserId) } }
-    BackHandler(enabled = tab != 0 && !mapOpen) {
+    BackHandler(enabled = tab != 0) {
         if (!mutating && !seatState.reservationBusy && !accountState.busy && !state.busy && verificationState.context == null) tab = 0
     }
     CompositionLocalProvider(LocalBusinessInteractions provides interactions) {
@@ -174,7 +175,7 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
                             .background(if (selected) SoftAccent else Color.Transparent)
                             .selectable(selected = selected, role = Role.Tab,
                                 enabled = !state.busy && !mutating && !seatState.reservationBusy && !accountState.busy && verificationState.context == null,
-                                onClick = { features.dismissRecord(); mapOpen = false; tab = index })
+                                onClick = { features.dismissRecord(); tab = index })
                             .heightIn(min = 48.dp).padding(vertical = 4.dp),
                             horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Icon(icon, null, Modifier.size(20.dp), tint = if (selected) Accent else Muted)
@@ -186,28 +187,15 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
             }
         }) { padding ->
             when {
-                mapOpen && state.authenticated -> {
-                    NativeMapScreen(mapState, Modifier.padding(padding), maps::onFilter, maps::refresh, maps::loadRoom,
-                        maps::setListMode, onSeat = features::selectMappedSeat,
-                        onBack = { if (!seatState.reservationBusy) {
-                            features.dismissReservation()
-                            mapOpen = false
-                            if (mapState.directRegionView) tab = 0
-                        } },
-                        onVerify = { state.activeAccountId?.let { verificationOrigin = "map"; verification.begin(it, mapState.verificationUserId) } })
-                    seatState.selectedSeat?.let { seat -> NativeReservationDialog(seatState, seat, features::selectStart,
-                        features::selectEnd, features::confirmReservation, features::dismissReservation, verifySearch,
-                        onOpenReservations = { features.dismissReservation(); mapOpen = false; tab = 2 }) }
-                }
                 tab == 0 -> Dashboard(state.copy(busy = state.busy || mutating || seatState.reservationBusy || accountState.busy), hubState, Modifier.padding(padding), viewModel::login,
                     onRefresh = {
                         refreshRegionsAfterSync = true
                         viewModel.refresh()
                         if (state.authenticated) features.refreshHub()
                     },
-                    onOpenLibrary = { tab = 1 },
+                    onOpenLibrary = { layoutSelected = false; tab = 1 },
                     onReservations = { features.selectHubSection(HubSection.RESERVATIONS); tab = 2 }, onAccounts = { tab = 3 },
-                    onOpenMap = { maps.showRegionSelector(); tab = 1; mapOpen = true },
+                    onOpenMap = { maps.showRegionSelector(); tab = 1; layoutSelected = true },
                     onFavorites = { features.selectHubSection(HubSection.FAVORITES); tab = 2 },
                     regions = regionState, onRefreshRegions = regions::refresh,
                     onVerifyRegions = { state.activeAccountId?.let {
@@ -215,18 +203,49 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
                     } }, onRegion = { region ->
                         maps.selectRegion(region)
                         tab = 1
-                        mapOpen = true
+                        layoutSelected = true
                     })
-                tab == 1 -> if (state.authenticated) Box(Modifier.padding(padding).consumeWindowInsets(padding)) {
-                    SeatSearchScreen(seatState, features::setFilter, features::searchSeats, features::nextPage, features::previousPage,
-                        features::selectSeat, onBack = { tab = 0 }, onOpenMap = { maps.showRegionSelector(); tab = 1; mapOpen = true }, onToggleFavorite = features::toggleFavorite,
-                        onSelectStart = features::selectStart, onSelectEnd = features::selectEnd, onConfirmReservation = features::confirmReservation,
-                        onDismissReservation = features::dismissReservation, onRefresh = features::refreshSearch, onVerify = verifySearch,
-                        onOpenReservations = { features.dismissReservation(); tab = 2 })
+                tab == 1 -> if (state.authenticated) key(state.activeAccountId) {
+                    val selectionEnabled = !state.busy && !mutating && !seatState.reservationBusy &&
+                        !accountState.busy && verificationState.context == null
+                    val backFromSeats: () -> Unit = {
+                        if (selectionEnabled) {
+                            features.dismissReservation()
+                            tab = 0
+                        }
+                    }
+                    SeatSelectionScreen(
+                        layoutSelected = layoutSelected,
+                        onSelectLayout = { selected ->
+                            features.dismissReservation()
+                            if (selected) maps.showRegionSelector()
+                            layoutSelected = selected
+                        },
+                        onRefresh = { if (layoutSelected) maps.refresh() else features.refreshSearch() },
+                        modifier = Modifier.padding(padding).consumeWindowInsets(padding),
+                        enabled = selectionEnabled,
+                        refreshEnabled = selectionEnabled && !(if (layoutSelected) mapState.loading else seatState.loading),
+                        searchContent = {
+                            SeatSearchScreen(seatState, features::setFilter, features::searchSeats, features::nextPage, features::previousPage,
+                                features::selectSeat, onBack = backFromSeats, onToggleFavorite = features::toggleFavorite,
+                                onSelectStart = features::selectStart, onSelectEnd = features::selectEnd, onConfirmReservation = features::confirmReservation,
+                                onDismissReservation = features::dismissReservation, onVerify = verifySearch,
+                                onOpenReservations = { features.dismissReservation(); tab = 2 })
+                        },
+                        layoutContent = {
+                            NativeMapScreen(mapState, onFilter = maps::onFilter, onRefresh = maps::refresh, onLoadRoom = maps::loadRoom,
+                                onListMode = maps::setListMode, onSeat = features::selectMappedSeat, onBack = backFromSeats,
+                                onVerify = { state.activeAccountId?.let { verificationOrigin = "map"; verification.begin(it, mapState.verificationUserId) } },
+                                showHeader = false)
+                            seatState.selectedSeat?.let { seat -> NativeReservationDialog(seatState, seat, features::selectStart,
+                                features::selectEnd, features::confirmReservation, features::dismissReservation, verifySearch,
+                                onOpenReservations = { features.dismissReservation(); tab = 2 }) }
+                        },
+                    )
                 } else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login, viewModel::refresh) { tab = 3 }
                 tab == 2 -> if (state.authenticated) LibraryHubScreen(hubState, Modifier.padding(padding), features::refreshHub,
-                    features::selectHubSection, features::loadMoreHistory, onSearch = { tab = 1 }, onOpenMap = { maps.showRegionSelector(); tab = 1; mapOpen = true },
-                    onFavorite = { favorite -> tab = 1; features.loadSearch(features.favoriteSeat(favorite)) },
+                    features::selectHubSection, features::loadMoreHistory, onSearch = { layoutSelected = false; tab = 1 }, onOpenMap = { maps.showRegionSelector(); tab = 1; layoutSelected = true },
+                    onFavorite = { favorite -> layoutSelected = false; tab = 1; features.loadSearch(features.favoriteSeat(favorite)) },
                     onRemoveFavorite = features::removeFavorite, onAction = features::performAction, onCancelRecord = features::cancelRecord,
                     onOpenRecord = features::openRecord, onDismissRecord = features::dismissRecord)
                 else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login, viewModel::refresh) { tab = 3 }

@@ -31,11 +31,9 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Chair
 import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.outlined.Power
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Window
 import androidx.compose.material.icons.outlined.Close
@@ -134,13 +132,11 @@ fun SeatSearchScreen(
     onPreviousPage: () -> Unit,
     onSelectSeat: (NativeSeat) -> Unit,
     onBack: () -> Unit,
-    onOpenMap: () -> Unit,
     onToggleFavorite: (NativeSeat) -> Unit = {},
     onSelectStart: (String) -> Unit = {},
     onSelectEnd: (String) -> Unit = {},
     onConfirmReservation: () -> Unit = {},
     onDismissReservation: () -> Unit = {},
-    onRefresh: () -> Unit = {},
     onVerify: () -> Unit = {},
     onOpenReservations: () -> Unit = {},
 ) {
@@ -150,11 +146,14 @@ fun SeatSearchScreen(
     var choosing by remember { mutableStateOf<String?>(null) }
     val shownSeats = remember(state.seats, onlyAvailable) { SeatPresentationPolicy.visibleSeats(state.seats, onlyAvailable) }
     val resultsRequester = remember { BringIntoViewRequester() }
+    var lastResultsPage by rememberSaveable { mutableStateOf<Int?>(null) }
     val byNumber = state.filters["name"].orEmpty().isNotBlank()
     LaunchedEffect(state.page, state.hasSearched, state.loading) {
-        if (state.hasSearched && !state.loading) {
+        if (!state.hasSearched || state.loading) lastResultsPage = null
+        else if (lastResultsPage != state.page) {
             withFrameNanos { }
             resultsRequester.bringIntoView()
+            lastResultsPage = state.page
         }
     }
     BackHandler {
@@ -170,23 +169,10 @@ fun SeatSearchScreen(
     )
     Column(
         Modifier.fillMaxSize().background(Paper).verticalScroll(rememberScrollState())
-            .padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 28.dp),
+            .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            LibraryPageHeader(title = "找一个好座位", subtitle = "按你的习惯，选择一席。",
-                modifier = Modifier.weight(1f), onBack = onBack)
-            LibraryIconButton(Icons.Outlined.Refresh, "刷新座位筛选", onRefresh, enabled = !state.loading && !state.reservationBusy)
-        }
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-        Surface(onClick = onOpenMap, enabled = !state.reservationBusy, color = SoftAccent,
-            shape = RoundedCornerShape(15.dp), modifier = Modifier.fillMaxWidth()) {
-            Row(Modifier.heightIn(min = 54.dp).padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Icon(Icons.Outlined.GridView, null, Modifier.size(21.dp), tint = Accent)
-                Text("布局选座", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Accent, modifier = Modifier.weight(1f))
-                Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, Modifier.size(19.dp), tint = Accent)
-            }
-        }
 
         Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

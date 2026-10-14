@@ -121,7 +121,7 @@ class LiveNativeMapGestureTest {
         assertTrue("The verified native control must be enabled", node.isEnabled)
         assertEquals("Only the native application can receive test touches", appPackage, node.packageName?.toString())
         val text = node.text?.toString().orEmpty()
-        val navigation = text in setOf("首页", "选座", "布局选座", "适应区域")
+        val navigation = text in setOf("首页", "选座", "自选座位", "布局选座", "适应区域")
         val roomChoice = node.isCheckable && node.isClickable &&
             node.contentDescription?.toString()?.matches(Regex("\\d{4}-\\d{2}-\\d{2}")) != true
         assertTrue("Only verified navigation, room or fit controls may be clicked", navigation || roomChoice)
