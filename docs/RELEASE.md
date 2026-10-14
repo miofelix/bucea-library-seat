@@ -33,7 +33,7 @@ python3 tools/publish_release.py --directory app/build/outputs/beta-release --ta
 
 正式版移除 `--prerelease` 并使用正式产物/标签。发布脚本使用 `gh` 的当前授权。如果上传失败，草稿会保留，检查附件后人工完成或删除草稿重试。不要用 `--clobber` 替换已发布资产。
 
-Release 标题使用 `北建大图书馆选座 v0.3.7 测试版`，下载文件名保持包含应用名称和版本号的 ASCII 名称。本次 Android 16 / API 36 的最终验收见 [ADB_ACCEPTANCE_0.3.7.md](ADB_ACCEPTANCE_0.3.7.md)，客户端自动重检的修复验收见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)，先前公开更新结果见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)。Android 8 / API 26 设备验证仍未完成，依赖图书馆内部 Wi-Fi 的实际签到与后续使用操作未执行。不能将模拟任务或安装器测试记作公开网络更新成功。
+Release 标题使用 `北建大图书馆选座 v0.3.7 测试版`，下载文件名保持包含应用名称和版本号的 ASCII 名称。本次 Android 16 / API 36 的最终验收见 [ADB_ACCEPTANCE_0.3.7.md](ADB_ACCEPTANCE_0.3.7.md)，先前客户端自动重检的修复验收见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)，先前公开更新结果见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)。Android 8 / API 26 设备验证仍未完成，依赖图书馆内部 Wi-Fi 的实际签到与后续使用操作未执行。不能将模拟任务或安装器测试记作公开网络更新成功。
 
 ## 启用
 
@@ -42,3 +42,5 @@ Release 标题使用 `北建大图书馆选座 v0.3.7 测试版`，下载文件�
 先前 0.3.6 的公开更新与镜像证据保留在 [ADB_ACCEPTANCE_0.3.6.md](ADB_ACCEPTANCE_0.3.6.md)。公网 Cloudflare 缓存生成的 416 保留 APK 的 immutable 缓存头，origin 的 416 为 no-store；这是已有的转发层差异，本次未修改用户维护的 Cloudflare 配置。
 
 详细协议见 [UPDATES.md](UPDATES.md)，交接见 [RASPBERRY_PI_HANDOFF.md](RASPBERRY_PI_HANDOFF.md)，测试与待验项目见 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md)。
+
+当前 `v0.3.7-beta.1 / code 12` 的三个附件已发布并同步。最终安装字节、公开清单和 Range/ETag 检查，以及手机“已是最新版本”结果见本版 ADB 验收；本版使用 ADB 覆盖安装验收，没有声称新的完整公网安装器升级事务。
