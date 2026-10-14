@@ -15,10 +15,11 @@ import kotlinx.coroutines.flow.update
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val store = AccountStore(application)
+    private val appearanceStore = AppearanceStore(application)
     private val ocrResource = lazy { DdddOcr(application) }
     private val ocr by ocrResource
     private val repository by lazy { LibraryRepository(store, ocr) }
-    private val mutableState = MutableStateFlow(LibraryUiState())
+    private val mutableState = MutableStateFlow(LibraryUiState(themeColor = appearanceStore.themeColor))
     val state = mutableState.asStateFlow()
     private var operation: Job? = null
     private var explicitlySignedOut = false
@@ -166,6 +167,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setAutoLogin(value: Boolean) { store.autoLogin = value; syncAccounts() }
     fun setAutoSwitch(value: Boolean) { store.autoSwitch = value; syncAccounts() }
+    fun setThemeColor(value: AppThemeColor) {
+        appearanceStore.themeColor = value
+        mutableState.update { it.copy(themeColor = value) }
+    }
     override fun onCleared() {
         operation?.cancel()
         if (ocrResource.isInitialized()) ocr.close()

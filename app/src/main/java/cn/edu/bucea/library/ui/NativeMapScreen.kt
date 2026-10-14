@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
@@ -41,10 +42,7 @@ import androidx.compose.ui.unit.sp
 import cn.edu.bucea.library.data.models.*
 import java.time.LocalDate
 
-private val MapInk = Color(0xFF183334)
-private val MapTeal = Color(0xFF28766C)
-private val MapMuted = Color(0xFF778583)
-private val MapPaper = Color(0xFFF6F7F2)
+private val MapFree = Color(0xFF28766C)
 
 @Composable
 fun NativeMapScreen(
@@ -71,23 +69,23 @@ fun NativeMapScreen(
     val configuration = LocalConfiguration.current
     val dialogHeight = (configuration.screenHeightDp.dp * .45f).coerceIn(150.dp, 320.dp)
     val chipColors = FilterChipDefaults.filterChipColors(containerColor = Color.White,
-        labelColor = MapMuted, selectedContainerColor = Color(0xFFE5EFE8), selectedLabelColor = MapTeal,
-        selectedLeadingIconColor = MapTeal)
-    LazyColumn(modifier.fillMaxSize().background(MapPaper), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        labelColor = Muted, selectedContainerColor = SoftAccent, selectedLabelColor = Accent,
+        selectedLeadingIconColor = Accent)
+    LazyColumn(modifier.fillMaxSize().background(Paper), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回选座", tint = MapInk) }
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回选座", tint = Ink) }
                 Column(Modifier.weight(1f)) {
-                    Text("布局选座", color = MapInk, fontSize = 23.sp, fontWeight = FontWeight.Bold)
-                    Text("沿着真实布局，找到喜欢的位置", color = MapMuted, fontSize = 11.sp)
+                    Text("布局选座", color = Ink, fontSize = 23.sp, fontWeight = FontWeight.Bold)
+                    Text("沿着真实布局，找到喜欢的位置", color = Muted, fontSize = 11.sp)
                 }
-                IconButton(onClick = onRefresh, enabled = !state.loading) { Icon(Icons.Outlined.Refresh, "刷新座位地图", tint = MapTeal) }
+                IconButton(onClick = onRefresh, enabled = !state.loading) { Icon(Icons.Outlined.Refresh, "刷新座位地图", tint = Accent) }
             }
         }
         if (state.loading) item {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                LinearProgressIndicator(Modifier.fillMaxWidth(), color = MapTeal, trackColor = Color(0xFFE5EFE8))
-                Text(if (state.layout == null) "正在加载区域与座位…" else "正在更新座位状态…", color = MapMuted, fontSize = 12.sp)
+                LinearProgressIndicator(Modifier.fillMaxWidth(), color = Accent, trackColor = SoftAccent)
+                Text(if (state.layout == null) "正在加载区域与座位…" else "正在更新座位状态…", color = Muted, fontSize = 12.sp)
             }
         }
         item {
@@ -121,7 +119,7 @@ fun NativeMapScreen(
                 }
             }
         } }
-        state.notice?.let { notice -> item { Text(notice, color = MapMuted, fontSize = 13.sp, lineHeight = 21.sp) } }
+        state.notice?.let { notice -> item { Text(notice, color = Muted, fontSize = 13.sp, lineHeight = 21.sp) } }
         if (state.verificationRequired) item {
             Button(onClick = onVerify, enabled = !state.loading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) { Text("完成验证") }
         }
@@ -129,8 +127,8 @@ fun NativeMapScreen(
             item {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(roomName, color = MapInk, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                        Text("${layout.cells.count { it.seat?.available == true }} 个可选座位", color = MapMuted, fontSize = 12.sp)
+                        Text(roomName, color = Ink, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Text("${layout.cells.count { it.seat?.available == true }} 个可选座位", color = Muted, fontSize = 12.sp)
                     }
                     TextButton(onClick = { onListMode(!state.listMode) }) {
                         Icon(if (state.listMode) Icons.Outlined.GridView else Icons.Outlined.List, null, Modifier.size(17.dp))
@@ -145,8 +143,8 @@ fun NativeMapScreen(
                         Row(Modifier.fillMaxWidth().padding(15.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Outlined.Chair, null, tint = cellColor(cell), modifier = Modifier.size(24.dp))
                             Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                                Text(seat.label, color = MapInk, fontWeight = FontWeight.SemiBold)
-                                Text("第 ${cell.row + 1} 行 · 第 ${cell.column + 1} 列", color = MapMuted, fontSize = 11.sp)
+                                Text(seat.label, color = Ink, fontWeight = FontWeight.SemiBold)
+                                Text("第 ${cell.row + 1} 行 · 第 ${cell.column + 1} 列", color = Muted, fontSize = 11.sp)
                             }
                             Text(if (cell.localOnly) "仅限现场" else seat.status, color = cellColor(cell), fontSize = 11.sp)
                         }
@@ -155,21 +153,21 @@ fun NativeMapScreen(
             } else item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(13.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("空闲" to MapTeal, "已预约" to Color(0xFFD4A853), "使用中" to Color(0xFF9AACC0), "不可用" to Color(0xFFADB5B4)).forEach { (text, color) ->
+                        listOf("空闲" to MapFree, "已预约" to Color(0xFFD4A853), "使用中" to Color(0xFF9AACC0), "不可用" to Color(0xFFADB5B4)).forEach { (text, color) ->
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Box(Modifier.size(9.dp).clip(RoundedCornerShape(3.dp)).background(color)); Text(text, color = MapMuted, fontSize = 10.sp)
+                                Box(Modifier.size(9.dp).clip(RoundedCornerShape(3.dp)).background(color)); Text(text, color = Muted, fontSize = 10.sp)
                             }
                         }
                     }
                     NativeRoomCanvas(layout, !state.loading) { selected = it }
-                    Text("拖动查看 · 双指缩放 · 点选座位\n切换列表可以逐项查看座位和状态。", color = MapMuted, fontSize = 11.sp, lineHeight = 18.sp)
+                    Text("拖动查看 · 双指缩放 · 点选座位\n切换列表可以逐项查看座位和状态。", color = Muted, fontSize = 11.sp, lineHeight = 18.sp)
                 }
             }
         }
         if (state.layout == null && !state.loading && state.error == null) item {
             Column(Modifier.fillMaxWidth().padding(vertical = 30.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Outlined.GridView, null, tint = MapTeal, modifier = Modifier.size(36.dp))
-                Text(if (state.rooms.isEmpty()) "选择日期和楼层，查看阅览区域" else "选择上方阅览区域，加载座位布局", color = MapMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp))
+                Icon(Icons.Outlined.GridView, null, tint = Accent, modifier = Modifier.size(36.dp))
+                Text(if (state.rooms.isEmpty()) "选择日期和楼层，查看阅览区域" else "选择上方阅览区域，加载座位布局", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp))
             }
         }
     }
@@ -186,8 +184,8 @@ fun NativeMapScreen(
         BusinessAlertDialog(onDismissRequest = { selected = null }, title = { Text("${seat.label} · ${seat.room}") }, text = {
             Column(Modifier.fillMaxWidth().heightIn(max = dialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(if (cell.localOnly) "该座位仅支持现场预约" else seat.status)
-                Text(state.filters["onDate"].orEmpty(), color = MapMuted)
-                if (cell.power || cell.window) Text(listOfNotNull(if (cell.power) "有电源" else null, if (cell.window) "靠窗" else null).joinToString(" · "), color = MapTeal)
+                Text(state.filters["onDate"].orEmpty(), color = Muted)
+                if (cell.power || cell.window) Text(listOfNotNull(if (cell.power) "有电源" else null, if (cell.window) "靠窗" else null).joinToString(" · "), color = Accent)
             }
         }, confirmButton = {
             if (seat.available && !cell.localOnly) TextButton(enabled = !state.loading, onClick = { selected = null; onSeat(seat, state.filters["onDate"].orEmpty()) }) { Text("选择使用时间") }
@@ -207,7 +205,7 @@ private fun friendlyDate(option: LibraryOption): String {
 
 private fun cellColor(cell: NativeMapCell): Color = when {
     cell.localOnly -> Color(0xFFAA8BBA)
-    cell.seat?.available == true -> MapTeal
+    cell.seat?.available == true -> MapFree
     cell.seat?.status?.contains("预约") == true -> Color(0xFFD4A853)
     cell.seat?.status?.contains("使用") == true || cell.seat?.status?.contains("暂离") == true -> Color(0xFF8C9EB5)
     else -> Color(0xFFADB5B4)
@@ -220,6 +218,7 @@ private fun NativeRoomCanvas(layout: NativeRoomLayout, enabled: Boolean, onSelec
     var reset by remember(layout) { mutableIntStateOf(0) }
     val latestEnabled by rememberUpdatedState(enabled)
     val latestSelect by rememberUpdatedState(onSelect)
+    val seatLabelColor = Ink
     val viewportHeight = (LocalConfiguration.current.screenHeightDp.dp * .5f).coerceIn(200.dp, 430.dp)
     val meaningful = remember(layout) { layout.cells.filter { it.kind != NativeMapCellKind.EMPTY } }
     val leftColumn = meaningful.minOfOrNull { it.column } ?: 0
@@ -286,7 +285,7 @@ private fun NativeRoomCanvas(layout: NativeRoomLayout, enabled: Boolean, onSelec
                                 drawRoundRect(color.copy(alpha = .16f), Offset(left + cellSize * .07f, top + cellSize * .12f), Size(width - cellSize * .14f, height - cellSize * .23f), androidx.compose.ui.geometry.CornerRadius(cellSize * .12f))
                                 drawRoundRect(color, Offset(left + cellSize * .13f, top + cellSize * .08f), Size(width - cellSize * .26f, cellSize * .1f), androidx.compose.ui.geometry.CornerRadius(cellSize * .04f))
                                 drawLine(color, Offset(left + cellSize * .16f, top + height * .86f), Offset(left + width - cellSize * .16f, top + height * .86f), cellSize * .05f)
-                                paint.color = android.graphics.Color.rgb(24, 51, 52)
+                                paint.color = seatLabelColor.toArgb()
                                 paint.textSize = cellSize * .21f
                                 drawContext.canvas.nativeCanvas.drawText(cell.seat?.label.orEmpty(), left + width / 2, top + height * .59f, paint)
                                 if (cell.power) drawCircle(Color(0xFFD4A853), cellSize * .04f, Offset(left + width - cellSize * .12f, top + height - cellSize * .15f))

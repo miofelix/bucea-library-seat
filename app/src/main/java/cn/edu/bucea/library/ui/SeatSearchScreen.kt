@@ -122,12 +122,6 @@ data class SeatSearchState(
     val accountLabel: String = "",
 )
 
-private val SeatInk = Color(0xFF183334)
-private val SeatTeal = Color(0xFF28766C)
-private val SeatMuted = Color(0xFF778583)
-private val SeatPaper = Color(0xFFF6F7F2)
-private val SeatSoft = Color(0xFFE5EFE8)
-
 /** Native presentation only: all options, availability and reservation times come from the server. */
 @Composable
 fun SeatSearchScreen(
@@ -173,17 +167,17 @@ fun SeatSearchScreen(
         "power" to "电源", "window" to "靠窗"
     )
     Scaffold(
-        containerColor = SeatPaper,
+        containerColor = Paper,
         topBar = {
             Column {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回首页", tint = SeatInk) }
+                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回首页", tint = Ink) }
                     Column(Modifier.weight(1f).padding(start = 4.dp)) {
-                        Text("找一个好座位", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = SeatInk)
-                        Text("选好位置，安心专注", fontSize = 11.sp, color = SeatMuted)
+                        Text("找一个好座位", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
+                        Text("选好位置，安心专注", fontSize = 11.sp, color = Muted)
                     }
                     IconButton(onClick = onRefresh, enabled = !state.loading && !state.reservationBusy) {
-                        Icon(Icons.Outlined.Refresh, "刷新座位筛选", tint = SeatTeal)
+                        Icon(Icons.Outlined.Refresh, "刷新座位筛选", tint = Accent)
                     }
                 }
                 Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -198,7 +192,7 @@ fun SeatSearchScreen(
                         Text("布局选座", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                         Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, Modifier.size(21.dp))
                     }
-                    Text("查看楼层布局，点选座位并预约", color = SeatMuted, fontSize = 12.sp,
+                    Text("查看楼层布局，点选座位并预约", color = Muted, fontSize = 12.sp,
                         modifier = Modifier.padding(horizontal = 4.dp))
                 }
             }
@@ -212,7 +206,7 @@ fun SeatSearchScreen(
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                 Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Outlined.FilterAlt, null, tint = SeatTeal, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.FilterAlt, null, tint = Accent, modifier = Modifier.size(18.dp))
                         Text("按你的习惯选择", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                     }
                     val dates = state.options["onDate"].orEmpty()
@@ -225,9 +219,9 @@ fun SeatSearchScreen(
                                     label = { Text(option.label, fontSize = 12.sp) },
                                     enabled = !state.loading,
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = SeatSoft,
-                                        selectedLabelColor = SeatTeal,
-                                        selectedLeadingIconColor = SeatTeal,
+                                        selectedContainerColor = SoftAccent,
+                                        selectedLabelColor = Accent,
+                                        selectedLeadingIconColor = Accent,
                                     ),
                                     leadingIcon = { Icon(Icons.Outlined.CalendarMonth, null, modifier = Modifier.size(16.dp)) }
                                 )
@@ -247,7 +241,7 @@ fun SeatSearchScreen(
                         shape = RoundedCornerShape(13.dp),
                         modifier = Modifier.fillMaxWidth().pauseUpdatesWhileFocused()
                     )
-                    if (byNumber) Text("按编号查询仅使用日期和区域，点选座位后确认可用时段。", fontSize = 11.sp, color = SeatMuted)
+                    if (byNumber) Text("按编号查询仅使用日期和区域，点选座位后确认可用时段。", fontSize = 11.sp, color = Muted)
                     if (advanced && !byNumber) {
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             FilterField("开始时间", selectedLabel(state, "startMin", "不限时间"), !state.loading && state.options["startMin"].orEmpty().isNotEmpty(), Modifier.weight(1f)) { choosing = "startMin" }
@@ -280,42 +274,42 @@ fun SeatSearchScreen(
                     }
                 }
             }
-            state.status?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.sp, lineHeight = 19.sp, color = SeatMuted) }
+            state.status?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.sp, lineHeight = 19.sp, color = Muted) }
             if (state.verificationRequired && state.selectedSeat == null) {
                 OutlinedButton(onClick = onVerify, enabled = !state.loading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
                     Text("自动完成图片验证")
                 }
             }
             Row(Modifier.fillMaxWidth().bringIntoViewRequester(resultsRequester), verticalAlignment = Alignment.CenterVertically) {
-                Text("座位结果", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = SeatInk, modifier = Modifier.weight(1f))
-                if (state.hasSearched) Text("第 ${state.page + 1} 页", fontSize = 12.sp, color = SeatMuted)
+                Text("座位结果", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Ink, modifier = Modifier.weight(1f))
+                if (state.hasSearched) Text("第 ${state.page + 1} 页", fontSize = 12.sp, color = Muted)
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("仅看可用", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SeatInk)
-                    Text("只筛选本页已加载座位", fontSize = 11.sp, color = SeatMuted)
+                    Text("仅看可用", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Ink)
+                    Text("只筛选本页已加载座位", fontSize = 11.sp, color = Muted)
                 }
                 Switch(checked = onlyAvailable, onCheckedChange = { onlyAvailable = it },
                     modifier = Modifier.semantics {
                         contentDescription = "仅看可用"
                         stateDescription = if (onlyAvailable) "仅显示本页可预约座位" else "显示本页全部座位"
                     },
-                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = SeatTeal))
+                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Accent))
             }
-            if (state.hasSearched) Text("本页显示 ${shownSeats.size} / 已加载 ${state.seats.size} 个", fontSize = 12.sp, color = SeatMuted)
+            if (state.hasSearched) Text("本页显示 ${shownSeats.size} / 已加载 ${state.seats.size} 个", fontSize = 12.sp, color = Muted)
             if (shownSeats.isEmpty() && !state.loading) {
                 val noAvailableOnPage = onlyAvailable && state.seats.isNotEmpty()
                 Column(Modifier.fillMaxWidth().padding(vertical = 26.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(11.dp)) {
-                    Box(Modifier.size(62.dp).clip(RoundedCornerShape(20.dp)).background(SeatSoft), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.Chair, null, tint = SeatTeal, modifier = Modifier.size(30.dp))
+                    Box(Modifier.size(62.dp).clip(RoundedCornerShape(20.dp)).background(SoftAccent), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Chair, null, tint = Accent, modifier = Modifier.size(30.dp))
                     }
-                    Text(when { noAvailableOnPage -> "本页没有可预约座位"; state.hasSearched -> "暂时没有符合条件的座位"; else -> "先选择日期，再找到你的座位" }, fontSize = 15.sp, color = SeatInk, fontWeight = FontWeight.Medium)
+                    Text(when { noAvailableOnPage -> "本页没有可预约座位"; state.hasSearched -> "暂时没有符合条件的座位"; else -> "先选择日期，再找到你的座位" }, fontSize = 15.sp, color = Ink, fontWeight = FontWeight.Medium)
                     Text(when {
                         noAvailableOnPage && state.hasNextPage -> "可继续翻页，或关闭“仅看可用”查看本页全部状态。"
                         noAvailableOnPage -> "关闭“仅看可用”可查看本页全部状态，或调整查询条件。"
                         state.hasSearched -> "试试其他阅览区域或时间条件。"
                         else -> "座位与可用时段将从图书馆实时查询。"
-                    }, fontSize = 12.sp, color = SeatMuted)
+                    }, fontSize = 12.sp, color = Muted)
                 }
             }
             BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -337,7 +331,7 @@ fun SeatSearchScreen(
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, null, modifier = Modifier.size(15.dp))
                         Spacer(Modifier.width(6.dp)); Text("上一页", fontSize = 12.sp)
                     }
-                    Text("${state.page + 1}", color = SeatMuted, fontSize = 12.sp)
+                    Text("${state.page + 1}", color = Muted, fontSize = 12.sp)
                     OutlinedButton(onClick = onNextPage, enabled = state.hasNextPage && !state.loading, modifier = Modifier.weight(1f), shape = RoundedCornerShape(13.dp)) {
                         Text("下一页", fontSize = 12.sp); Spacer(Modifier.width(6.dp))
                         Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, modifier = Modifier.size(15.dp))
@@ -363,11 +357,11 @@ private fun selectedLabel(state: SeatSearchState, key: String, fallback: String)
 
 @Composable
 private fun FilterField(title: String, selected: String, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Column(modifier.clip(RoundedCornerShape(13.dp)).background(SeatPaper).clickable(enabled = enabled, onClick = onClick).padding(13.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        Text(title, fontSize = 10.sp, color = SeatMuted)
+    Column(modifier.clip(RoundedCornerShape(13.dp)).background(Paper).clickable(enabled = enabled, onClick = onClick).padding(13.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Text(title, fontSize = 10.sp, color = Muted)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(selected, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SeatInk, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Icon(Icons.Outlined.ExpandMore, null, tint = if (enabled) SeatTeal else SeatMuted, modifier = Modifier.size(17.dp))
+            Text(selected, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Ink, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Icon(Icons.Outlined.ExpandMore, null, tint = if (enabled) Accent else Muted, modifier = Modifier.size(17.dp))
         }
     }
 }
@@ -390,18 +384,18 @@ private fun SeatCard(seat: NativeSeat, enabled: Boolean, modifier: Modifier, onF
                 Icon(palette.icon, null, tint = palette.foreground, modifier = Modifier.size(23.dp))
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick = onFavorite, enabled = enabled, modifier = Modifier.size(48.dp)) {
-                    Icon(if (seat.localFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder, if (seat.localFavorite) "取消收藏 ${seat.name}" else "收藏 ${seat.name}", tint = if (seat.localFavorite) Color(0xFFB99345) else SeatMuted, modifier = Modifier.size(19.dp))
+                    Icon(if (seat.localFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder, if (seat.localFavorite) "取消收藏 ${seat.name}" else "收藏 ${seat.name}", tint = if (seat.localFavorite) Color(0xFFB99345) else Muted, modifier = Modifier.size(19.dp))
                 }
             }
-            Text(seat.name, fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold, color = SeatInk)
-            Text(seat.location, fontSize = 11.sp, lineHeight = 17.sp, color = SeatMuted)
+            Text(seat.name, fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold, color = Ink)
+            Text(seat.location, fontSize = 11.sp, lineHeight = 17.sp, color = Muted)
             Surface(color = palette.background, shape = RoundedCornerShape(7.dp)) {
                 Text(status, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp), fontSize = 11.sp,
                     lineHeight = 17.sp, fontWeight = FontWeight.Medium, color = palette.foreground)
             }
             Text(availability, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = palette.foreground)
             SeatPresentationPolicy.availabilityDetail(visualState, seat.available)?.let { detail ->
-                Text(detail, fontSize = 10.sp, lineHeight = 16.sp, color = SeatMuted)
+                Text(detail, fontSize = 10.sp, lineHeight = 16.sp, color = Muted)
             }
             if (seat.power == true || seat.window == true) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -442,7 +436,7 @@ private fun OptionDialog(title: String, options: List<SeatOption>, selected: Str
             Column(Modifier.fillMaxWidth().heightIn(max = maximumHeight).verticalScroll(rememberScrollState())) {
                 options.forEach { option ->
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).selectable(selected = selected == option.value, role = Role.RadioButton, onClick = { onSelect(option.value) }).padding(vertical = 10.dp, horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(option.label, modifier = Modifier.weight(1f), fontSize = 14.sp, color = if (selected == option.value) SeatTeal else SeatInk)
+                        Text(option.label, modifier = Modifier.weight(1f), fontSize = 14.sp, color = if (selected == option.value) Accent else Ink)
                         RadioButton(selected = selected == option.value, onClick = null)
                     }
                 }
@@ -463,7 +457,7 @@ fun NativeReservationDialog(state: SeatSearchState, seat: NativeSeat, onStart: (
         title = {
             Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
                 Text(if (confirming) "确认这次预约" else "选择可用时段", fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                Text("${seat.name} · ${seat.location}", fontSize = 12.sp, color = SeatMuted)
+                Text("${seat.name} · ${seat.location}", fontSize = 12.sp, color = Muted)
             }
         },
         text = {
@@ -475,14 +469,14 @@ fun NativeReservationDialog(state: SeatSearchState, seat: NativeSeat, onStart: (
                     }
                 }
                 if (confirming) {
-                    Surface(color = SeatSoft, shape = RoundedCornerShape(15.dp)) {
+                    Surface(color = SoftAccent, shape = RoundedCornerShape(15.dp)) {
                         Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(selectedLabel(state, "onDate", state.filters["onDate"].orEmpty()), fontSize = 14.sp, color = SeatInk)
-                            if (state.accountLabel.isNotBlank()) Text("预约账号：${state.accountLabel}", fontSize = 12.sp, color = SeatMuted)
-                            Text("$start — $end", fontSize = 25.sp, fontWeight = FontWeight.SemiBold, color = SeatTeal)
+                            Text(selectedLabel(state, "onDate", state.filters["onDate"].orEmpty()), fontSize = 14.sp, color = Ink)
+                            if (state.accountLabel.isNotBlank()) Text("预约账号：${state.accountLabel}", fontSize = 12.sp, color = Muted)
+                            Text("$start — $end", fontSize = 25.sp, fontWeight = FontWeight.SemiBold, color = Accent)
                         }
                     }
-                    Text("提交后将按图书馆规则生成预约，请确认日期和时间。", fontSize = 12.sp, lineHeight = 20.sp, color = SeatMuted)
+                    Text("提交后将按图书馆规则生成预约，请确认日期和时间。", fontSize = 12.sp, lineHeight = 20.sp, color = Muted)
                 } else {
                     TimeChoices("开始时间", state.startOptions, state.selectedStart, !state.reservationBusy,
                         if (state.reservationBusy) "正在获取可用时段…" else "当前没有可用开始时间。", onStart)
@@ -493,15 +487,15 @@ fun NativeReservationDialog(state: SeatSearchState, seat: NativeSeat, onStart: (
                             state.selectedStart == null -> "选择开始时间后显示可用结束时间。"
                             else -> "当前没有可用结束时间，请选择其他开始时间。"
                         }, onEnd)
-                    if (state.startOptions.isEmpty() && !state.reservationBusy && state.error == null) Text("可以返回选择其他日期或座位。", fontSize = 12.sp, color = SeatMuted)
+                    if (state.startOptions.isEmpty() && !state.reservationBusy && state.error == null) Text("可以返回选择其他日期或座位。", fontSize = 12.sp, color = Muted)
                 }
-                state.status?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.sp, lineHeight = 19.sp, color = SeatMuted) }
+                state.status?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.sp, lineHeight = 19.sp, color = Muted) }
                 if (state.verificationRequired) {
-                    Text("图书馆要求图片验证，应用将自动识别并完成验证。", fontSize = 12.sp, lineHeight = 20.sp, color = SeatMuted)
+                    Text("图书馆要求图片验证，应用将自动识别并完成验证。", fontSize = 12.sp, lineHeight = 20.sp, color = Muted)
                     OutlinedButton(onClick = onVerify, modifier = Modifier.fillMaxWidth()) { Text("自动完成图片验证") }
                 }
                 if (state.reservationOutcomeUncertain) {
-                    Text("预约结果尚未确认，请先查看“我的预约”。核实前无法重复提交。", fontSize = 12.sp, lineHeight = 20.sp, color = SeatMuted)
+                    Text("预约结果尚未确认，请先查看“我的预约”。核实前无法重复提交。", fontSize = 12.sp, lineHeight = 20.sp, color = Muted)
                     OutlinedButton(onClick = onOpenReservations, modifier = Modifier.fillMaxWidth()) { Text("查看我的预约") }
                 }
             }
@@ -514,8 +508,8 @@ fun NativeReservationDialog(state: SeatSearchState, seat: NativeSeat, onStart: (
 @Composable
 private fun TimeChoices(title: String, options: List<SeatOption>, selected: String?, enabled: Boolean, emptyMessage: String, onSelect: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = SeatInk)
-        if (options.isEmpty()) Text(emptyMessage, fontSize = 11.sp, color = SeatMuted)
+        Text(title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Ink)
+        if (options.isEmpty()) Text(emptyMessage, fontSize = 11.sp, color = Muted)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             options.forEach { option ->
                 FilterChip(
@@ -524,9 +518,9 @@ private fun TimeChoices(title: String, options: List<SeatOption>, selected: Stri
                     label = { Text(option.label, fontSize = 12.sp) },
                     enabled = enabled,
                     colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = SeatSoft,
-                        selectedLabelColor = SeatTeal,
-                        selectedLeadingIconColor = SeatTeal,
+                        selectedContainerColor = SoftAccent,
+                        selectedLabelColor = Accent,
+                        selectedLeadingIconColor = Accent,
                     ),
                 )
             }

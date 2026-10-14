@@ -18,6 +18,7 @@ data class LibraryUiState(
     val activeAccountId: String? = null,
     val autoLogin: Boolean = true,
     val autoSwitch: Boolean = false,
+    val themeColor: AppThemeColor = AppThemeColor.BUCEA_PURPLE,
     val busy: Boolean = false,
     val status: String = "连接校园网后，添加账号即可开始",
     val authenticated: Boolean = false,

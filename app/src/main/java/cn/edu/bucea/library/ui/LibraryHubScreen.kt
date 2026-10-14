@@ -84,12 +84,6 @@ data class LibraryHubState(
     val requiresLibraryWifi: Boolean = false,
 )
 
-private val HubInk = Color(0xFF183334)
-private val HubTeal = Color(0xFF28766C)
-private val HubMuted = Color(0xFF778583)
-private val HubSoft = Color(0xFFE5EFE8)
-private val HubLine = Color(0xFFE2E8E1)
-
 /** Account-specific records, details and actions rendered entirely in Compose. */
 @Composable
 fun LibraryHubScreen(
@@ -140,15 +134,15 @@ fun LibraryHubScreen(
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("我的图书馆", fontSize = 25.sp, fontWeight = FontWeight.Bold, color = HubInk)
-                    Text("座位与预约，一目了然。", color = HubMuted, fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp))
+                    Text("我的图书馆", fontSize = 25.sp, fontWeight = FontWeight.Bold, color = Ink)
+                    Text("座位与预约，一目了然。", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp))
                 }
                 IconButton(onClick = onRefresh, enabled = !state.loading) {
-                    Icon(Icons.Outlined.Refresh, "刷新预约与座位", tint = HubTeal)
+                    Icon(Icons.Outlined.Refresh, "刷新预约与座位", tint = Accent)
                 }
             }
         }
-        if (state.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = HubTeal) }
+        if (state.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Accent) }
         state.error?.let { error ->
             item {
                 Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF0EA))) {
@@ -157,14 +151,14 @@ fun LibraryHubScreen(
                             Icon(Icons.Outlined.Info, null, tint = Color(0xFF945344), modifier = Modifier.size(19.dp))
                             Text("暂时无法同步", color = Color(0xFF945344), fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
                         }
-                        Text(error, color = HubInk, style = MaterialTheme.typography.bodySmall)
+                        Text(error, color = Ink, style = MaterialTheme.typography.bodySmall)
                         TextButton(enabled = !state.loading, onClick = onRefresh) { Text("重试") }
                     }
                 }
             }
         }
         item {
-            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = HubInk)) {
+            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Ink)) {
                 Column(Modifier.fillMaxWidth().padding(21.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.CalendarMonth, null, tint = Color(0xFFD4B87D), modifier = Modifier.size(21.dp))
@@ -201,13 +195,13 @@ fun LibraryHubScreen(
             }
         }
         item {
-            Surface(color = HubSoft, shape = RoundedCornerShape(16.dp)) {
+            Surface(color = SoftAccent, shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Wifi, null, tint = HubTeal, modifier = Modifier.size(21.dp))
-                        Text("签到需连接图书馆 Wi-Fi", color = HubInk, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
+                        Icon(Icons.Outlined.Wifi, null, tint = Accent, modifier = Modifier.size(21.dp))
+                        Text("签到需连接图书馆 Wi-Fi", color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
                     }
-                    Text("请到馆后连接图书馆内部 Wi-Fi，再刷新预约状态进行签到。可用的签到、暂离、续约与结束使用操作将随预约状态显示。", color = HubMuted, fontSize = 12.sp, lineHeight = 19.sp)
+                    Text("请到馆后连接图书馆内部 Wi-Fi，再刷新预约状态进行签到。可用的签到、暂离、续约与结束使用操作将随预约状态显示。", color = Muted, fontSize = 12.sp, lineHeight = 19.sp)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) }) { Text("打开 Wi-Fi 设置") }
                         TextButton(enabled = !state.loading, onClick = onRefresh) { Text("已连接，刷新状态") }
@@ -223,8 +217,8 @@ fun LibraryHubScreen(
         }
         state.notice?.takeIf { it.isNotBlank() }?.let { notice ->
             item {
-                Surface(color = HubSoft, shape = RoundedCornerShape(14.dp)) {
-                    Text(notice, Modifier.fillMaxWidth().padding(14.dp), color = HubTeal, fontSize = 12.sp, lineHeight = 19.sp)
+                Surface(color = SoftAccent, shape = RoundedCornerShape(14.dp)) {
+                    Text(notice, Modifier.fillMaxWidth().padding(14.dp), color = Accent, fontSize = 12.sp, lineHeight = 19.sp)
                 }
             }
         }
@@ -232,8 +226,8 @@ fun LibraryHubScreen(
             TabRow(
                 selectedTabIndex = state.section.ordinal,
                 containerColor = Color.Transparent,
-                contentColor = HubTeal,
-                divider = { HorizontalDivider(color = HubLine) },
+                contentColor = Accent,
+                divider = { HorizontalDivider(color = Line) },
             ) {
                 HubSection.entries.forEach { section ->
                     Tab(
@@ -253,7 +247,7 @@ fun LibraryHubScreen(
         }
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(sectionTitle, fontWeight = FontWeight.SemiBold, color = HubInk, modifier = Modifier.weight(1f))
+                Text(sectionTitle, fontWeight = FontWeight.SemiBold, color = Ink, modifier = Modifier.weight(1f))
             }
         }
         if (state.section == HubSection.FAVORITES || state.section == HubSection.FREQUENT) {
@@ -275,19 +269,19 @@ fun LibraryHubScreen(
                         HubSection.FAVORITES -> Icons.Outlined.BookmarkBorder
                         HubSection.FREQUENT -> Icons.Outlined.GridView
                         HubSection.VIOLATIONS -> Icons.Outlined.WarningAmber
-                    }, null, tint = HubTeal, modifier = Modifier.size(30.dp))
+                    }, null, tint = Accent, modifier = Modifier.size(30.dp))
                     Text(when (state.section) {
                         HubSection.RESERVATIONS -> "暂无预约记录"
                         HubSection.FAVORITES -> "还没有收藏座位"
                         HubSection.FREQUENT -> "暂无系统常用座位"
                         HubSection.VIOLATIONS -> "暂无违约记录"
-                    }, color = HubInk, fontWeight = FontWeight.Medium)
+                    }, color = Ink, fontWeight = FontWeight.Medium)
                     Text(when (state.section) {
                         HubSection.RESERVATIONS -> "找到合适的座位，开始一次专注时光。"
                         HubSection.FAVORITES -> "在选座页面收藏喜欢的座位，下次更快找到。"
                         HubSection.FREQUENT -> "常用座位由图书馆系统根据使用记录生成。"
                         HubSection.VIOLATIONS -> "按时签到，结束使用后记得释放座位。"
-                    }, color = HubMuted, fontSize = 12.sp, lineHeight = 19.sp)
+                    }, color = Muted, fontSize = 12.sp, lineHeight = 19.sp)
                 }
             }
         }
@@ -310,7 +304,7 @@ fun LibraryHubScreen(
         BusinessAlertDialog(onDismissRequest = onDismissRecord, title = { Text(record.title.ifBlank { "记录详情" }) },
             text = { Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (state.detailsLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
-                record.status.takeIf { it.isNotBlank() }?.let { Text(it, color = HubTeal, fontWeight = FontWeight.Medium) }
+                record.status.takeIf { it.isNotBlank() }?.let { Text(it, color = Accent, fontWeight = FontWeight.Medium) }
                 state.detailsError?.let { error ->
                     Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     TextButton(onClick = { onOpenRecord(record) }, enabled = !state.loading && !state.detailsLoading) { Text("重新读取详情") }
@@ -336,16 +330,16 @@ fun LibraryHubScreen(
             title = { Text("确认${action.label}") },
             text = {
                 Column(Modifier.fillMaxWidth().heightIn(max = maximumHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(currentStatusLabel(state.currentStatus), fontWeight = FontWeight.Medium, color = HubTeal)
+                    Text(currentStatusLabel(state.currentStatus), fontWeight = FontWeight.Medium, color = Accent)
                     state.currentDetails.filter { it.isNotBlank() }.forEach { detail ->
-                        Text(detail, fontSize = 13.sp, lineHeight = 21.sp, color = HubMuted)
+                        Text(detail, fontSize = 13.sp, lineHeight = 21.sp, color = Muted)
                     }
-                    HorizontalDivider(color = HubLine)
+                    HorizontalDivider(color = Line)
                     Text(action.description.ifBlank { "确认对当前预约执行${action.label}？" })
                 }
             },
             confirmButton = { TextButton(enabled = !state.loading, onClick = { confirmingAction = null; onAction(action) }) {
-                Text("确认${action.label}", color = if (action.destructive) MaterialTheme.colorScheme.error else HubTeal)
+                Text("确认${action.label}", color = if (action.destructive) MaterialTheme.colorScheme.error else Accent)
             } },
             dismissButton = { TextButton(enabled = !state.loading, onClick = { confirmingAction = null }) { Text("取消") } },
         )
@@ -380,9 +374,9 @@ internal fun currentStatusLabel(value: String): String = when (value) {
 private fun HubShortcut(title: String, detail: String, icon: androidx.compose.ui.graphics.vector.ImageVector, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Card(onClick = onClick, enabled = enabled, modifier = modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(Modifier.fillMaxWidth().padding(17.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Icon(icon, null, tint = HubTeal, modifier = Modifier.size(24.dp))
-            Text(title, color = HubInk, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-            Text(detail, color = HubMuted, fontSize = 11.sp, lineHeight = 17.sp)
+            Icon(icon, null, tint = Accent, modifier = Modifier.size(24.dp))
+            Text(title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text(detail, color = Muted, fontSize = 11.sp, lineHeight = 17.sp)
         }
     }
 }
@@ -391,11 +385,11 @@ private fun HubShortcut(title: String, detail: String, icon: androidx.compose.ui
 private fun HubRecordCard(record: HubRecord, enabled: Boolean, onClick: () -> Unit, onCancel: (() -> Unit)? = null) {
     Card(onClick = onClick, enabled = enabled, shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(Modifier.fillMaxWidth().padding(17.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text(record.title, color = HubInk, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            Text(record.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             record.status.takeIf { it.isNotBlank() }?.let { status ->
-                Surface(color = HubSoft, shape = RoundedCornerShape(7.dp)) { Text(status, Modifier.padding(horizontal = 9.dp, vertical = 4.dp), color = HubTeal, fontSize = 11.sp) }
+                Surface(color = SoftAccent, shape = RoundedCornerShape(7.dp)) { Text(status, Modifier.padding(horizontal = 9.dp, vertical = 4.dp), color = Accent, fontSize = 11.sp) }
             }
-            record.details.filter { it.isNotBlank() }.forEach { Text(it, color = HubMuted, fontSize = 13.sp, lineHeight = 21.sp) }
+            record.details.filter { it.isNotBlank() }.forEach { Text(it, color = Muted, fontSize = 13.sp, lineHeight = 21.sp) }
             if (onCancel != null) {
                 OutlinedButton(enabled = enabled, onClick = onCancel, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
                     Text("取消预约", color = MaterialTheme.colorScheme.error)
@@ -410,14 +404,14 @@ private fun FavoriteCard(favorite: HubFavorite, loading: Boolean, onSelect: () -
     Card(shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(Modifier.fillMaxWidth().padding(17.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.BookmarkBorder, null, tint = HubTeal, modifier = Modifier.size(22.dp))
-                Text(favorite.name, color = HubInk, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(start = 9.dp))
+                Icon(Icons.Outlined.BookmarkBorder, null, tint = Accent, modifier = Modifier.size(22.dp))
+                Text(favorite.name, color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(start = 9.dp))
                 if (favorite.local) {
-                    IconButton(enabled = !loading, onClick = onRemove) { Icon(Icons.Outlined.DeleteOutline, "移除${favorite.name}", tint = HubMuted) }
+                    IconButton(enabled = !loading, onClick = onRemove) { Icon(Icons.Outlined.DeleteOutline, "移除${favorite.name}", tint = Muted) }
                 }
             }
-            Text(favorite.location, color = HubMuted, fontSize = 13.sp, lineHeight = 21.sp)
-            Text(if (favorite.local) "本机收藏 · 由你手动添加" else "系统常用 · 根据使用记录生成", color = HubTeal, fontSize = 12.sp)
+            Text(favorite.location, color = Muted, fontSize = 13.sp, lineHeight = 21.sp)
+            Text(if (favorite.local) "本机收藏 · 由你手动添加" else "系统常用 · 根据使用记录生成", color = Accent, fontSize = 12.sp)
             Button(enabled = !loading, onClick = onSelect, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("选择使用时间") }
         }
     }

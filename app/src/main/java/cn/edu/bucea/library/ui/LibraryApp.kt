@@ -45,6 +45,7 @@ import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Shield
@@ -71,8 +72,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.Typography
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -113,6 +112,7 @@ import androidx.lifecycle.compose.currentStateAsState
 import cn.edu.bucea.library.update.UpdateViewModel
 import kotlinx.coroutines.delay
 import cn.edu.bucea.library.AccountSummary
+import cn.edu.bucea.library.AppThemeColor
 import cn.edu.bucea.library.CampusAccess
 import cn.edu.bucea.library.R
 import cn.edu.bucea.library.LibraryUiState
@@ -125,12 +125,6 @@ import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material.icons.outlined.Password
 import androidx.compose.foundation.layout.consumeWindowInsets
 
-private val Ink = Color(0xFF183334)
-private val Muted = Color(0xFF778583)
-private val Teal = Color(0xFF28766C)
-private val Paper = Color(0xFFF6F7F2)
-private val SoftGreen = Color(0xFFE5EFE8)
-private val Line = Color(0xFFE2E8E1)
 private val Warm = Color(0xFFD4B87D)
 private const val ProjectUrl = "https://github.com/miofelix/bucea-library-seat"
 private const val CommunityGroup = "1109482748"
@@ -200,11 +194,7 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
         if (!mutating && !seatState.reservationBusy && !accountState.busy && !state.busy && verificationState.context == null) tab = 0
     }
     CompositionLocalProvider(LocalBusinessInteractions provides interactions) {
-    MaterialTheme(colorScheme = lightColorScheme(primary = Teal, onPrimary = Color.White, secondary = Ink,
-        secondaryContainer = SoftGreen, onSecondaryContainer = Ink, background = Paper, surface = Color.White,
-        onBackground = Ink, onSurface = Ink, surfaceVariant = SoftGreen, onSurfaceVariant = Muted, outline = Line,
-        surfaceContainerHigh = Color.White, surfaceContainerHighest = SoftGreen, surfaceContainer = Color.White,
-        surfaceContainerLow = Paper, surfaceContainerLowest = Color.White), typography = Typography()) {
+    LibraryTheme(state.themeColor) {
         Scaffold(modifier = Modifier.pointerInput(Unit) {
             awaitPointerEventScope {
                 while (true) {
@@ -218,8 +208,8 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
                     selected = tab == index, enabled = !state.busy && !mutating && !seatState.reservationBusy && !accountState.busy && verificationState.context == null,
                     onClick = { features.dismissRecord(); mapOpen = false; tab = index }, icon = { Icon(icon, null, Modifier.size(23.dp)) },
                     label = { Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium) },
-                    colors = NavigationBarItemDefaults.colors(selectedIconColor = Teal, selectedTextColor = Teal,
-                        indicatorColor = SoftGreen, unselectedIconColor = Muted, unselectedTextColor = Muted)) }
+                    colors = NavigationBarItemDefaults.colors(selectedIconColor = Accent, selectedTextColor = Accent,
+                        indicatorColor = SoftAccent, unselectedIconColor = Muted, unselectedTextColor = Muted)) }
             }
         }) { padding ->
             when {
@@ -254,7 +244,8 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
                         accountMessage = "修改密码当前未实现"
                         Toast.makeText(context, "修改密码当前未实现", Toast.LENGTH_SHORT).show()
                     }, onLogout = { signOutOpen = true }, onCheckCampus = viewModel::refresh, message = accountMessage)
-                else -> SettingsScreen(state, Modifier.padding(padding), viewModel::setAutoLogin, viewModel::setAutoSwitch) {
+                else -> SettingsScreen(state, Modifier.padding(padding), viewModel::setAutoLogin, viewModel::setAutoSwitch,
+                    viewModel::setThemeColor) {
                     UpdateSettings(updateState, updates.installedVersionName, updates.coordinator)
                 }
             }
@@ -322,7 +313,7 @@ private fun Dashboard(
                 Text("BUCEA LIBRARY", fontSize = 9.sp, letterSpacing = 1.8.sp, color = Muted)
             }
             IconButton(onClick = onRefresh, enabled = !state.busy) {
-                Icon(Icons.Outlined.Refresh, contentDescription = "刷新图书馆数据", tint = if (state.busy) Muted else Teal)
+                Icon(Icons.Outlined.Refresh, contentDescription = "刷新图书馆数据", tint = if (state.busy) Muted else Accent)
             }
         }
 
@@ -330,8 +321,8 @@ private fun Dashboard(
 
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.size(6.dp).clip(CircleShape).background(Teal))
-                Text("一席之间，专注当下", color = Teal, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Box(Modifier.size(6.dp).clip(CircleShape).background(Accent))
+                Text("一席之间，专注当下", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.Medium)
             }
             Text("开始今天的\n专注时光。", fontSize = 33.sp, lineHeight = 44.sp, color = Ink, fontWeight = FontWeight.Bold)
             Text("${state.overview?.displayName?.takeIf { it.isNotBlank() } ?: account?.label?.takeIf { it.isNotBlank() } ?: "同学"}，欢迎来到图书馆", color = Muted, fontSize = 14.sp)
@@ -343,7 +334,7 @@ private fun Dashboard(
             colors = CardDefaults.cardColors(containerColor = Ink)
         ) {
             Column(
-                Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Ink, Color(0xFF235049)))).padding(24.dp),
+                Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Ink, BannerEnd))).padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(18.dp)
             ) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -381,7 +372,7 @@ private fun Dashboard(
                 enabled = !state.busy && (account == null || state.campusAccess == CampusAccess.REACHABLE),
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 shape = RoundedCornerShape(17.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Teal)
+                colors = ButtonDefaults.buttonColors(containerColor = Accent)
             ) {
                 if (state.busy) {
                     CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
@@ -432,8 +423,8 @@ private fun SessionCard(state: LibraryUiState, account: AccountSummary?, onAccou
     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(Modifier.fillMaxWidth().padding(17.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (state.busy) CircularProgressIndicator(Modifier.size(19.dp), color = Teal, strokeWidth = 2.dp)
-                else Icon(if (state.authenticated) Icons.Outlined.CheckCircle else Icons.Outlined.Person, contentDescription = null, tint = Teal, modifier = Modifier.size(19.dp))
+                if (state.busy) CircularProgressIndicator(Modifier.size(19.dp), color = Accent, strokeWidth = 2.dp)
+                else Icon(if (state.authenticated) Icons.Outlined.CheckCircle else Icons.Outlined.Person, contentDescription = null, tint = Accent, modifier = Modifier.size(19.dp))
                 Spacer(Modifier.width(9.dp))
                 Text(if (state.authenticated) "已登录" else "登录状态", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 if (onAccounts != null) {
@@ -492,23 +483,23 @@ private fun AccountsScreen(
             val selected = account.id == state.activeAccountId
             Card(
                 shape = RoundedCornerShape(19.dp),
-                colors = CardDefaults.cardColors(containerColor = if (selected) SoftGreen else Color.White),
+                colors = CardDefaults.cardColors(containerColor = if (selected) SoftAccent else Color.White),
                 modifier = Modifier.fillMaxWidth().clickable(enabled = !state.busy) { onSelect(account.id) }
             ) {
                 Column(Modifier.padding(17.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(if (selected) Teal else Paper), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(42.dp).clip(RoundedCornerShape(13.dp)).background(if (selected) Accent else Paper), contentAlignment = Alignment.Center) {
                             Icon(Icons.Outlined.Person, contentDescription = null, tint = if (selected) Color.White else Muted, modifier = Modifier.size(22.dp))
                         }
                         Column(Modifier.weight(1f).padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(account.label.takeIf { it.isNotBlank() } ?: "图书馆账号", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(account.username, color = Muted, fontSize = 12.sp)
                         }
-                        if (selected) Icon(Icons.Outlined.CheckCircle, contentDescription = "当前账号", tint = Teal, modifier = Modifier.size(21.dp))
+                        if (selected) Icon(Icons.Outlined.CheckCircle, contentDescription = "当前账号", tint = Accent, modifier = Modifier.size(21.dp))
                     }
-                    HorizontalDivider(color = if (selected) Teal.copy(alpha = 0.12f) else Line)
+                    HorizontalDivider(color = if (selected) Accent.copy(alpha = 0.12f) else Line)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (selected) "当前使用" else if (state.campusAccess == CampusAccess.REACHABLE) "点击切换并登录" else "点击选择；连接校园网后登录", color = if (selected) Teal else Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                        Text(if (selected) "当前使用" else if (state.campusAccess == CampusAccess.REACHABLE) "点击切换并登录" else "点击选择；连接校园网后登录", color = if (selected) Accent else Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
                         IconButton(onClick = { editing = account; showEditor = true }, enabled = !state.busy, modifier = Modifier.size(32.dp)) {
                             Icon(Icons.Outlined.Edit, contentDescription = "修改 ${account.username}", tint = Muted, modifier = Modifier.size(18.dp))
                         }
@@ -540,7 +531,7 @@ private fun AccountsScreen(
                 }
             }
         }
-        message?.let { Text(it, color = Teal, fontSize = 12.sp) }
+        message?.let { Text(it, color = Accent, fontSize = 12.sp) }
         if (state.accounts.isNotEmpty()) SessionCard(state, state.accounts.firstOrNull { it.id == state.activeAccountId }, null, onLogin)
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             Icon(Icons.Outlined.Shield, contentDescription = null, tint = Muted, modifier = Modifier.size(17.dp))
@@ -608,12 +599,16 @@ private fun AccountDialog(account: AccountSummary?, onDismiss: () -> Unit, onRen
 
 @Composable
 private fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLogin: (Boolean) -> Unit, onAutoSwitch: (Boolean) -> Unit,
+    onThemeColor: (AppThemeColor) -> Unit,
     updateContent: @Composable () -> Unit) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        ScreenHeading("让登录更简单", "少一些操作，多一些专注。", Icons.Outlined.Settings)
+        ScreenHeading("设置", "调整外观与登录偏好。", Icons.Outlined.Settings)
         ContentCard("应用更新", Icons.Outlined.Refresh, updateContent)
+        ContentCard("主题颜色", Icons.Outlined.Palette) {
+            ThemeColorPicker(state.themeColor, onThemeColor)
+        }
         ContentCard("登录偏好", Icons.Outlined.AutoAwesome) {
             PreferenceRow(Icons.Outlined.Lock, "自动恢复登录", "启动时恢复会话，过期后自动识别验证码并登录。", state.autoLogin, onAutoLogin)
             HorizontalDivider(Modifier.padding(vertical = 18.dp), color = Line)
@@ -654,7 +649,7 @@ private fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLogi
                 Text("复制 QQ 群号", fontSize = 12.sp)
             }
             Spacer(Modifier.height(8.dp))
-            Text("验证码识别 · ddddocr / ONNX", color = Teal, fontSize = 11.sp)
+            Text("验证码识别 · ddddocr / ONNX", color = Accent, fontSize = 11.sp)
         }
     }
 }
@@ -662,12 +657,12 @@ private fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLogi
 @Composable
 private fun PreferenceRow(icon: ImageVector, title: String, detail: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(11.dp)) {
-        Icon(icon, contentDescription = null, tint = Teal, modifier = Modifier.padding(top = 2.dp).size(19.dp))
+        Icon(icon, contentDescription = null, tint = Accent, modifier = Modifier.padding(top = 2.dp).size(19.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Text(detail, fontSize = 12.sp, lineHeight = 19.sp, color = Muted)
         }
-        Switch(checked, onChange, modifier = Modifier.height(28.dp), colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Teal))
+        Switch(checked, onChange, modifier = Modifier.height(28.dp), colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Accent))
     }
 }
 
@@ -683,8 +678,8 @@ private fun ScreenHeading(title: String, subtitle: String, icon: ImageVector) {
 
 @Composable
 private fun IconTile(icon: ImageVector, size: Int) {
-    Box(Modifier.size(size.dp).clip(RoundedCornerShape((size / 3).dp)).background(SoftGreen), contentAlignment = Alignment.Center) {
-        Icon(icon, contentDescription = null, tint = Teal, modifier = Modifier.size((size / 2).dp))
+    Box(Modifier.size(size.dp).clip(RoundedCornerShape((size / 3).dp)).background(SoftAccent), contentAlignment = Alignment.Center) {
+        Icon(icon, contentDescription = null, tint = Accent, modifier = Modifier.size((size / 2).dp))
     }
 }
 
@@ -693,7 +688,7 @@ private fun ContentCard(title: String, icon: ImageVector, content: @Composable (
     Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(19.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
         Column(Modifier.padding(19.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                Icon(icon, contentDescription = null, tint = Teal, modifier = Modifier.size(18.dp))
+                Icon(icon, contentDescription = null, tint = Accent, modifier = Modifier.size(18.dp))
                 Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.height(19.dp))
@@ -713,7 +708,7 @@ private fun CampusAccessNotice(state: LibraryUiState, onCheckCampus: () -> Unit)
         modifier = Modifier.fillMaxWidth().semantics {
             liveRegion = if (unavailable) LiveRegionMode.Assertive else LiveRegionMode.Polite
         },
-        color = if (unavailable) Color(0xFFFFEAE2) else SoftGreen,
+        color = if (unavailable) Color(0xFFFFEAE2) else SoftAccent,
         shape = RoundedCornerShape(18.dp),
     ) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -729,7 +724,7 @@ private fun CampusAccessNotice(state: LibraryUiState, onCheckCampus: () -> Unit)
                 else "请连接学校校园网；确认能访问图书馆后才能登录。",
                 color = foreground, fontSize = 13.sp, lineHeight = 21.sp)
             if (checking) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                CircularProgressIndicator(Modifier.size(16.dp), color = Teal, strokeWidth = 2.dp)
+                CircularProgressIndicator(Modifier.size(16.dp), color = Accent, strokeWidth = 2.dp)
                 Text("正在检查连接…", color = foreground, fontSize = 12.sp)
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -746,8 +741,8 @@ private fun CampusAccessNotice(state: LibraryUiState, onCheckCampus: () -> Unit)
 
 @Composable
 private fun CampusNotice() {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(SoftGreen.copy(alpha = 0.65f)).padding(15.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Icon(Icons.Outlined.Wifi, contentDescription = null, tint = Teal, modifier = Modifier.padding(top = 1.dp).size(18.dp))
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(SoftAccent.copy(alpha = 0.65f)).padding(15.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Icon(Icons.Outlined.Wifi, contentDescription = null, tint = Accent, modifier = Modifier.padding(top = 1.dp).size(18.dp))
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text("仅在校园内网使用", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Ink)
             Text("请连接能访问 10.1.20.7 的校园网络。", fontSize = 11.sp, color = Muted, lineHeight = 18.sp)
