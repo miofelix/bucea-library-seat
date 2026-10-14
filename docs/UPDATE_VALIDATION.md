@@ -2,6 +2,15 @@
 
 当前 Release 为 **v0.3.6-beta.1 / versionCode 11**，包含校园连接失败后返回应用时的自动重检修复。更新实现保持已验证的行为，当前发布工具重新通过 **38 项 Python 测试**。本版构建、安装与公开更新源验证见 [ADB_ACCEPTANCE_0.3.6.md](ADB_ACCEPTANCE_0.3.6.md)；校园访问故障与修复验收见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)。先前真实公网更新结果见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)，引导版本的设备测试见 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md)。以下旧版本记录保留各自实际测试结果。
 
+## 0.3.6 公开更新源验收
+
+- 手机已完成真实公网 **0.3.5 / code 10 → 0.3.6 / code 11** 下载、校验、系统安装与自动清理。实际安装字节匹配 release，原账号/偏好/收藏/主题保留，手动检查显示“已是最新版本”。
+- **v0.3.6-beta.1 / code 11** 已发布三个完整附件并同步到树莓派。公开清单返回 200，GitHub Release ID **412403499**、APK asset ID **639478202** 和本机发布元数据一致；清单条件请求返回 304。
+- origin 完整 HTTP 流读取 **102488215 字节**，SHA-256 为 `c4edbf17818ce555ff0c57e3c8f822e157a64980e521ba889b9d52ff6cee8579`，与已签名并实机安装验收的候选 APK 一致。公开 APK 的 HEAD 为 200、大小正确，ETag 为 304；首段、续段和末段各 1024 字节的 Range 为 206，逐字节匹配候选。旧 code 10 的 APK asset **639250049** 仍可下载。
+- 公开无效 Range 仍由 Cloudflare 缓存返回 **416 / immutable**，origin 为 **416 / no-store**，符合此前记录的转发层差异。未修改 Cloudflare 配置。本次有界公开 Range 不计为完整公网传输；手机原生 **0.3.5 → 0.3.6** 下载与安装的实际结果单独记录在本版 ADB 验收中。
+
+证据位于 `.private/qa-0.3.6/public-audit.log` 和 `public-audit-v0.3.6-beta.1/`；更新镜像和 HTTP 服务的已部署脚本摘要与本地一致。
+
 ## 公开更新源验收与最终版本接续
 
 - 完整引导版本 **v0.3.4-beta.1 / code 9** 已发布并同步。公开清单返回 200，GitHub Release ID **412320050**、APK asset ID **639131095** 和三个附件一致。真实公开下载得到 **102488215 字节**，SHA-256 为 `55d01ce683e4dbcc33b77e856691bf1a02ff8a2acce1bbd5510443b5f0c2cd98`，既有签名证书验证通过。

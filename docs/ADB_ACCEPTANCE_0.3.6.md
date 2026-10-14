@@ -15,7 +15,15 @@ The tested release APK is **102,488,215 bytes**, SHA-256 `c4edbf17818ce555ff0c57
 
 ## Publication and public update
 
-The release uses the existing three-asset protocol: APK, `SHA256SUMS` and `update.json`. Final publication, mirror synchronization and the phone's public update readback are recorded after upload. A local installation does not establish a completed public update transaction.
+**v0.3.6-beta.1** was published from commit `457163d` with exactly APK, `SHA256SUMS` and `update.json`. GitHub release **412403499** provides APK asset **639478202**; metadata, size and SHA-256 agree with the tested release bytes above. Published assets were not replaced.
+
+- Raspberry Pi mirror synchronization completed successfully. Its full origin HTTP stream returned all 102,488,215 bytes with the expected SHA-256. Public manifest 200/304, APK HEAD/ETag and first/continuation/last exact Range 206 checks passed. The previous code 10 asset remains readable. Bounded Mac ranges are not described as a complete Mac public download.
+- The actual published **0.3.5 / code 10 → 0.3.6 / code 11** native update passed manual discovery, explicit download consent, background download and reopening the READY task. SDK-only inspection checked the completed public APK against the expected final version, size and SHA-256.
+- The system required unknown-source permission, then another explicit installation click. The OEM installer completed installation. SDK-only final readback returned **PASS / code -1**: actual installed non-debuggable code 11/version 0.3.6, exact published APK bytes, preserved original account/selection/preferences/favorites/theme state and automatic deletion of the task/backup/partial/internal APK/external download.
+
+- Final manual checking reported **“已是最新版本”**. System inspection found zero managed downloads and zero task-record files. Acceptance-only preferences and the helper APK were removed; unknown-source permission returned to its original default, Wi-Fi remained enabled and mobile data disabled.
+
+Evidence: `public-audit.log`, `public-audit-v0.3.6-beta.1/results.json`, `public-available-ui.log`, `public-ready-ui.log`, `public-install-ui.log`, `phase3-framework-record-task.log` and `phase3-framework-final.log` under the private run directory. This is a completed public update transaction, not a seeded installation task.
 
 ## Evidence and remaining conditions
 

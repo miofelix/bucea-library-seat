@@ -37,6 +37,6 @@ Release 标题使用 `北建大图书馆选座 v0.3.6 测试版`，下载文件�
 
 ## 启用
 
-树莓派已使用当前用户的 systemd 服务部署镜像同步器和 HTTP 服务，实际监听 `0.0.0.0:9080`，公开域名可达。HTTP 服务重启、镜像手动同步与历史空源的 `503 / no-store` 已验证。完整引导版本 `v0.3.4-beta.1 / code 9` 已发布并同步，公开清单和 APK 返回 200，大小、摘要与签名一致；Range、ETag 和重启续传通过。每次发布后等待定时同步或运行 `systemctl --user start bucea-update-mirror.service`，再验证公开清单及 APK。已有 0.3.3 用户需手动安装含更新模块的版本，0.3.4 起可在应用内更新。公网 Cloudflare 从缓存生成的 416 保留 APK 的 immutable 缓存头，origin 的 416 为 no-store；这是已记录的转发层差异，未修改用户维护的 Cloudflare 配置。
+树莓派已使用当前用户的 systemd 服务部署镜像同步器和 HTTP 服务，实际监听 `0.0.0.0:9080`，公开域名可达。HTTP 服务重启、镜像手动同步与历史空源的 `503 / no-store` 已验证。当前 `v0.3.6-beta.1 / code 11` 的三个附件已发布并同步，公开清单为 200；origin 完整 APK 的大小、摘要与已签名实机验收候选一致，公开 HEAD、ETag、首段/续段/末段 Range 和旧 code 10 资产保留均通过。手机原生公网升级的结果见本版 ADB 验收，公开 Range 抽样不计为完整公网下载。每次发布后等待定时同步或运行 `systemctl --user start bucea-update-mirror.service`，再验证公开清单及 APK。已有 0.3.3 用户需手动安装含更新模块的版本，0.3.4 起可在应用内更新。公网 Cloudflare 从缓存生成的 416 保留 APK 的 immutable 缓存头，origin 的 416 为 no-store；这是已记录的转发层差异，未修改用户维护的 Cloudflare 配置。
 
 详细协议见 [UPDATES.md](UPDATES.md)，交接见 [RASPBERRY_PI_HANDOFF.md](RASPBERRY_PI_HANDOFF.md)，测试与待验项目见 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md)。
