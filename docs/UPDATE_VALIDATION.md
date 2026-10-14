@@ -1,6 +1,6 @@
 # 更新功能验证 — 2026-10-14
 
-已发布的验证 Release 为 **v0.3.5-beta.1 / versionCode 10**，保留 0.3.4 已验证的生产实现并递增版本。最终验收见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)；引导版本的设备测试见 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md)。初始 MacBook 记录仅保留为历史证据。
+当前 Release 为 **v0.3.6-beta.1 / versionCode 11**，包含校园连接失败后返回应用时的自动重检修复。更新实现保持已验证的行为，当前发布工具重新通过 **38 项 Python 测试**。本版构建、安装与公开更新源验证见 [ADB_ACCEPTANCE_0.3.6.md](ADB_ACCEPTANCE_0.3.6.md)；校园访问故障与修复验收见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)。先前真实公网更新结果见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)，引导版本的设备测试见 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md)。以下旧版本记录保留各自实际测试结果。
 
 ## 公开更新源验收与最终版本接续
 

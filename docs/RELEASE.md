@@ -1,6 +1,6 @@
 # Android 发布
 
-所有构建、签名与发布在保存原签名密钥的 MacBook 上执行。树莓派只缓存成品。版本在 `app/build.gradle.kts` 中维护，当前发布版本为 **0.3.5 / versionCode 10**，每次后续更新递增 `versionCode`。
+所有构建、签名与发布在保存原签名密钥的 MacBook 上执行。树莓派只缓存成品。版本在 `app/build.gradle.kts` 中维护，当前发布版本为 **0.3.6 / versionCode 11**，每次后续更新递增 `versionCode`。
 
 ## 构建
 
@@ -13,11 +13,11 @@ python3 -m unittest discover -s tools/tests -v
 
 测试版产物位于 `app/build/outputs/beta-release/`：
 
-- `BUCEA-Library-Seat-v0.3.5-beta.1.apk`
+- `BUCEA-Library-Seat-v0.3.6-beta.1.apk`
 - `SHA256SUMS`
 - `update.json`
 
-正式版使用 `:app:stageReleaseApk`，输出目录为 `app/build/outputs/release/`。可用 `-PreleaseTag=v0.3.5-beta.2` 和 `-PreleaseNotesFile=docs/releases/0.3.5.md` 指定标签和说明。同一版本的补发也需要先增加 `versionCode`，已发布的资产禁止覆盖替换。
+正式版使用 `:app:stageReleaseApk`，输出目录为 `app/build/outputs/release/`。可用 `-PreleaseTag=v0.3.6-beta.2` 和 `-PreleaseNotesFile=docs/releases/0.3.6.md` 指定标签和说明。同一版本的补发也需要先增加 `versionCode`，已发布的资产禁止覆盖替换。
 
 两个任务均使用 `assembleRelease`，关闭调试、压缩资源，并保留本机已有 Android Debug 证书，以兼容先前分发的 APK。**不要删除或重新生成 `~/.android/debug.keystore`，不要把密钥复制到树莓派或 Git。** 证书迁移不包含在本次功能中。
 
@@ -28,12 +28,12 @@ python3 -m unittest discover -s tools/tests -v
 先审查并推送将要发布的提交，再使用已经验证的三个附件。`tools/publish_release.py` 在草稿中上传全部附件，完成后才发布；它拒绝已有标签，并在任何远端写入前重新验证大小和摘要：
 
 ```sh
-python3 tools/publish_release.py --directory app/build/outputs/beta-release --tag v0.3.5-beta.1 --target <已审查并推送的40位提交SHA> --notes docs/releases/0.3.5.md --prerelease
+python3 tools/publish_release.py --directory app/build/outputs/beta-release --tag v0.3.6-beta.1 --target <已审查并推送的40位提交SHA> --notes docs/releases/0.3.6.md --prerelease
 ```
 
 正式版移除 `--prerelease` 并使用正式产物/标签。发布脚本使用 `gh` 的当前授权。如果上传失败，草稿会保留，检查附件后人工完成或删除草稿重试。不要用 `--clobber` 替换已发布资产。
 
-Release 标题使用 `北建大图书馆选座 v0.3.5 测试版`，下载文件名保持包含应用名称和版本号的 ASCII 名称。本次 Android 16 / API 36 的最终验收见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)，引导版本的分阶段结果见 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md)；Android 8 / API 26 设备验证仍未完成，依赖图书馆内部 Wi-Fi 的实际签到与后续使用操作未执行。不能将模拟任务或安装器测试记作公开网络更新成功。
+Release 标题使用 `北建大图书馆选座 v0.3.6 测试版`，下载文件名保持包含应用名称和版本号的 ASCII 名称。本次 Android 16 / API 36 的最终验收见 [ADB_ACCEPTANCE_0.3.6.md](ADB_ACCEPTANCE_0.3.6.md)，客户端自动重检的修复验收见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)，先前公开更新结果见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)。Android 8 / API 26 设备验证仍未完成，依赖图书馆内部 Wi-Fi 的实际签到与后续使用操作未执行。不能将模拟任务或安装器测试记作公开网络更新成功。
 
 ## 启用
 

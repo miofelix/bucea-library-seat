@@ -1,6 +1,15 @@
 # Validation — 2026-10-14
 
-The published verified release is **0.3.5 / versionCode 10**, with acceptance in [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md). Its production implementation retains the verified 0.3.4 behavior and increments the displayed version and version code. The bootstrap phase remains recorded in [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md), with update-specific evidence in [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md).
+The current release is **0.3.6 / versionCode 11**, with final-version acceptance in [ADB_ACCEPTANCE_0.3.6.md](ADB_ACCEPTANCE_0.3.6.md). It adds automatic campus-access rechecking on an idle foreground return after an unreachable result, plus qualified guidance for campus-route or library-service failures. The fix does not resolve server-side or campus-network outages. Its preceding source validation and observed intermittent server timeouts are recorded in [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md). Earlier public-update acceptance remains in [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md) and [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md), with update-specific evidence in [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md).
+
+## 0.3.6 release checkpoint
+
+- Before the version increment, the campus-access fix passed **107 independent device tests in 19.541 seconds**, without skips, **23 JVM tests**, debug/test builds and both Lint variants with zero errors. Actual native Wi-Fi-settings return restored access and the saved account session automatically after reconnection. These counts describe the source-fix run and are not reused as a fresh code 11 execution.
+- The deployed library endpoint separately timed out from the app UID and later returned HTTP 200. The restored published code 10 application then passed saved-session restoration and a real future-date query. This is evidence of an intermittent campus/service availability problem as well as the client recheck correction.
+- Fresh code 11 execution passed **107 independent device tests in 18.366 seconds**, without skips, and one live campus read-only test in **3.310 seconds**. **23 JVM tests**, debug/release/AndroidTest builds and both Lint variants passed with zero errors (47 debug / 48 release advisory warnings). This is a new run, distinct from the preceding source-fix checkpoint.
+- The non-debuggable code 11 release APK was installed on the physical phone with the original signing certificate. Its installed bytes match SHA-256 `c4edbf17818ce555ff0c57e3c8f822e157a64980e521ba889b9d52ff6cee8579`, size **102488215 bytes**; SDK-only private-state comparisons confirmed preservation of account, preference, bookmark and theme data. Final native recovery and public mirror results are recorded in the linked version-specific acceptance document.
+- The current release-tooling run passed **38 Python tests in 0.701 seconds**; evidence is under `.private/qa-0.3.6/python-tests.log`.
+- The user continues to defer library-internal Wi-Fi check-in and dependent use operations. Android 8 / API 26, a second real identity, mobile-data switching, a whole-device reboot and actual storage exhaustion remain outside the completed acceptance.
 
 ## 0.3.5 final-release checkpoint
 
