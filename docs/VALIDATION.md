@@ -1,6 +1,6 @@
 # Validation — 2026-10-14
 
-The current release is **0.3.6 / versionCode 11**, with final-version acceptance in [ADB_ACCEPTANCE_0.3.6.md](ADB_ACCEPTANCE_0.3.6.md). It adds automatic campus-access rechecking on an idle foreground return after an unreachable result, plus qualified guidance for campus-route or library-service failures. The fix does not resolve server-side or campus-network outages. Its preceding source validation and observed intermittent server timeouts are recorded in [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md). Earlier public-update acceptance remains in [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md) and [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md), with update-specific evidence in [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md).
+The current release is **0.3.7 / versionCode 12**, with version-specific evidence in [ADB_ACCEPTANCE_0.3.7.md](ADB_ACCEPTANCE_0.3.7.md). It adds matching theme icons, the selected homepage design, automatic regional seat counts, compact two-column cards, and corrections to verification detection and reservation-state classification. Earlier public-update evidence remains in the versioned 0.3.6, 0.3.5 and 0.3.4 acceptance records below.
 
 ## 0.3.6 release checkpoint
 
