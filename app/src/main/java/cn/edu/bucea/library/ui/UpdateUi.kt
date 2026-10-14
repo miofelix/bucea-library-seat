@@ -2,12 +2,19 @@ package cn.edu.bucea.library.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,10 +33,14 @@ import java.util.Locale
 fun UpdateSettings(state: UpdateUiState, installedVersion: String, updates: UpdateCoordinator) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("当前版本 $installedVersion", style = MaterialTheme.typography.bodyMedium)
-        Text("进入前台后每天检查一次，测试版和正式版使用同一更新入口。确认后才下载，支持 Wi-Fi 和移动数据。",
+        Text("无需连接校园网，可随时手动检查新版本。发现更新后，确认才会开始下载。",
             style = MaterialTheme.typography.bodySmall)
-        TextButton(onClick = { updates.check(manual = true) }, enabled = !state.checking) {
-            Text(if (state.checking) "正在检查…" else "检查更新")
+        Button(onClick = { updates.check(manual = true) }, enabled = !state.checking,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+            if (state.checking) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+            else Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(if (state.checking) "正在检查更新…" else "手动检查更新")
         }
         state.message?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
         if (state.task != null) {

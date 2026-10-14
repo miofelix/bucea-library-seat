@@ -7,6 +7,7 @@
 - 按用户补充要求，服务改为直接监听端口的独立 Python HTTP 服务，域名和 CF Tunnel 交由用户配置。Python **38 个测试通过**，无需外部 HTTP 服务器或依赖，包含 **13 个真实 HTTP 集成测试**。同步器覆盖最大版本选择、预发布、完整分页、条件请求、限流退避、草稿/不完整附件、撤回与分页移动、元数据及摘要失败、原子切换、崩溃恢复、资产内容不变、故障保留和至少 7 天清理。检查了公开文件 0644 与私有状态 0600 权限。
 - HTTP 服务验证清单 200 / 304 / 503、缓存重新验证、Range 206 / 416、If-Range、HEAD、旧资产切换与重启续传、并发下载与连接限额、私有路径和符号链接隔离、缺失 APK 不缓存、空目录启动及正常停止。请求保留公网 Host 头，默认端口为 9080。
 - Android JVM **21 个测试通过**，其中 16 个状态机测试、5 个清单/客户端/签名测试。覆盖确认前无下载、重复点击和并发检查合并、版本快照、失败重试、取消、下载与校验重启恢复、丢失任务、实际已安装版本比较、空间不足、24 小时限频及暂停提示、非法 URL/字段、客户端隔离和签名集合。
+- 设置页顶部提供全宽“手动检查更新”按钮、检查进度和结果反馈，无需连接校园网。本次入口调整重新通过上述 21 个 JVM 测试、Debug / release 构建及两种 Lint；设备上的实际点击和显示仍待验证。
 - Debug APK、release APK、AndroidTest APK 构建通过；`lint` 与全量 `lintRelease` 均为 **0 errors**，Debug 有 45 个建议性警告，release 有 46 个建议性警告。将仅 Debug 存在的预览 Activity 移除规则迁至 Debug Manifest，解决原有 release Lint 的 MissingClass 错误。
 - `stageBetaApk` 输出 APK、`SHA256SUMS`、`update.json`。`aapt` 验证包名 `cn.edu.bucea.library`、版本 **0.3.4 / code 8**、最低 **API 26**、无 `application-debuggable`，包含 arm64-v8a、armeabi-v7a、x86、x86_64，使用通用 APK。
 - `apksigner` 验证签名通过，与本机之前 0.3.3 APK 的证书 SHA-256 一致：`211ec3718b18fe7bfd4d955be4a035c1ec778cf7728fdfa996f6b476adf14801`。打包任务会拒绝不同证书；发布脚本在远端操作前验证附件大小和摘要。

@@ -613,13 +613,13 @@ private fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLogi
     val uriHandler = LocalUriHandler.current
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
         ScreenHeading("让登录更简单", "少一些操作，多一些专注。", Icons.Outlined.Settings)
+        ContentCard("应用更新", Icons.Outlined.Refresh, updateContent)
         ContentCard("登录偏好", Icons.Outlined.AutoAwesome) {
             PreferenceRow(Icons.Outlined.Lock, "自动恢复登录", "启动时恢复会话，过期后自动识别验证码并登录。", state.autoLogin, onAutoLogin)
             HorizontalDivider(Modifier.padding(vertical = 18.dp), color = Line)
             PreferenceRow(Icons.Outlined.SwapHoriz, "失败时自动切换账号", "当前账号无法登录时，依次尝试其他已保存的账号。", state.autoSwitch, onAutoSwitch)
         }
         CampusNotice()
-        ContentCard("应用更新", Icons.Outlined.Refresh, updateContent)
         ContentCard("关于这个客户端", Icons.Outlined.AutoStories) {
             Text("为建大同学准备的图书馆入口", fontSize = 14.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(10.dp))

@@ -18,7 +18,7 @@
 
 修改图书馆密码当前未实现，点击入口会显示提示。
 
-当前开发版 0.3.4 加入应用内更新：在设置中检查更新，确认后下载并由系统安装。旧版需先手动安装含更新模块的版本。构建与发布在开发机完成，树莓派只缓存 GitHub Release 成品；部署说明见 [更新服务](docs/UPDATES.md) 和 [树莓派接续文档](docs/RASPBERRY_PI_HANDOFF.md)。
+当前开发版 0.3.4 加入应用内更新：打开“设置”，在顶部“应用更新”卡片点击“手动检查更新”，确认后下载并由系统安装。检查更新无需连接校园网。旧版需先手动安装含更新模块的版本。构建与发布在开发机完成，树莓派只缓存 GitHub Release 成品；部署说明见 [更新服务](docs/UPDATES.md) 和 [树莓派接续文档](docs/RASPBERRY_PI_HANDOFF.md)。
 
 开发作者：樊彧。欢迎在 [GitHub Issues](https://github.com/miofelix/bucea-library-seat/issues) 提交问题与建议。
 
