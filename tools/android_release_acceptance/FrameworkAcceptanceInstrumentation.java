@@ -3,13 +3,18 @@ package cn.edu.bucea.library.releaseacceptance;
 import android.app.Activity;
 import android.app.DownloadManager;
 import android.app.Instrumentation;
+import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
@@ -22,6 +27,8 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -51,11 +58,13 @@ public final class FrameworkAcceptanceInstrumentation extends Instrumentation {
             require("true".equals(arguments.getString("live_update_acceptance")), "Explicit release acceptance opt-in is required");
             if ("final".equals(step)) checkFinalRelease();
             else if ("no-task".equals(step)) checkNoTask();
+            else if ("download-state".equals(step)) snapshotDownloadState();
+            else if ("endpoint".equals(step)) inspectEndpoint();
             else if ("record-task".equals(step)) recordReadyTask();
             else if ("transport".equals(step)) checkTransport();
             else if ("cancel-transport".equals(step)) cancelTrackedTransport();
             else if ("cleanup".equals(step)) cleanupAcceptance();
-            else throw new AssertionError("Choose final, no-task, record-task, transport, cancel-transport or cleanup acceptance step");
+            else throw new AssertionError("Choose final, no-task, download-state, endpoint, record-task, transport, cancel-transport or cleanup acceptance step");
             result.putAll(transportTelemetry);
             result.putString("result", "PASS");
             result.putString("step", step);
@@ -108,6 +117,131 @@ public final class FrameworkAcceptanceInstrumentation extends Instrumentation {
     private static int taskRecordFiles(File record) {
         return (record.exists() ? 1 : 0) + (new File(record.getPath() + ".bak").exists() ? 1 : 0)
             + (new File(record.getPath() + ".new").exists() ? 1 : 0);
+    }
+
+    private void inspectEndpoint() {
+        Context context = getTargetContext();
+        boolean permission = context.checkSelfPermission(Manifest.permission.ACCESS_NETWORK_STATE) == PackageManager.PERMISSION_GRANTED;
+        transportTelemetry.putBoolean("has_network_state_permission", permission);
+        if (permission) {
+            try {
+                ConnectivityManager connectivity = context.getSystemService(ConnectivityManager.class);
+                Network network = connectivity.getActiveNetwork();
+                NetworkCapabilities capabilities = network == null ? null : connectivity.getNetworkCapabilities(network);
+                transportTelemetry.putBoolean("active_network", network != null);
+                transportTelemetry.putBoolean("connected", capabilities != null && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET));
+                transportTelemetry.putBoolean("validated", capabilities != null && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED));
+                transportTelemetry.putBoolean("has_wifi", capabilities != null && capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI));
+            } catch (Exception diagnosticFailure) {
+                transportTelemetry.putString("connectivity_exception_class", diagnosticFailure.getClass().getName());
+            }
+        }
+        HttpURLConnection connection = null;
+        transportTelemetry.putInt("http_status", -1);
+        try {
+            connection = (HttpURLConnection) new URL("https://bucea-library-seat.miofelix.com/updates/latest.json").openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(10000);
+            connection.setReadTimeout(10000);
+            connection.setInstanceFollowRedirects(false);
+            connection.setAllowUserInteraction(false);
+            connection.setUseCaches(false);
+            connection.setRequestProperty("User-Agent", "okhttp/4.12.0");
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setRequestProperty("Cache-Control", "no-cache");
+            // The app's campus clients use separate OkHttp jars; no credentials are read.
+            connection.setRequestProperty("Cookie", "");
+            connection.setRequestProperty("Authorization", "");
+            int status = connection.getResponseCode();
+            transportTelemetry.putInt("http_status", status);
+            if (status == 200) {
+                java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+                try (InputStream input = connection.getInputStream()) {
+                    byte[] buffer = new byte[8192];
+                    int count;
+                    while ((count = input.read(buffer)) >= 0) {
+                        require(output.size() + count <= 131072, "The diagnostic manifest must remain within the normal size limit");
+                        output.write(buffer, 0, count);
+                    }
+                }
+                JSONObject manifest = new JSONObject(new String(output.toByteArray(), StandardCharsets.UTF_8));
+                transportTelemetry.putLong("manifest_version_code", manifest.getLong("versionCode"));
+                transportTelemetry.putString("manifest_version_name", manifest.getString("versionName"));
+                transportTelemetry.putBoolean("manifest_prerelease", manifest.getBoolean("prerelease"));
+                JSONObject apk = manifest.getJSONObject("apk");
+                transportTelemetry.putLong("manifest_asset_id", apk.getLong("assetId"));
+                transportTelemetry.putLong("manifest_apk_bytes", apk.getLong("size"));
+                String digest = apk.getString("sha256");
+                require(digest.matches("[0-9a-f]{64}"), "The diagnostic manifest must record a valid public digest");
+                transportTelemetry.putString("manifest_sha256", digest);
+            }
+            require(status == 200, "The fixed public update endpoint must return HTTP 200");
+        } catch (Exception failure) {
+            transportTelemetry.putString("exception_class", failure.getClass().getName());
+            throw new AssertionError("The SDK-only fixed update endpoint diagnostic request failed");
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    private void snapshotDownloadState() throws Exception {
+        Context context = getTargetContext();
+        File record = new File(context.getFilesDir(), "updates/task.json");
+        require(record.isFile(), "The native updater must have persisted an actual task");
+        JSONObject json = new JSONObject(new String(Files.readAllBytes(record.toPath()), StandardCharsets.UTF_8));
+        JSONObject manifest = json.getJSONObject("manifest");
+        require(context.getPackageName().equals(manifest.getString("packageName")), "The native task must target this application");
+        require(manifest.getLong("versionCode") == expectedVersionCode(), "The native task must target the expected release code");
+        require(expectedVersionName().equals(manifest.getString("versionName")), "The native task must target the expected release name");
+        String token = json.getString("token");
+        require(validToken(token), "The native task must have a valid unique token");
+        String phase = json.getString("phase");
+        require("ENQUEUING".equals(phase) || "DOWNLOADING".equals(phase) || "VERIFYING".equals(phase) ||
+            "READY".equals(phase) || "FAILED".equals(phase), "The native task must have a recognized update phase");
+        long id = json.isNull("downloadId") ? -1 : json.getLong("downloadId");
+        require(id == -1 || id > 0, "A recorded native download ID must be positive");
+        transportTelemetry.putString("task_phase", phase);
+        transportTelemetry.putLong("download_id", id);
+        transportTelemetry.putInt("task_record_files", taskRecordFiles(record));
+        boolean requireWait = "true".equals(arguments.getString("require_network_wait"));
+        require(!requireWait || ("DOWNLOADING".equals(phase) && id > 0), "Offline queue evidence requires a native downloading task");
+        File external = context.getExternalFilesDir(null);
+        require(external != null, "Native update download storage must be available for inspection");
+        File expected = new File(new File(external, "updates"), "download-" + token + ".apk").getCanonicalFile();
+        DownloadManager manager = context.getSystemService(DownloadManager.class);
+        long deadline = SystemClock.elapsedRealtime() + 5000;
+        while (true) {
+            int status = -1;
+            int reason = -1;
+            long bytes = 0;
+            long total = -1;
+            boolean present = false;
+            if (id > 0) {
+                try (Cursor cursor = manager.query(new DownloadManager.Query().setFilterById(id))) {
+                    require(cursor != null, "Native download state inspection must return a cursor");
+                    if (cursor.moveToFirst()) {
+                        present = true;
+                        Uri uri = Uri.parse(cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI)));
+                        require("file".equals(uri.getScheme()) && uri.getPath() != null &&
+                            expected.equals(new File(uri.getPath()).getCanonicalFile()), "The native task ID must identify its exact managed update file");
+                        status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+                        reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON));
+                        bytes = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+                        total = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+                    }
+                }
+            }
+            transportTelemetry.putBoolean("download_present", present);
+            transportTelemetry.putInt("status", status);
+            transportTelemetry.putInt("reason", reason);
+            transportTelemetry.putLong("downloaded_bytes", bytes);
+            transportTelemetry.putLong("total_bytes", total);
+            transportTelemetry.putInt("managed_download_rows", managedDownloadRows());
+            if (!requireWait) return;
+            if (present && (status == DownloadManager.STATUS_PENDING || status == DownloadManager.STATUS_PAUSED)) return;
+            require(SystemClock.elapsedRealtime() < deadline, "Offline native download must become pending or paused within the bounded transition");
+            SystemClock.sleep(200);
+        }
     }
 
     @SuppressWarnings("deprecation")
