@@ -1,10 +1,12 @@
 package cn.edu.bucea.library
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.compose.ui.graphics.luminance
 import cn.edu.bucea.library.ui.NativeSeat
 import cn.edu.bucea.library.ui.SeatPresentationPolicy
 import cn.edu.bucea.library.ui.SeatSearchState
 import cn.edu.bucea.library.ui.SeatVisualState
+import cn.edu.bucea.library.ui.nativeMapSeatStyle
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -56,6 +58,22 @@ class SeatPresentationInstrumentedTest {
         assertNotNull(SeatPresentationPolicy.availabilityDetail(visual, original.available))
         assertTrue(SeatPresentationPolicy.availabilityDetail(visual, original.available)!!.contains("时段"))
         assertEquals("当前正在使用，可预约其他时段", original.status)
+        assertEquals("使用中", nativeMapSeatStyle(original.status, original.available).label)
+        assertEquals(nativeMapSeatStyle(original.status, false), nativeMapSeatStyle(original.status, true))
+    }
+
+    @Test fun mapSeatNumbersHaveAccessibleContrastAndStatesHaveTextMarkers() {
+        val styles = listOf("空闲", "正在使用", "已预约", "暂离", "不可用", "未知")
+            .map { nativeMapSeatStyle(it, true) } + nativeMapSeatStyle("空闲", true, localOnly = true)
+        styles.forEach { style ->
+            val whiteTextContrast = 1.05f / (style.fill.luminance() + .05f)
+            assertTrue("${style.label} seat numbers need 4.5:1 contrast; got $whiteTextContrast", whiteTextContrast >= 4.5f)
+            assertEquals("Seat fills must remain opaque", 1f, style.fill.alpha, .001f)
+            assertTrue("Every map state needs a visible text marker", style.marker.isNotBlank())
+        }
+        assertEquals("Map states need distinct text markers", styles.size, styles.map { it.marker }.toSet().size)
+        assertEquals("仅限现场", nativeMapSeatStyle("空闲", true, localOnly = true).label)
+        assertEquals("不可用", nativeMapSeatStyle("空闲", false).label)
     }
 
     @Test fun availabilityFilterUsesTheServerFlagAndOnlyTheLoadedPage() {

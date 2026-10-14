@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.nativeCanvas
@@ -44,7 +45,30 @@ import androidx.compose.ui.unit.sp
 import cn.edu.bucea.library.data.models.*
 import java.time.LocalDate
 
-private val MapFree = Color(0xFF28766C)
+internal data class MapSeatStyle(val fill: Color, val label: String, val marker: String)
+
+// Seat status must stay recognizable with every theme, including the yellow accent.
+// Opaque fills give white seat numbers and markers at least 4.5:1 contrast.
+private fun mapSeatStyle(state: SeatVisualState) = MapSeatStyle(
+    fill = when (state) {
+        SeatVisualState.FREE -> Color(0xFF087F6D)
+        SeatVisualState.OCCUPIED -> Color(0xFFB33F32)
+        SeatVisualState.RESERVED -> Color(0xFF94600A)
+        SeatVisualState.AWAY -> Color(0xFF754BA5)
+        SeatVisualState.UNAVAILABLE -> Color(0xFF586471)
+        SeatVisualState.UNKNOWN -> Color(0xFF626C79)
+    },
+    label = SeatPresentationPolicy.statusLabel(state),
+    marker = SeatPresentationPolicy.statusMarker(state),
+)
+
+private val MapLocalOnly = MapSeatStyle(Color(0xFF2756A4), "仅限现场", "现")
+
+internal fun nativeMapSeatStyle(status: String, available: Boolean, localOnly: Boolean = false): MapSeatStyle =
+    if (localOnly) MapLocalOnly else mapSeatStyle(SeatPresentationPolicy.visualState(status, available))
+
+private fun cellStyle(cell: NativeMapCell): MapSeatStyle =
+    nativeMapSeatStyle(cell.seat?.status.orEmpty(), cell.seat?.available == true, cell.localOnly)
 
 @Composable
 fun NativeMapScreen(
@@ -147,15 +171,19 @@ fun NativeMapScreen(
             if (state.listMode) {
                 items(layout.cells.filter { it.seat != null }, key = { it.seat!!.id }) { cell ->
                     val seat = cell.seat!!
+                    val style = cellStyle(cell)
                     Card(onClick = { selected = cell }, enabled = !state.loading, shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
                         Row(Modifier.fillMaxWidth().heightIn(min = 82.dp).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.Chair, null, tint = cellColor(cell), modifier = Modifier.size(24.dp))
+                            Surface(color = style.fill, shape = RoundedCornerShape(10.dp)) {
+                                Icon(Icons.Outlined.Chair, null, tint = Color.White, modifier = Modifier.padding(8.dp).size(24.dp))
+                            }
                             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                                 Text(seat.label, color = Ink, fontWeight = FontWeight.SemiBold)
                                 Text("第 ${cell.row + 1} 行 · 第 ${cell.column + 1} 列", color = Muted, fontSize = 11.sp)
+                                Text(SeatPresentationPolicy.availabilityLabel(seat.available && !cell.localOnly), color = Ink, fontSize = 11.sp)
                             }
-                            Surface(color = cellColor(cell).copy(alpha = .10f), shape = RoundedCornerShape(8.dp)) {
-                                Text(if (cell.localOnly) "仅限现场" else seat.status, color = cellColor(cell), fontSize = 11.sp,
+                            Surface(color = style.fill, shape = RoundedCornerShape(8.dp)) {
+                                Text(style.label, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium,
                                     modifier = Modifier.widthIn(max = 100.dp).padding(horizontal = 8.dp, vertical = 5.dp))
                             }
                         }
@@ -164,14 +192,17 @@ fun NativeMapScreen(
             } else item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(13.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("空闲" to MapFree, "已预约" to Color(0xFF956013), "使用中" to Color(0xFF586D88), "不可用" to Color(0xFF73787E)).forEach { (text, color) ->
+                        (SeatVisualState.entries.map(::mapSeatStyle) + MapLocalOnly).forEach { style ->
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Box(Modifier.size(8.dp).clip(RoundedCornerShape(3.dp)).background(color)); Text(text, color = Muted, fontSize = 11.sp)
+                                Box(Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)).background(style.fill), contentAlignment = Alignment.Center) {
+                                    Text(style.marker, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Text(style.label, color = Ink, fontSize = 11.sp)
                             }
                         }
                     }
-                    NativeRoomCanvas(layout, !state.loading) { selected = it }
-                    Text("拖动查看 · 双指缩放 · 点选座位\n切换列表可以逐项查看座位和状态。", color = Muted, fontSize = 11.sp, lineHeight = 18.sp)
+                    NativeRoomCanvas(layout, !state.loading, selected?.seat?.id) { selected = it }
+                    Text("拖动查看 · 双指缩放 · 点选座位\n颜色与座位内文字表示当前状态，可预约时段以点选查询为准。", color = Muted, fontSize = 11.sp, lineHeight = 18.sp)
                 }
             }
         }
@@ -200,9 +231,20 @@ fun NativeMapScreen(
     }
     selected?.let { cell ->
         val seat = cell.seat ?: return@let
+        val style = cellStyle(cell)
         BusinessSelectionSheet(onDismissRequest = { selected = null }, title = { Text("${seat.label} · ${seat.room}") }, text = {
             Column(Modifier.fillMaxWidth().heightIn(max = dialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(if (cell.localOnly) "该座位仅支持现场预约" else seat.status)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Surface(color = style.fill, shape = RoundedCornerShape(8.dp)) {
+                        Text(style.label, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+                    }
+                    Text(SeatPresentationPolicy.availabilityLabel(seat.available && !cell.localOnly), color = Ink, fontSize = 13.sp)
+                }
+                Text(if (cell.localOnly) "该座位仅支持现场预约" else seat.status, color = Ink)
+                if (!cell.localOnly) SeatPresentationPolicy.availabilityDetail(
+                    SeatPresentationPolicy.visualState(seat.status, seat.available), seat.available
+                )?.let { Text(it, color = Muted, fontSize = 12.sp) }
                 Text(state.filters["onDate"].orEmpty(), color = Muted)
                 if (cell.power || cell.window) Text(listOfNotNull(if (cell.power) "有电源" else null, if (cell.window) "靠窗" else null).joinToString(" · "), color = Accent)
             }
@@ -238,23 +280,15 @@ private fun friendlyDate(option: LibraryOption): String {
     }
 }
 
-private fun cellColor(cell: NativeMapCell): Color = when {
-    cell.localOnly -> Color(0xFF80638E)
-    cell.seat?.available == true -> MapFree
-    cell.seat?.status?.contains("预约") == true -> Color(0xFF956013)
-    cell.seat?.status?.contains("使用") == true || cell.seat?.status?.contains("暂离") == true -> Color(0xFF586D88)
-    else -> Color(0xFF73787E)
-}
-
 @Composable
-private fun NativeRoomCanvas(layout: NativeRoomLayout, enabled: Boolean, onSelect: (NativeMapCell) -> Unit) {
+internal fun NativeRoomCanvas(layout: NativeRoomLayout, enabled: Boolean, selectedSeatId: String?, onSelect: (NativeMapCell) -> Unit) {
     var zoom by remember(layout) { mutableFloatStateOf(1f) }
     var pan by remember(layout) { mutableStateOf(Offset.Zero) }
     var reset by remember(layout) { mutableIntStateOf(0) }
     val latestEnabled by rememberUpdatedState(enabled)
     val latestSelect by rememberUpdatedState(onSelect)
-    val seatLabelColor = Ink
     val structureLabelColor = Muted
+    val selectionColor = MaterialTheme.colorScheme.tertiary
     val viewportHeight = (LocalConfiguration.current.screenHeightDp.dp * .5f).coerceIn(200.dp, 430.dp)
     val meaningful = remember(layout) { layout.cells.filter { it.kind != NativeMapCellKind.EMPTY } }
     val leftColumn = meaningful.minOfOrNull { it.column } ?: 0
@@ -317,14 +351,27 @@ private fun NativeRoomCanvas(layout: NativeRoomLayout, enabled: Boolean, onSelec
                             val width = cell.columnSpan * cellSize
                             val height = cell.rowSpan * cellSize
                             if (cell.kind == NativeMapCellKind.SEAT) {
-                                val color = cellColor(cell)
-                                drawRoundRect(color.copy(alpha = .16f), Offset(left + cellSize * .07f, top + cellSize * .12f), Size(width - cellSize * .14f, height - cellSize * .23f), androidx.compose.ui.geometry.CornerRadius(cellSize * .12f))
-                                drawRoundRect(color, Offset(left + cellSize * .13f, top + cellSize * .08f), Size(width - cellSize * .26f, cellSize * .1f), androidx.compose.ui.geometry.CornerRadius(cellSize * .04f))
-                                drawLine(color, Offset(left + cellSize * .16f, top + height * .86f), Offset(left + width - cellSize * .16f, top + height * .86f), cellSize * .05f)
-                                paint.color = seatLabelColor.toArgb()
-                                paint.textSize = cellSize * .21f
-                                drawContext.canvas.nativeCanvas.drawText(cell.seat?.label.orEmpty(), left + width / 2, top + height * .59f, paint)
-                                if (cell.power) drawCircle(Color(0xFFD4A853), cellSize * .04f, Offset(left + width - cellSize * .12f, top + height - cellSize * .15f))
+                                val style = cellStyle(cell)
+                                if (cell.seat?.id == selectedSeatId) {
+                                    val ringPosition = Offset(left + cellSize * .025f, top + cellSize * .035f)
+                                    val ringSize = Size(width - cellSize * .05f, height - cellSize * .11f)
+                                    val ringRadius = androidx.compose.ui.geometry.CornerRadius(cellSize * .15f)
+                                    drawRoundRect(Color(0xFF172535), ringPosition, ringSize, ringRadius, style = Stroke(cellSize * .08f))
+                                    drawRoundRect(selectionColor, ringPosition, ringSize, ringRadius, style = Stroke(cellSize * .035f))
+                                }
+                                drawRoundRect(style.fill, Offset(left + cellSize * .07f, top + cellSize * .12f), Size(width - cellSize * .14f, height - cellSize * .23f), androidx.compose.ui.geometry.CornerRadius(cellSize * .12f))
+                                drawRoundRect(style.fill, Offset(left + cellSize * .13f, top + cellSize * .055f), Size(width - cellSize * .26f, cellSize * .1f), androidx.compose.ui.geometry.CornerRadius(cellSize * .04f))
+                                drawLine(style.fill, Offset(left + cellSize * .16f, top + height * .86f), Offset(left + width - cellSize * .16f, top + height * .86f), cellSize * .05f)
+                                paint.color = Color.White.toArgb()
+                                paint.textSize = cellSize * .23f
+                                drawContext.canvas.nativeCanvas.drawText(cell.seat?.label.orEmpty(), left + width / 2, top + height * .47f, paint)
+                                paint.textSize = cellSize * .17f
+                                drawContext.canvas.nativeCanvas.drawText(style.marker, left + width / 2, top + height * .70f, paint)
+                                if (cell.power) {
+                                    val powerPosition = Offset(left + width - cellSize * .16f, top + height * .68f)
+                                    drawCircle(Color.White, cellSize * .055f, powerPosition)
+                                    drawCircle(Color(0xFF172535), cellSize * .025f, powerPosition)
+                                }
                             } else if (cell.kind != NativeMapCellKind.EMPTY) {
                                 val color = when (cell.kind) { NativeMapCellKind.WINDOW -> Color(0xFFE1E9F0); NativeMapCellKind.WALL -> Color(0xFFB7B8BC); else -> Color(0xFFEEEEF0) }
                                 drawRoundRect(color, Offset(left + 3f, top + 3f), Size(width - 6f, height - 6f), androidx.compose.ui.geometry.CornerRadius(5f))

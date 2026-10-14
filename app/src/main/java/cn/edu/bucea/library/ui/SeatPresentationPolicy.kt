@@ -29,6 +29,25 @@ internal object SeatPresentationPolicy {
 
     fun availabilityLabel(available: Boolean): String = if (available) "可预约" else "不可预约"
 
+    fun statusLabel(state: SeatVisualState): String = when (state) {
+        SeatVisualState.FREE -> "空闲"
+        SeatVisualState.OCCUPIED -> "使用中"
+        SeatVisualState.RESERVED -> "已预约"
+        SeatVisualState.AWAY -> "暂离"
+        SeatVisualState.UNAVAILABLE -> "不可用"
+        SeatVisualState.UNKNOWN -> "未知状态"
+    }
+
+    /** Short labels remain readable inside a seat when the room is zoomed in. */
+    fun statusMarker(state: SeatVisualState): String = when (state) {
+        SeatVisualState.FREE -> "空"
+        SeatVisualState.OCCUPIED -> "用"
+        SeatVisualState.RESERVED -> "约"
+        SeatVisualState.AWAY -> "离"
+        SeatVisualState.UNAVAILABLE -> "停"
+        SeatVisualState.UNKNOWN -> "?"
+    }
+
     fun availabilityDetail(state: SeatVisualState, available: Boolean): String? = when {
         available && state in setOf(SeatVisualState.OCCUPIED, SeatVisualState.RESERVED, SeatVisualState.AWAY) ->
             "当前状态如上；可预约时段以点选后的查询为准。"
