@@ -7,8 +7,10 @@ import cn.edu.bucea.library.data.AccountStore
 import cn.edu.bucea.library.data.LibraryRepository
 import cn.edu.bucea.library.data.NativeMapRepository
 import cn.edu.bucea.library.data.SavedAccount
+import cn.edu.bucea.library.data.loadRegion
 import cn.edu.bucea.library.data.models.NativeMapOptions
 import cn.edu.bucea.library.data.models.NativeMapState
+import cn.edu.bucea.library.data.models.RegionSeatOverview
 import cn.edu.bucea.library.ocr.DdddOcr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -29,6 +31,7 @@ class NativeMapViewModel(application: Application) : AndroidViewModel(applicatio
     private var authenticated = false
     private var operation: Job? = null
     private var optionsDay: LocalDate? = null
+    private var pendingRegion: RegionSeatOverview? = null
 
     fun bindAccount(id: String?, loggedIn: Boolean) {
         if (boundId == id && authenticated == loggedIn) return
@@ -37,6 +40,7 @@ class NativeMapViewModel(application: Application) : AndroidViewModel(applicatio
         boundId = id
         authenticated = loggedIn
         optionsDay = null
+        pendingRegion = null
         mutableState.value = NativeMapState()
     }
 
@@ -59,9 +63,32 @@ class NativeMapViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    /** Refresh the current room, or initialise server date/building/floor choices. */
+    /** Stage exact region navigation; map opening owns the subsequent refresh request. */
+    fun selectRegion(region: RegionSeatOverview) {
+        operation?.cancel()
+        pendingRegion = region
+        optionsDay = null
+        mutableState.value = NativeMapState(directRegionView = true)
+    }
+
+    fun showRegionSelector() {
+        pendingRegion = null
+        mutableState.update { it.copy(directRegionView = false) }
+    }
+
+    /** Refresh the requested region, current room, or server date/building/floor choices. */
     fun refresh() = run { account ->
         library.releaseSession(account.id)
+        pendingRegion?.let { region ->
+            val selected = repository.loadRegion(account, region)
+            if (pendingRegion !== region) return@run
+            mutableState.update { selected.copy(loading = true, listMode = it.listMode) }
+            if (!selected.verificationRequired && selected.layout?.roomId == region.id) {
+                pendingRegion = null
+                optionsDay = LocalDate.now()
+            }
+            return@run
+        }
         if (mutableState.value.options.dates.isEmpty() || optionsDay != LocalDate.now()) {
             val previous = mutableState.value.filters
             val options = repository.options(account)
@@ -89,6 +116,7 @@ class NativeMapViewModel(application: Application) : AndroidViewModel(applicatio
             else -> mutableState.value.options.floors
         }.any { it.value == value }
         if (!valid) return
+        pendingRegion = null
         mutableState.update { it.copy(filters = it.filters + (key to value), layout = null, rooms = emptyList()) }
         run { account ->
             if (key == "building") {

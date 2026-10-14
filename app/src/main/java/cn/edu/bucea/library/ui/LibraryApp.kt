@@ -53,6 +53,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.currentStateAsState
@@ -64,6 +65,7 @@ import cn.edu.bucea.library.NativeVerificationViewModel
 import cn.edu.bucea.library.RegionOverviewViewModel
 import cn.edu.bucea.library.update.UpdateViewModel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 
 @Composable
 fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regions: RegionOverviewViewModel, maps: NativeMapViewModel,
@@ -90,6 +92,14 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
     var verificationOrigin by remember { mutableStateOf("search") }
     var refreshRegionsAfterSync by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(features, lifecycleOwner, context) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            features.feedback.collect { message ->
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
     val businessBusy = state.busy || mutating || seatState.loading || hubState.loading || mapState.loading || regionState.loading ||
         seatState.reservationBusy || accountState.busy || interactions.focusedInputs.intValue > 0 ||
         seatState.selectedSeat != null || hubState.selectedRecord != null || mapOpen || signOutOpen ||
@@ -154,21 +164,21 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
                 }
             }
         }, containerColor = Paper, bottomBar = {
-            Surface(modifier = Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp), color = Color.White, border = BorderStroke(1.dp, Line),
+            Surface(modifier = Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp), color = Color.White, border = BorderStroke(1.dp, Line),
                 tonalElevation = 0.dp, shadowElevation = 0.dp) {
-                Row(Modifier.fillMaxWidth().selectableGroup().padding(7.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(Modifier.fillMaxWidth().selectableGroup().padding(4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                     destinations.forEachIndexed { index, (label, icon) ->
                         val selected = tab == index
-                        Column(modifier = Modifier.weight(1f).clip(RoundedCornerShape(15.dp))
+                        Column(modifier = Modifier.weight(1f).clip(RoundedCornerShape(12.dp))
                             .background(if (selected) SoftAccent else Color.Transparent)
                             .selectable(selected = selected, role = Role.Tab,
                                 enabled = !state.busy && !mutating && !seatState.reservationBusy && !accountState.busy && verificationState.context == null,
                                 onClick = { features.dismissRecord(); mapOpen = false; tab = index })
-                            .heightIn(min = 56.dp).padding(vertical = 7.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Icon(icon, null, Modifier.size(22.dp), tint = if (selected) Accent else Muted)
-                            Text(label, fontSize = 11.sp, color = if (selected) Accent else Muted,
+                            .heightIn(min = 48.dp).padding(vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Icon(icon, null, Modifier.size(20.dp), tint = if (selected) Accent else Muted)
+                            Text(label, fontSize = 10.sp, lineHeight = 13.sp, maxLines = 1, color = if (selected) Accent else Muted,
                                 fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
                         }
                     }
@@ -179,7 +189,11 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
                 mapOpen && state.authenticated -> {
                     NativeMapScreen(mapState, Modifier.padding(padding), maps::onFilter, maps::refresh, maps::loadRoom,
                         maps::setListMode, onSeat = features::selectMappedSeat,
-                        onBack = { if (!seatState.reservationBusy) { features.dismissReservation(); mapOpen = false } },
+                        onBack = { if (!seatState.reservationBusy) {
+                            features.dismissReservation()
+                            mapOpen = false
+                            if (mapState.directRegionView) tab = 0
+                        } },
                         onVerify = { state.activeAccountId?.let { verificationOrigin = "map"; verification.begin(it, mapState.verificationUserId) } })
                     seatState.selectedSeat?.let { seat -> NativeReservationDialog(seatState, seat, features::selectStart,
                         features::selectEnd, features::confirmReservation, features::dismissReservation, verifySearch,
@@ -193,21 +207,25 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
                     },
                     onOpenLibrary = { tab = 1 },
                     onReservations = { features.selectHubSection(HubSection.RESERVATIONS); tab = 2 }, onAccounts = { tab = 3 },
-                    onOpenMap = { tab = 1; mapOpen = true },
+                    onOpenMap = { maps.showRegionSelector(); tab = 1; mapOpen = true },
                     onFavorites = { features.selectHubSection(HubSection.FAVORITES); tab = 2 },
                     regions = regionState, onRefreshRegions = regions::refresh,
                     onVerifyRegions = { state.activeAccountId?.let {
                         verificationOrigin = "regions"; verification.begin(it, regionState.verificationUserId)
-                    } })
+                    } }, onRegion = { region ->
+                        maps.selectRegion(region)
+                        tab = 1
+                        mapOpen = true
+                    })
                 tab == 1 -> if (state.authenticated) Box(Modifier.padding(padding).consumeWindowInsets(padding)) {
                     SeatSearchScreen(seatState, features::setFilter, features::searchSeats, features::nextPage, features::previousPage,
-                        features::selectSeat, onBack = { tab = 0 }, onOpenMap = { tab = 1; mapOpen = true }, onToggleFavorite = features::toggleFavorite,
+                        features::selectSeat, onBack = { tab = 0 }, onOpenMap = { maps.showRegionSelector(); tab = 1; mapOpen = true }, onToggleFavorite = features::toggleFavorite,
                         onSelectStart = features::selectStart, onSelectEnd = features::selectEnd, onConfirmReservation = features::confirmReservation,
                         onDismissReservation = features::dismissReservation, onRefresh = features::refreshSearch, onVerify = verifySearch,
                         onOpenReservations = { features.dismissReservation(); tab = 2 })
                 } else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login, viewModel::refresh) { tab = 3 }
                 tab == 2 -> if (state.authenticated) LibraryHubScreen(hubState, Modifier.padding(padding), features::refreshHub,
-                    features::selectHubSection, features::loadMoreHistory, onSearch = { tab = 1 }, onOpenMap = { tab = 1; mapOpen = true },
+                    features::selectHubSection, features::loadMoreHistory, onSearch = { tab = 1 }, onOpenMap = { maps.showRegionSelector(); tab = 1; mapOpen = true },
                     onFavorite = { favorite -> tab = 1; features.loadSearch(features.favoriteSeat(favorite)) },
                     onRemoveFavorite = features::removeFavorite, onAction = features::performAction, onCancelRecord = features::cancelRecord,
                     onOpenRecord = features::openRecord, onDismissRecord = features::dismissRecord)

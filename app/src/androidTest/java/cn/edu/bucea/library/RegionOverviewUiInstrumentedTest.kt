@@ -33,6 +33,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 /** All region data and callbacks are synthetic; these tests never submit school mutations. */
 @RunWith(AndroidJUnit4::class)
@@ -50,9 +51,10 @@ class RegionOverviewUiInstrumentedTest {
         val state = mutableStateOf(RegionOverviewState(date = today, regions = listOf(first, second),
             completedRegions = 2, totalRegions = 2, discoveryComplete = true, updatedAt = System.currentTimeMillis()))
         val refreshes = AtomicInteger()
-        withRegions(state, onRefresh = { refreshes.incrementAndGet() }) {
-            val firstCard = findWithScroll("The first compact region card must exist") { findDescription("区域卡片：one") }
-            val secondCard = findWithScroll("The second compact region card must exist") { findDescription("区域卡片：two") }
+        val selected = AtomicReference<RegionSeatOverview?>()
+        withRegions(state, onRefresh = { refreshes.incrementAndGet() }, onRegion = { selected.set(it) }) {
+            val firstCard = findWithScroll("The first compact region card must exist") { findDescription("打开阅览一区布局选座") }
+            val secondCard = findWithScroll("The second compact region card must exist") { findDescription("打开阅览二区布局选座") }
             val firstBounds = Rect().apply { firstCard.getBoundsInScreen(this) }
             val secondBounds = Rect().apply { secondCard.getBoundsInScreen(this) }
             assertEquals("Two region cards must share the same row even with the device's current font size", firstBounds.top, secondBounds.top)
@@ -76,6 +78,9 @@ class RegionOverviewUiInstrumentedTest {
             findWithScroll("Second room must retain unknown status counts") {
                 findDescriptionPrefix("阅览二区座位状态：总席数20，空闲0，使用中11，已预约5，暂离1，不可用1，未知2，仅限现场0")
             }
+            click(findWithScroll("A region card must open that exact area's layout") { findDescription("打开阅览二区布局选座") })
+            waitFor("The card must pass its actual room, location and date") { selected.get() == second }
+            assertEquals("No free seats must not prevent inspecting the exact layout", 0, requireNotNull(selected.get()?.counts).free)
             assertEquals("Displaying automatically supplied layouts must not require a refresh tap", 0, refreshes.get())
 
             click(findWithScroll("Default expanded regions must offer manual collapse", backwards = true) { findText("收起") })
@@ -142,7 +147,7 @@ class RegionOverviewUiInstrumentedTest {
             loading = false, updatedAt = System.currentTimeMillis())
 
     private fun withRegions(state: MutableState<RegionOverviewState>, onRefresh: () -> Unit = {},
-        onVerify: () -> Unit = {}, assertions: () -> Unit) {
+        onVerify: () -> Unit = {}, onRegion: (RegionSeatOverview) -> Unit = {}, assertions: () -> Unit) {
         val activity = instrumentation.startActivitySync(
             Intent(instrumentation.targetContext, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
@@ -152,7 +157,8 @@ class RegionOverviewUiInstrumentedTest {
                 activity.setContent {
                     LibraryTheme(AppThemeColor.NAILONG_YELLOW) {
                         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
-                            RegionOverviewSection(state.value, onRefresh, onVerify, authenticated = true, enabled = true)
+                            RegionOverviewSection(state.value, onRefresh, onVerify, authenticated = true, enabled = true,
+                                onRegion = onRegion)
                         }
                     }
                 }

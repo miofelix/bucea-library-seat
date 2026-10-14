@@ -1,19 +1,15 @@
 package cn.edu.bucea.library.ui
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.content.Intent
 import android.provider.Settings
-import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,13 +30,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AutoStories
-import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Logout
-import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Password
 import androidx.compose.material.icons.outlined.Person
@@ -50,7 +44,6 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -80,6 +73,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -92,13 +86,13 @@ import cn.edu.bucea.library.AppThemeColor
 import cn.edu.bucea.library.CampusAccess
 import cn.edu.bucea.library.LibraryUiState
 import cn.edu.bucea.library.data.models.RegionOverviewState
+import cn.edu.bucea.library.data.models.RegionSeatOverview
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private const val ProjectUrl = "https://github.com/miofelix/bucea-library-seat"
-private const val CommunityGroup = "1109482748"
 
 @Composable
 internal fun FeatureLoginPrompt(state: LibraryUiState, modifier: Modifier, onLogin: () -> Unit,
@@ -122,7 +116,7 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
     onLogin: () -> Unit, onRefresh: () -> Unit, onOpenLibrary: () -> Unit,
     onReservations: () -> Unit, onAccounts: () -> Unit, onOpenMap: () -> Unit, onFavorites: () -> Unit,
     regions: RegionOverviewState = RegionOverviewState(), onRefreshRegions: () -> Unit = onRefresh,
-    onVerifyRegions: () -> Unit = {}) {
+    onVerifyRegions: () -> Unit = {}, onRegion: (RegionSeatOverview) -> Unit = {}) {
     val account = state.accounts.firstOrNull { it.id == state.activeAccountId }
     val name = state.overview?.displayName?.takeIf(String::isNotBlank)
         ?: account?.label?.takeIf(String::isNotBlank) ?: "同学"
@@ -142,24 +136,16 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
             LibraryIconButton(Icons.Outlined.Person, "管理账号", onAccounts, enabled = !state.busy)
         }
         CampusAccessNotice(state, onRefresh)
-        HomeOverviewCard(state, onRefresh,
-            onSelectSeat = { when { state.authenticated -> onOpenLibrary(); account != null -> onLogin(); else -> onAccounts() } },
-            selectSeatEnabled = !state.busy && (account == null || state.campusAccess == CampusAccess.REACHABLE),
-            selectSeatLabel = when { state.busy -> "正在连接图书馆…"; state.authenticated -> "找一个好座位";
-                account != null -> "登录并同步"; else -> "添加账号，开始使用" })
+        HomeOverviewCard(state, onRefresh)
         if (state.authenticated && hub.currentStatus.isNotBlank() && hub.currentStatus != "NO_RESERVATION") {
             HubCurrentReservation(hub.copy(loading = hub.loading || state.busy), onRefresh,
                 onConfirmAction = { onReservations() }, onOpenDetails = onReservations)
         } else if (!state.authenticated && account != null) SessionCard(state, account, onLogin)
-        if (state.authenticated) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                HomeShortcut("布局选座", "按位置找", Icons.Outlined.Map, onOpenMap, Modifier.weight(1f), !state.busy)
-                HomeShortcut("收藏座位", "你的偏好", Icons.Outlined.BookmarkBorder, onFavorites, Modifier.weight(1f), !state.busy && !hub.loading)
-            }
+        if (state.authenticated) {
             HomeShortcut("预约记录", "随时查看", Icons.Outlined.AutoStories, onReservations, Modifier.fillMaxWidth(), !state.busy && !hub.loading)
         }
         RegionOverviewSection(regions, onRefreshRegions, onVerifyRegions, authenticated = state.authenticated,
-            enabled = !state.busy && state.campusAccess == CampusAccess.REACHABLE)
+            enabled = !state.busy && state.campusAccess == CampusAccess.REACHABLE, onRegion = onRegion)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Outlined.Wifi, null, tint = Muted, modifier = Modifier.size(15.dp))
@@ -188,8 +174,7 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
 }
 
 @Composable
-private fun HomeOverviewCard(state: LibraryUiState, onRefresh: () -> Unit,
-    onSelectSeat: () -> Unit, selectSeatEnabled: Boolean, selectSeatLabel: String) {
+private fun HomeOverviewCard(state: LibraryUiState, onRefresh: () -> Unit) {
     val values = listOf(state.overview?.available, state.overview?.inUse, state.overview?.awaitingSignIn)
         .map { it?.takeIf { count -> count >= 0 } }
     val complete = values.all { it != null }
@@ -248,15 +233,6 @@ private fun HomeOverviewCard(state: LibraryUiState, onRefresh: () -> Unit,
             !complete -> "部分馆内数据尚未同步，请刷新后查看。"
             else -> "馆内状态一眼可见，选一个适合的位置。"
         }, color = Muted, fontSize = 11.sp, lineHeight = 18.sp)
-        Button(onClick = onSelectSeat, enabled = selectSeatEnabled,
-            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary,
-                contentColor = MaterialTheme.colorScheme.onTertiary)) {
-            Text(selectSeatLabel, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
-            if (state.busy) CircularProgressIndicator(Modifier.size(18.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, strokeWidth = 2.dp)
-            else Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, modifier = Modifier.size(19.dp))
-        }
     }
 }
 
@@ -326,16 +302,16 @@ internal fun AccountsScreen(state: LibraryUiState, modifier: Modifier, onSave: (
         CampusAccessNotice(state, onCheckCampus)
         if (active != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Avatar(active.label.ifBlank { active.username }, 52)
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(active.label.ifBlank { "图书馆账号" }, style = MaterialTheme.typography.titleLarge, color = Ink)
-                Text("${active.username} · ${if (state.authenticated) "已登录" else "未登录"}", color = Muted, fontSize = 12.sp)
+                Text("当前使用 · ${active.username} · ${if (state.authenticated) "已登录" else "未登录"}", color = Muted, fontSize = 12.sp)
             }
         }
         LibrarySectionTitle("已保存的账号", actionLabel = "添加", onAction = { editing = null; showEditor = true }, actionEnabled = !state.busy)
         if (state.accounts.isEmpty()) LibraryEmptyState("添加第一个账号", "保存图书馆账号，连接校园网后自动登录。", icon = Icons.Outlined.Person)
         state.accounts.forEach { account ->
             val selected = account.id == state.activeAccountId
-            Surface(onClick = { onSelect(account.id) }, enabled = !state.busy, modifier = Modifier.fillMaxWidth(),
+            Surface(onClick = { onSelect(account.id) }, enabled = !state.busy, modifier = Modifier.fillMaxWidth().semantics { this.selected = selected },
                 shape = RoundedCornerShape(18.dp), color = if (selected) SoftAccent else Color.White,
                 border = BorderStroke(1.dp, if (selected) Accent.copy(alpha = .20f) else Line)) {
                 Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically,
@@ -345,7 +321,6 @@ internal fun AccountsScreen(state: LibraryUiState, modifier: Modifier, onSave: (
                         Text(account.label.ifBlank { "图书馆账号" }, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(account.username, color = Muted, fontSize = 12.sp)
-                        if (selected) Text("当前使用", color = Accent, fontSize = 11.sp)
                     }
                     IconButton(onClick = { editing = account; showEditor = true }, enabled = !state.busy, modifier = Modifier.size(48.dp)) {
                         Icon(Icons.Outlined.Edit, "修改 ${account.username}", tint = Muted, modifier = Modifier.size(19.dp))
@@ -421,7 +396,6 @@ private fun AccountEditor(account: AccountSummary?, busy: Boolean, onDismiss: ()
 @Composable
 internal fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLogin: (Boolean) -> Unit,
     onAutoSwitch: (Boolean) -> Unit, onThemeColor: (AppThemeColor) -> Unit, updateContent: @Composable () -> Unit) {
-    val context = LocalContext.current
     var showColors by rememberSaveable { mutableStateOf(false) }
     var showAbout by rememberSaveable { mutableStateOf(false) }
     var updatesExpanded by rememberSaveable { mutableStateOf(false) }
@@ -450,7 +424,7 @@ internal fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLog
             val uriHandler = LocalUriHandler.current
             SettingsEntry(Icons.Outlined.Edit, "问题与建议", "分享你的使用体验", onClick = { uriHandler.openUri("$ProjectUrl/issues") })
             HorizontalDivider(color = Line)
-            SettingsEntry(Icons.Outlined.ContentCopy, "QQ 交流群：$CommunityGroup", "点击复制 QQ 群号", onClick = { copyCommunity(context) })
+            CommunityGroupEntry()
         }
         Text("BUCEA LIBRARY · 非官方客户端", color = Muted, fontSize = 11.sp,
             modifier = Modifier.align(Alignment.CenterHorizontally))
@@ -495,7 +469,6 @@ private fun PreferenceRow(title: String, detail: String, checked: Boolean, onCha
 
 @Composable
 private fun AboutSheet(onDismiss: () -> Unit) {
-    val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     BusinessSelectionSheet(onDismissRequest = onDismiss, title = { Text("关于这个客户端") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -507,18 +480,31 @@ private fun AboutSheet(onDismiss: () -> Unit) {
                 TextButton(onClick = { uriHandler.openUri(ProjectUrl) }) { Text("GitHub 项目") }
                 TextButton(onClick = { uriHandler.openUri("$ProjectUrl/issues") }) { Text("提交问题") }
             }
-            HorizontalDivider(color = Line)
-            Text("QQ 交流群：$CommunityGroup", color = Ink, fontSize = 14.sp)
-            TextButton(onClick = { copyCommunity(context) }) { Icon(Icons.Outlined.ContentCopy, null, Modifier.size(17.dp)); Spacer(Modifier.width(6.dp)); Text("复制 QQ 群号") }
-            Text("验证码识别 · ddddocr / ONNX", style = MaterialTheme.typography.bodySmall, color = Muted)
         }
     }, confirmButton = { TextButton(onClick = onDismiss) { Text("完成") } })
 }
 
-private fun copyCommunity(context: Context) {
-    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    clipboard.setPrimaryClip(ClipData.newPlainText("北建大图书馆选座 QQ 交流群", CommunityGroup))
-    Toast.makeText(context, "已复制 QQ 群号：$CommunityGroup", Toast.LENGTH_SHORT).show()
+@Composable
+internal fun CommunityGroupEntry(
+    onOpen: (() -> Unit)? = null,
+    onCopy: (() -> Unit)? = null,
+) {
+    val context = LocalContext.current
+    Row(Modifier.fillMaxWidth().combinedClickable(
+        role = Role.Button,
+        onClickLabel = "打开 QQ 加群页面",
+        onLongClickLabel = "复制 QQ 群号",
+        onClick = onOpen ?: { openCommunityGroup(context) },
+        onLongClick = onCopy ?: { copyCommunityGroup(context) },
+    ).heightIn(min = 76.dp).padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Icon(Icons.Outlined.Groups, null, tint = Accent, modifier = Modifier.size(20.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Text("QQ 交流群：$CommunityGroup", color = Ink, style = MaterialTheme.typography.titleSmall)
+            Text("点击打开 QQ · 长按复制", color = Muted, style = MaterialTheme.typography.bodySmall)
+        }
+        Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Muted, modifier = Modifier.size(16.dp))
+    }
 }
 
 @Composable

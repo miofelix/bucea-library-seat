@@ -375,31 +375,28 @@ private fun SeatCard(seat: NativeSeat, enabled: Boolean, modifier: Modifier, onF
                 }
             }
             Text(seat.location, fontSize = 11.sp, lineHeight = 17.sp, color = Muted)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Surface(color = palette.background, shape = RoundedCornerShape(7.dp)) {
                     Text(status, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp), fontSize = 11.sp,
                         lineHeight = 17.sp, fontWeight = FontWeight.Medium, color = palette.foreground)
                 }
-                Text(availability, modifier = Modifier.padding(vertical = 4.dp), fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium, color = palette.foreground)
+                Surface(color = palette.background, contentColor = palette.foreground, shape = RoundedCornerShape(7.dp),
+                    modifier = Modifier.clip(RoundedCornerShape(7.dp))
+                        .clickable(enabled = enabled && seat.available, role = Role.Button, onClick = onSelect)
+                        .semantics { contentDescription = if (seat.available) "选择 ${seat.name} 的使用时间" else "不可预约 ${seat.name}" }) {
+                    Text(availability, modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp), fontSize = 12.sp,
+                        lineHeight = 17.sp, fontWeight = FontWeight.Medium)
+                }
             }
             SeatPresentationPolicy.availabilityDetail(visualState, seat.available)?.let { detail ->
                 Text(detail, fontSize = 11.sp, lineHeight = 17.sp, color = Muted)
             }
             if (seat.power == true || seat.window == true) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                     if (seat.power == true) SeatCapability(Icons.Outlined.Power, "电源", palette.foreground)
                     if (seat.window == true) SeatCapability(Icons.Outlined.Window, "靠窗", palette.foreground)
                 }
             }
-            Spacer(Modifier.weight(1f))
-            if (seat.available) {
-                Button(onClick = onSelect, enabled = enabled, shape = RoundedCornerShape(11.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = SoftAccent, contentColor = Accent),
-                    modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
-                    Text("选时间", fontSize = 12.sp)
-                }
-            } else Spacer(Modifier.height(48.dp))
         }
     }
 }

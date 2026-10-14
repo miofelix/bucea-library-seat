@@ -41,6 +41,7 @@ class DashboardUiInstrumentedTest {
             assertTrue("Fresh overview must report its sync status", hasText("最新同步"))
             assertTrue("Complete reported states may show their distribution", hasDistribution())
             assertFalse("Overview must no longer require opening a sheet", hasText("刷新图书馆数据"))
+            assertRemovedHomeActions()
 
             update(state) { it.copy(overview = LibraryOverview(available = 0, inUse = null, awaitingSignIn = 4)) }
             requireMetric("空闲座位", "0")
@@ -73,16 +74,14 @@ class DashboardUiInstrumentedTest {
                 findDescription("刷新馆内概况")
             })
             waitFor("Refresh must invoke the existing synthetic callback once") { callbacks.refresh.get() == 1 }
-            click(findWithScroll("Main CTA must reach seat search") { findText("找一个好座位") })
-            waitFor("Seat search must use its own callback") { callbacks.search.get() == 1 }
             click(findWithScroll("A real current-reservation presentation must offer details") { findText("查看我的预约") })
             waitFor("Current reservation must open the reservation section") { callbacks.reservations.get() == 1 }
-            click(findWithScroll("Map shortcut must remain available") { findText("布局选座") })
-            click(findWithScroll("Favorites shortcut must remain available") { findText("收藏座位") })
             click(findWithScroll("Reservation history shortcut must remain available") { findText("预约记录") })
-            waitFor("Each shortcut must call only its matching callback") {
-                callbacks.map.get() == 1 && callbacks.favorites.get() == 1 && callbacks.reservations.get() == 2
-            }
+            waitFor("Reservation details and history must use the matching callback") { callbacks.reservations.get() == 2 }
+            assertRemovedHomeActions()
+            assertEquals("Removed home seat actions must not call seat search", 0, callbacks.search.get())
+            assertEquals("Removed map shortcut must not call map navigation", 0, callbacks.map.get())
+            assertEquals("Removed favorites shortcut must not call favorites navigation", 0, callbacks.favorites.get())
             assertEquals("Navigation must not initiate login", 0, callbacks.login.get())
             assertEquals("Navigation must not initiate account edits", 0, callbacks.accounts.get())
         }
@@ -92,46 +91,51 @@ class DashboardUiInstrumentedTest {
         val state = mutableStateOf(fixtureState().copy(authenticated = false))
         val callbacks = Callbacks()
         withDashboard(state, callbacks) {
-            click(findWithScroll("A saved signed-out account must offer login") { findText("登录并同步") })
-            waitFor("The CTA must route to saved-account login") { callbacks.login.get() == 1 }
+            click(findWithScroll("A saved signed-out account must offer login") { findText("登录图书馆") })
+            waitFor("The existing session card must route to saved-account login") { callbacks.login.get() == 1 }
             update(state) { it.copy(campusAccess = CampusAccess.UNREACHABLE) }
             waitFor("Offline state must finish updating the login control") {
-                findText("登录并同步")?.let { !enabled(it) } == true
+                findText("登录图书馆")?.let { !enabled(it) } == true
             }
-            val offlineLogin = findWithScroll("Offline login must remain discoverable", backwards = true) { findText("登录并同步") }
+            val offlineLogin = findWithScroll("Offline login must remain discoverable", backwards = true) { findText("登录图书馆") }
             assertFalse("A saved account must not login without campus access", enabled(offlineLogin))
             assertEquals(1, callbacks.login.get())
 
             update(state) { it.copy(accounts = emptyList(), activeAccountId = null) }
-            click(findWithScroll("An empty account list must route to account setup") { findText("添加账号，开始使用") })
+            click(findWithScroll("An empty account list must route to account setup", backwards = true) { findDescription("管理账号") })
             waitFor("Account setup must use its existing callback") { callbacks.accounts.get() == 1 }
 
             update(state) { fixtureState().copy(busy = true) }
-            val busyCta = findWithScroll("A busy seat CTA must remain discoverable", backwards = true) { findText("正在连接图书馆…") }
-            assertFalse("Busy state must disable the main CTA", enabled(busyCta))
+            waitFor("The busy dashboard must finish updating its status") { hasText("正在同步") }
             val refresh = findWithScroll("A busy refresh must remain discoverable", backwards = true) { findDescription("刷新馆内概况") }
             assertFalse("Busy state must disable overview refresh", enabled(refresh))
-            listOf("布局选座", "收藏座位", "预约记录").forEach { label ->
-                assertFalse("Busy state must disable $label", enabled(findWithScroll("Busy shortcut must remain discoverable") { findText(label) }))
-            }
+            assertFalse("Busy state must disable account management", enabled(findWithScroll("Busy account action must remain discoverable", backwards = true) { findDescription("管理账号") }))
+            assertFalse("Busy state must disable reservation history", enabled(findWithScroll("Busy reservation history must remain discoverable") { findText("预约记录") }))
+            assertRemovedHomeActions()
             assertEquals("Busy and offline controls must not begin seat search", 0, callbacks.search.get())
             assertEquals("Busy controls must not refresh", 0, callbacks.refresh.get())
         }
     }
 
-    @Test fun nailongYellowSeatCtaRendersYellowWithDarkReadableContent() {
+    @Test fun nailongYellowOverviewUsesBrightStatusAccentAndReadableMetricText() {
         val state = mutableStateOf(fixtureState().copy(themeColor = AppThemeColor.NAILONG_YELLOW))
         withDashboard(state) {
-            val cta = findWithScroll("Yellow CTA must be visible") { findText("找一个好座位") }
-            val bounds = Rect().apply { requireNotNull(clickableParent(cta)).getBoundsInScreen(this) }
+            requireMetric("空闲座位", "286")
+            val value = findWithScroll("Yellow theme must retain the actual metric") { findText("286") }
+            val valueBounds = Rect().apply { value.getBoundsInScreen(this) }
+            val strip = findWithScroll("Yellow status distribution must remain visible") {
+                nodes().firstOrNull { it.contentDescription?.toString()?.startsWith("馆内状态分布：") == true }
+            }
+            val stripBounds = Rect().apply { strip.getBoundsInScreen(this) }
             val yellow = AppThemeColor.NAILONG_YELLOW.primaryArgb.toInt()
-            val dark = AppThemeColor.NAILONG_YELLOW.onPrimaryArgb.toInt()
+            val readable = AppThemeColor.NAILONG_YELLOW.readableAccentArgb.toInt()
             val screenshot = captureAfterDraw { bitmap ->
-                countColor(bitmap, bounds, yellow) > 300 && countColor(bitmap, bounds, dark) > 20
+                countColor(bitmap, stripBounds, yellow) > 100 && countColor(bitmap, valueBounds, readable) > 20
             }
             try {
-                assertTrue("The rendered button must use the bright yellow theme color", countColor(screenshot, bounds, yellow) > 300)
-                assertTrue("The rendered label and arrow must use the dark on-yellow color", countColor(screenshot, bounds, dark) > 20)
+                assertTrue("The rendered state strip must use the bright yellow accent", countColor(screenshot, stripBounds, yellow) > 100)
+                assertTrue("The actual metric must use the readable dark theme color", countColor(screenshot, valueBounds, readable) > 20)
+                assertRemovedHomeActions()
                 if (InstrumentationRegistry.getArguments().getString("captureDashboardScreenshots") == "true") {
                     File(instrumentation.targetContext.filesDir, "dashboard-a-nailong-yellow.png").outputStream().use {
                         assertTrue(screenshot.compress(Bitmap.CompressFormat.PNG, 100, it))
@@ -209,6 +213,18 @@ class DashboardUiInstrumentedTest {
     private fun findDescription(value: String) = nodes().firstOrNull { it.contentDescription?.toString() == value }
     private fun hasText(value: String) = findText(value) != null
     private fun hasDistribution() = nodes().any { it.contentDescription?.toString()?.startsWith("馆内状态分布：") == true }
+
+    private fun assertRemovedHomeActions() {
+        val removed = setOf("找一个好座位", "布局选座", "收藏座位")
+        fun inspect(node: AccessibilityNodeInfo) {
+            if (node.packageName?.toString() == appPackage) {
+                assertFalse("Deleted home actions must be absent from the complete fixture hierarchy",
+                    textLines(node).any { it in removed })
+            }
+            repeat(node.childCount) { node.getChild(it)?.let(::inspect) }
+        }
+        automation.rootInActiveWindow?.let(::inspect)
+    }
 
     private fun requireMetric(title: String, value: String) {
         findWithScroll("$title must display $value directly on the dashboard", backwards = true) {

@@ -101,6 +101,22 @@ class SeatFilterUiInstrumentedTest {
             touch(blocked)
             instrumentation.waitForIdleSync()
             assertEquals("An unavailable card body must not select a seat", 0, selected.get())
+            assertFalse("Seat cards must not retain a separate time-selection footer", hasText("选时间"))
+            val availabilityAction = findWithScroll("The available label must be visible below the large-text seat header") {
+                findDescription("选择 A101 的使用时间")
+            }
+            val availabilityBounds = Rect().apply { availabilityAction.getBoundsInScreen(this) }
+            assertTrue("The available card remains the large selection target", freeBounds.height() >= minimumTouchPixels)
+            assertTrue("The available label must stay compact beside status text", availabilityBounds.height() < favoriteBounds.height())
+            val unavailableLabel = requireNotNull(findDescription("不可预约 B202"))
+            val unavailableBounds = Rect().apply { unavailableLabel.getBoundsInScreen(this) }
+            assertEquals("Both availability labels must use the same compact height", availabilityBounds.height(), unavailableBounds.height())
+            captureSeatCardsIfRequested()
+            click(availabilityAction)
+            waitFor("The available label must choose a time through the existing callback") { selected.get() == 1 }
+            click(findWithScroll("The whole available card must remain selectable") { findDescription("座位 A101") })
+            waitFor("The available card body must choose a time through the same callback") { selected.get() == 2 }
+            assertEquals("Seat selection must not toggle a favorite", 1, favorites.get())
 
             val switch = findWithScroll("The immediate page filter must be visible", backwards = true) { filterSwitch() }
             click(switch)
@@ -135,7 +151,7 @@ class SeatFilterUiInstrumentedTest {
             waitFor("Disabling the filter must immediately restore all loaded seats") { hasText("本页显示 2 / 已加载 2 个") }
             findWithScroll("The hidden unavailable seat must return without another query") { findText("E505") }
             assertEquals("No fixture state change may require another search", 0, searches.get())
-            assertEquals("The UI test must not select or reserve any seat", 0, selected.get())
+            assertEquals("Only the explicit available-label and available-card clicks may select a time", 2, selected.get())
         } catch (failure: Throwable) {
             captureFailure(failure)
             throw failure
@@ -181,6 +197,23 @@ class SeatFilterUiInstrumentedTest {
                 } finally { screenshot.recycle() }
             }
         }.onFailure { failure.addSuppressed(it) }
+    }
+
+    private fun captureSeatCardsIfRequested() {
+        if (InstrumentationRegistry.getArguments().getString("captureSeatCards") != "true") return
+        automation.takeScreenshot()?.let { screenshot ->
+            try {
+                File(instrumentation.targetContext.filesDir, "seat-filter-two-column-cards.png").outputStream().use {
+                    assertTrue(screenshot.compress(Bitmap.CompressFormat.PNG, 100, it))
+                }
+            } finally { screenshot.recycle() }
+        }
+        val dump = nodes().joinToString("\n") { node ->
+            val bounds = Rect().apply { node.getBoundsInScreen(this) }
+            "bounds=$bounds enabled=${node.isEnabled} clickable=${node.isClickable}" +
+                " text=[${node.text}] description=[${node.contentDescription}] state=[${node.stateDescription}]"
+        }
+        File(instrumentation.targetContext.filesDir, "seat-filter-two-column-cards.txt").writeText(dump)
     }
 
     private fun findDescription(value: String) = nodes().firstOrNull { it.contentDescription?.toString() == value }

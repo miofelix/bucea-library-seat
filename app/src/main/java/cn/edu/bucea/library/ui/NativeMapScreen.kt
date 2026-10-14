@@ -99,7 +99,12 @@ fun NativeMapScreen(
         selectedLeadingIconColor = Accent)
     LazyColumn(modifier.fillMaxSize().background(Paper), contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         item {
-            LibraryPageHeader(title = "布局选座", subtitle = "沿着真实布局，找到喜欢的位置。",
+            LibraryPageHeader(title = if (state.directRegionView) roomName else "布局选座",
+                subtitle = if (state.directRegionView) listOfNotNull(
+                    state.filters["onDate"],
+                    state.options.buildings.find { it.value == state.filters["building"] }?.label,
+                    state.options.floors.find { it.value == state.filters["floor"] }?.label,
+                ).joinToString(" · ") else "沿着真实布局，找到喜欢的位置。",
                 onBack = onBack, onRefresh = onRefresh, refreshDescription = "刷新座位地图", refreshEnabled = !state.loading)
         }
         if (state.loading) item {
@@ -108,7 +113,7 @@ fun NativeMapScreen(
                 Text(if (state.layout == null) "正在加载区域与座位…" else "正在更新座位状态…", color = Muted, fontSize = 12.sp)
             }
         }
-        item {
+        if (!state.directRegionView) item {
             Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -148,7 +153,7 @@ fun NativeMapScreen(
         state.layout?.let { layout ->
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (!state.directRegionView) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         LibrarySectionTitle(roomName, Modifier.weight(1f))
                         Text("${layout.cells.count { it.seat?.available == true }} 个可选座位", color = Muted, fontSize = 12.sp)
                     }
@@ -191,6 +196,7 @@ fun NativeMapScreen(
                 }
             } else item {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (state.directRegionView) NativeRoomCanvas(layout, !state.loading, selected?.seat?.id) { selected = it }
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(13.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         (SeatVisualState.entries.map(::mapSeatStyle) + MapLocalOnly).forEach { style ->
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -201,7 +207,7 @@ fun NativeMapScreen(
                             }
                         }
                     }
-                    NativeRoomCanvas(layout, !state.loading, selected?.seat?.id) { selected = it }
+                    if (!state.directRegionView) NativeRoomCanvas(layout, !state.loading, selected?.seat?.id) { selected = it }
                     Text("拖动查看 · 双指缩放 · 点选座位\n颜色与座位内文字表示当前状态，可预约时段以点选查询为准。", color = Muted, fontSize = 11.sp, lineHeight = 18.sp)
                 }
             }

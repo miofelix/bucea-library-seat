@@ -22,10 +22,13 @@ import cn.edu.bucea.library.data.models.LibrarySeat
 import cn.edu.bucea.library.data.models.NativeMapCell
 import cn.edu.bucea.library.data.models.NativeMapCellKind
 import cn.edu.bucea.library.data.models.NativeRoomLayout
+import cn.edu.bucea.library.data.models.NativeMapState
+import cn.edu.bucea.library.ui.NativeMapScreen
 import cn.edu.bucea.library.ui.LibraryTheme
 import cn.edu.bucea.library.ui.NativeRoomCanvas
 import cn.edu.bucea.library.ui.nativeMapSeatStyle
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -39,6 +42,40 @@ class NativeMapContrastUiInstrumentedTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val automation get() = instrumentation.uiAutomation
     private val appPackage get() = instrumentation.targetContext.packageName
+
+    @Test fun homepageEntryShowsTheSelectedLayoutImmediatelyWithoutRegionSelectors() {
+        val layout = NativeRoomLayout("direct-room", "合成测试区域", 1, 1, listOf(
+            NativeMapCell(row = 0, column = 0, kind = NativeMapCellKind.SEAT,
+                seat = LibrarySeat("direct-seat", "A101", "合成测试区域", "座位空闲", true)),
+        ))
+        val activity = instrumentation.startActivitySync(
+            Intent(instrumentation.targetContext, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        ) as MainActivity
+        try {
+            instrumentation.runOnMainSync {
+                activity.setContent {
+                    LibraryTheme(AppThemeColor.BUCEA_PURPLE) {
+                        NativeMapScreen(NativeMapState(layout = layout, directRegionView = true),
+                            onFilter = { _, _ -> }, onRefresh = {}, onLoadRoom = {}, onListMode = {},
+                            onSeat = { _, _ -> }, onBack = {})
+                    }
+                }
+            }
+            waitFor("Direct entry must display the requested map in the initial viewport") { findCanvas() != null }
+            val area = Rect().apply { requireNotNull(findCanvas()).getBoundsInScreen(this) }
+            val screen = instrumentation.targetContext.resources.displayMetrics
+            assertTrue("The layout must start in the first viewport without scrolling", area.top < screen.heightPixels * .4f)
+            val root = requireNotNull(automation.rootInActiveWindow)
+            assertFalse("Direct entry must not show the area-selection form first",
+                root.findAccessibilityNodeInfosByText("场馆").any { it.isVisibleToUser && it.text?.toString() == "场馆" })
+            assertFalse("Direct entry must not show the floor-selection form first",
+                root.findAccessibilityNodeInfosByText("楼层").any { it.isVisibleToUser && it.text?.toString() == "楼层" })
+        } finally {
+            instrumentation.runOnMainSync { activity.finish() }
+            instrumentation.waitForIdleSync()
+        }
+    }
 
     @Test fun everyStatusHasOpaquePixelsAndYellowThemeSelectionRetainsADarkOutline() {
         val cases = listOf("座位空闲", "正在使用", "已预约", "暂离", "不可用", "未知", "仅限现场预约")

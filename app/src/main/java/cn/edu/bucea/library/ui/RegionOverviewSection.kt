@@ -58,7 +58,8 @@ import java.time.format.DateTimeFormatter
 /** The cards describe separately fetched room layouts for the displayed date. */
 @Composable
 internal fun RegionOverviewSection(state: RegionOverviewState, onRefresh: () -> Unit,
-    onVerify: () -> Unit, authenticated: Boolean, enabled: Boolean, modifier: Modifier = Modifier) {
+    onVerify: () -> Unit, authenticated: Boolean, enabled: Boolean, modifier: Modifier = Modifier,
+    onRegion: (RegionSeatOverview) -> Unit = {}) {
     var expanded by rememberSaveable { mutableStateOf(true) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
@@ -127,7 +128,8 @@ internal fun RegionOverviewSection(state: RegionOverviewState, onRefresh: () -> 
         val columns = if (LocalConfiguration.current.screenWidthDp >= 300) 2 else 1
         state.regions.chunked(columns).forEach { row ->
             Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
-                row.forEach { region -> RegionOverviewCard(region, Modifier.weight(1f).fillMaxHeight()) }
+                row.forEach { region -> RegionOverviewCard(region, Modifier.weight(1f).fillMaxHeight(),
+                    enabled = authenticated && enabled && !region.loading, onClick = { onRegion(region) }) }
                 if (row.size < columns) Spacer(Modifier.weight(1f))
             }
         }
@@ -145,8 +147,10 @@ internal fun RegionOverviewSection(state: RegionOverviewState, onRefresh: () -> 
 }
 
 @Composable
-private fun RegionOverviewCard(region: RegionSeatOverview, modifier: Modifier = Modifier) {
-    Surface(modifier = modifier.semantics { contentDescription = "区域卡片：${region.id}" },
+private fun RegionOverviewCard(region: RegionSeatOverview, modifier: Modifier = Modifier,
+    enabled: Boolean, onClick: () -> Unit) {
+    Surface(onClick = onClick, enabled = enabled,
+        modifier = modifier.heightIn(min = 48.dp).semantics { contentDescription = "打开${region.name}布局选座" },
         color = Color.White, border = BorderStroke(1.dp, Line), shape = RoundedCornerShape(16.dp)) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {

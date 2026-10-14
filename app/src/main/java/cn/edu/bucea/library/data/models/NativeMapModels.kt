@@ -47,4 +47,5 @@ data class NativeMapState(
     val notice: String? = null,
     val verificationRequired: Boolean = false,
     val verificationUserId: String = "",
+    val directRegionView: Boolean = false,
 )
