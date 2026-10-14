@@ -95,6 +95,9 @@ class DashboardUiInstrumentedTest {
             click(findWithScroll("A saved signed-out account must offer login") { findText("登录并同步") })
             waitFor("The CTA must route to saved-account login") { callbacks.login.get() == 1 }
             update(state) { it.copy(campusAccess = CampusAccess.UNREACHABLE) }
+            waitFor("Offline state must finish updating the login control") {
+                findText("登录并同步")?.let { !enabled(it) } == true
+            }
             val offlineLogin = findWithScroll("Offline login must remain discoverable", backwards = true) { findText("登录并同步") }
             assertFalse("A saved account must not login without campus access", enabled(offlineLogin))
             assertEquals(1, callbacks.login.get())

@@ -51,24 +51,46 @@ class RegionOverviewUiInstrumentedTest {
             completedRegions = 2, totalRegions = 2, discoveryComplete = true, updatedAt = System.currentTimeMillis()))
         val refreshes = AtomicInteger()
         withRegions(state, onRefresh = { refreshes.incrementAndGet() }) {
+            val firstCard = findWithScroll("The first compact region card must exist") { findDescription("区域卡片：one") }
+            val secondCard = findWithScroll("The second compact region card must exist") { findDescription("区域卡片：two") }
+            val firstBounds = Rect().apply { firstCard.getBoundsInScreen(this) }
+            val secondBounds = Rect().apply { secondCard.getBoundsInScreen(this) }
+            assertEquals("Two region cards must share the same row even with the device's current font size", firstBounds.top, secondBounds.top)
+            assertTrue("Two region cards must occupy separate columns without overlap", firstBounds.right < secondBounds.left)
+            assertTrue("Compact region cards must have similar column widths", kotlin.math.abs(firstBounds.width() - secondBounds.width()) <= 2)
+            assertEquals("Paired compact region cards must share the same height", firstBounds.height(), secondBounds.height())
+            if (InstrumentationRegistry.getArguments().getString("captureRegionScreenshots") == "true") {
+                captureFixture("regions-fixture-two-columns")
+            }
             findWithScroll("The first returned region must be displayed") { findText("阅览一区") }
             findWithScroll("Each room must identify its real building and floor") { findText("演示馆 A · 二层") }
-            findWithScroll("The first room must display its actual total") { findText("总席数 12") }
-            findWithScroll("Occupancy must include use, reservation and absence only") { findText("已确认占用 6") }
+            findWithScroll("The first room must display its actual free and total seats together") { findText("空闲 4 / 总 12") }
+            findWithScroll("Occupancy must include use, reservation and absence only") { findText("占用 6") }
             findWithScroll("First room states must remain individually accessible") {
                 findDescriptionPrefix("阅览一区座位状态：总席数12，空闲4，使用中3，已预约2，暂离1，不可用1，未知0，仅限现场1")
             }
             findWithScroll("Every returned region, including a full one, must be displayed") { findText("阅览二区") }
             findWithScroll("The second location must be independent of the first") { findText("演示馆 B · 三层") }
-            findWithScroll("The second room must display its own total") { findText("总席数 20") }
-            findWithScroll("A real zero must remain an explicit status count") {
-                nodes().firstOrNull { "空闲" in lines(it) && pairedValueVisible(it, "0") }
-            }
-            findWithScroll("Unknown statuses must not be silently called occupied") { findText("已确认占用 17") }
+            findWithScroll("A real zero and the second room total must remain explicit") { findText("空闲 0 / 总 20") }
+            findWithScroll("Unknown statuses must not be silently called occupied") { findText("占用 17") }
             findWithScroll("Second room must retain unknown status counts") {
                 findDescriptionPrefix("阅览二区座位状态：总席数20，空闲0，使用中11，已预约5，暂离1，不可用1，未知2，仅限现场0")
             }
             assertEquals("Displaying automatically supplied layouts must not require a refresh tap", 0, refreshes.get())
+
+            click(findWithScroll("Default expanded regions must offer manual collapse", backwards = true) { findText("收起") })
+            waitFor("Collapsing must hide the area cards") { hasText("展开") && !hasText("阅览一区") && !hasText("阅览二区") }
+            assertFalse("Collapsed region counts must disappear with the cards", hasRegionDistribution())
+            update(state) { it.copy(updatedAt = System.currentTimeMillis()) }
+            waitFor("A data update must preserve the user's collapsed preference") { hasText("展开") && !hasText("阅览一区") }
+            click(findWithScroll("Collapsed regions must offer expansion") { findText("展开") })
+            findWithScroll("Expanding must restore the same first-room counts") {
+                findDescriptionPrefix("阅览一区座位状态：总席数12，空闲4，使用中3，已预约2，暂离1，不可用1，未知0，仅限现场1")
+            }
+            findWithScroll("Expanding must restore the same second-room counts") {
+                findDescriptionPrefix("阅览二区座位状态：总席数20，空闲0，使用中11，已预约5，暂离1，不可用1，未知2，仅限现场0")
+            }
+            assertEquals("Collapse, data updates and expansion must not trigger region requests", 0, refreshes.get())
         }
     }
 
@@ -85,7 +107,7 @@ class RegionOverviewUiInstrumentedTest {
                 enabled(findWithScroll("Refresh must stay discoverable") { findDescription("刷新各区域座位") }))
             findWithScroll("An unread room must explain that its values are pending") { findText("座位状态待同步") }
             findWithScroll("A room failure must remain visible with its location") { findText("合成测试：区域读取失败") }
-            assertFalse("Unreadable rooms must not display fabricated zero capacity", hasText("总席数 0"))
+            assertFalse("Unreadable rooms must not display fabricated zero capacity", hasText("空闲 0 / 总 0"))
             assertFalse("Unreadable rooms must not display a fabricated status bar", hasRegionDistribution())
 
             val newlyRead = region("pending", "待同步区域", "演示馆", "四层",
@@ -98,7 +120,7 @@ class RegionOverviewUiInstrumentedTest {
                 RegionSeatCounts(total = 8, free = 2, inUse = 6)).copy(stale = true)
             update(state) { it.copy(regions = listOf(previous, failed), loading = false,
                 verificationRequired = true, stale = true, updatedAt = System.currentTimeMillis()) }
-            findWithScroll("A retained room must keep its previous capacity", backwards = true) { findText("总席数 8") }
+            findWithScroll("A retained room must keep its previous counts", backwards = true) { findText("空闲 2 / 总 8") }
             findWithScroll("A retained room must identify stale data") { findText("上次数据") }
             findWithScroll("A challenge must be explicitly presented", backwards = true) { findText("区域同步需要额外验证") }
             val refresh = findWithScroll("Verification must retain the refresh affordance", backwards = true) { findDescription("刷新各区域座位") }
@@ -169,17 +191,6 @@ class RegionOverviewUiInstrumentedTest {
     private fun findDescription(text: String) = nodes().firstOrNull { it.contentDescription?.toString() == text }
     private fun findDescriptionPrefix(text: String) = nodes().firstOrNull { it.contentDescription?.toString()?.startsWith(text) == true }
     private fun hasRegionDistribution() = nodes().any { it.contentDescription?.toString()?.contains("座位状态：总席数") == true }
-
-    /** Require the label and its number within the same pill, even when exposed as siblings. */
-    private fun pairedValueVisible(label: AccessibilityNodeInfo, value: String): Boolean {
-        fun containsValue(node: AccessibilityNodeInfo, depth: Int): Boolean {
-            if (node.packageName?.toString() == appPackage && node.isVisibleToUser && value in lines(node)) return true
-            if (depth == 0) return false
-            repeat(node.childCount) { node.getChild(it)?.let { child -> if (containsValue(child, depth - 1)) return true } }
-            return false
-        }
-        return containsValue(label, 1) || label.parent?.let { containsValue(it, 2) } == true
-    }
 
     private fun clickableParent(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
         var current: AccessibilityNodeInfo? = node

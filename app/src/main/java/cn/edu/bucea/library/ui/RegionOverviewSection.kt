@@ -1,11 +1,13 @@
 package cn.edu.bucea.library.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,16 +25,26 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.edu.bucea.library.data.models.RegionOverviewState
@@ -47,6 +59,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 internal fun RegionOverviewSection(state: RegionOverviewState, onRefresh: () -> Unit,
     onVerify: () -> Unit, authenticated: Boolean, enabled: Boolean, modifier: Modifier = Modifier) {
+    var expanded by rememberSaveable { mutableStateOf(true) }
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -56,6 +69,9 @@ internal fun RegionOverviewSection(state: RegionOverviewState, onRefresh: () -> 
             }
             LibraryIconButton(Icons.Outlined.Refresh, "刷新各区域座位", onRefresh,
                 enabled = authenticated && enabled && !state.loading && !state.verificationRequired)
+            TextButton(onClick = { expanded = !expanded }, modifier = Modifier.heightIn(min = 48.dp)) {
+                Text(if (expanded) "收起" else "展开", fontSize = 12.sp)
+            }
         }
         if (state.loading) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
@@ -84,6 +100,7 @@ internal fun RegionOverviewSection(state: RegionOverviewState, onRefresh: () -> 
             }.orEmpty()
             Text(label + timestamp, color = Muted, fontSize = 11.sp)
         }
+        if (!expanded) return@Column
         if (state.verificationRequired) {
             LibraryCard {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -107,7 +124,13 @@ internal fun RegionOverviewSection(state: RegionOverviewState, onRefresh: () -> 
                 errors.forEach { Text(it, color = Muted, fontSize = 11.sp, lineHeight = 18.sp) }
             }
         }
-        state.regions.forEach { region -> RegionOverviewCard(region) }
+        val columns = if (LocalConfiguration.current.screenWidthDp >= 300) 2 else 1
+        state.regions.chunked(columns).forEach { row ->
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+                row.forEach { region -> RegionOverviewCard(region, Modifier.weight(1f).fillMaxHeight()) }
+                if (row.size < columns) Spacer(Modifier.weight(1f))
+            }
+        }
         if (state.regions.isEmpty() && !state.loading && !state.verificationRequired) {
             LibraryCard {
                 Text(when {
@@ -122,71 +145,69 @@ internal fun RegionOverviewSection(state: RegionOverviewState, onRefresh: () -> 
 }
 
 @Composable
-private fun RegionOverviewCard(region: RegionSeatOverview) {
-    LibraryCard {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(region.name, color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+private fun RegionOverviewCard(region: RegionSeatOverview, modifier: Modifier = Modifier) {
+    Surface(modifier = modifier.semantics { contentDescription = "区域卡片：${region.id}" },
+        color = Color.White, border = BorderStroke(1.dp, Line), shape = RoundedCornerShape(16.dp)) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(region.name, color = Ink, fontSize = 14.sp, lineHeight = 19.sp, fontWeight = FontWeight.Medium,
+                    maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(listOf(region.buildingName, region.floorName).filter { it.isNotBlank() }.joinToString(" · "),
-                    color = Muted, fontSize = 11.sp)
+                    color = Muted, fontSize = 10.sp, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Text(when {
+            if (region.loading || region.stale || region.error != null || region.counts == null) Text(when {
                 region.loading -> "更新中"
                 region.stale -> "上次数据"
                 region.error != null -> "未同步"
                 region.counts != null -> "已同步"
                 else -> "待同步"
-            }, color = if (region.stale || region.error != null) Color(0xFF956013) else Muted, fontSize = 10.sp)
-        }
-        val counts = region.counts
-        if (counts == null) {
-            Text("座位状态待同步", color = Muted, fontSize = 12.sp)
-            if (region.loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Accent, trackColor = SoftAccent)
-        } else {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("总席数 ${counts.total}", color = Muted, fontSize = 11.sp)
-                Text("已确认占用 ${counts.occupied}", color = Muted, fontSize = 11.sp)
-            }
-            val metrics = regionMetrics(counts)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                metrics.filterIndexed { index, metric -> index < 3 || metric.count > 0 }.forEach { metric ->
-                    Surface(color = Paper, shape = RoundedCornerShape(8.dp)) {
-                        Row(Modifier.padding(horizontal = 9.dp, vertical = 7.dp).semantics(mergeDescendants = true) {},
-                            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Box(Modifier.size(5.dp).clip(CircleShape).background(metric.color))
-                            Text(metric.label, color = Muted, fontSize = 11.sp)
-                            Text(metric.count.toString(), color = metric.color, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            }, color = if (region.stale || region.error != null) Color(0xFF956013) else Muted, fontSize = 10.sp, lineHeight = 14.sp)
+            val counts = region.counts
+            if (counts == null) {
+                Text("座位状态待同步", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+                if (region.loading) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Accent, trackColor = SoftAccent)
+            } else {
+                Text(buildAnnotatedString {
+                    withStyle(SpanStyle(color = nativeMapSeatStyle("空闲", true).fill, fontWeight = FontWeight.SemiBold)) {
+                        append("空闲 ${counts.free}")
+                    }
+                    withStyle(SpanStyle(color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Normal)) {
+                        append(" / 总 ${counts.total}")
+                    }
+                }, fontSize = 14.sp, lineHeight = 19.sp)
+                Text("占用 ${counts.occupied}", color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
+                val metrics = regionMetrics(counts)
+                if (counts.total > 0) {
+                    Row(Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(4.dp)).semantics {
+                        contentDescription = "${region.name}座位状态：总席数${counts.total}，" + metrics.joinToString("，") { "${it.label}${it.count}" }
+                    }) {
+                        metrics.filter { it.count > 0 }.forEach { metric ->
+                            Box(Modifier.weight(metric.count.toFloat()).fillMaxHeight().background(metric.color))
                         }
                     }
                 }
+                Text(metrics.drop(1).filterIndexed { index, metric -> index < 2 || metric.count > 0 }
+                    .joinToString(" · ") { "${it.shortLabel}${it.count}" }, color = Muted, fontSize = 9.sp, lineHeight = 13.sp)
             }
-            if (counts.total > 0) {
-                Row(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(6.dp)).semantics {
-                    contentDescription = "${region.name}座位状态：总席数${counts.total}，" + metrics.joinToString("，") { "${it.label}${it.count}" }
-                }) {
-                    metrics.filter { it.count > 0 }.forEach { metric ->
-                        Box(Modifier.weight(metric.count.toFloat()).fillMaxHeight().background(metric.color))
-                    }
-                }
-            }
+            region.error?.takeIf { it.isNotBlank() }?.let { Text(it, color = Color(0xFF956013), fontSize = 10.sp, lineHeight = 15.sp) }
+            Spacer(Modifier.weight(1f))
             if (region.updatedAt != null) Text(
-                "${regionDateLabel(region.date)} · ${regionTimeLabel(region.updatedAt)} 更新" + if (region.stale) " · 上次数据" else "",
-                color = Muted, fontSize = 10.sp)
+                "${regionShortDateLabel(region.date)} · ${regionTimeLabel(region.updatedAt)}" + if (region.stale) " · 上次" else " 更新",
+                color = Muted, fontSize = 9.sp, lineHeight = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        region.error?.takeIf { it.isNotBlank() }?.let { Text(it, color = Color(0xFF956013), fontSize = 11.sp, lineHeight = 18.sp) }
     }
 }
 
-private data class RegionMetric(val label: String, val count: Int, val color: Color)
+private data class RegionMetric(val label: String, val count: Int, val color: Color, val shortLabel: String = label)
 
 private fun regionMetrics(counts: RegionSeatCounts) = listOf(
     RegionMetric("空闲", counts.free, nativeMapSeatStyle("空闲", true).fill),
-    RegionMetric("使用中", counts.inUse, nativeMapSeatStyle("使用中", true).fill),
-    RegionMetric("已预约", counts.reserved, nativeMapSeatStyle("已预约", true).fill),
+    RegionMetric("使用中", counts.inUse, nativeMapSeatStyle("使用中", true).fill, "使用"),
+    RegionMetric("已预约", counts.reserved, nativeMapSeatStyle("已预约", true).fill, "预约"),
     RegionMetric("暂离", counts.away, nativeMapSeatStyle("暂离", true).fill),
     RegionMetric("不可用", counts.unavailable, nativeMapSeatStyle("不可用", false).fill),
     RegionMetric("未知", counts.unknown, nativeMapSeatStyle("", false).fill),
-    RegionMetric("仅限现场", counts.localOnly, nativeMapSeatStyle("", false, true).fill),
+    RegionMetric("仅限现场", counts.localOnly, nativeMapSeatStyle("", false, true).fill, "现场"),
 )
 
 private fun regionDateLabel(date: String): String {
@@ -196,6 +217,10 @@ private fun regionDateLabel(date: String): String {
 }
 
 private val RegionTimeZone = ZoneId.of("Asia/Shanghai")
+
+private fun regionShortDateLabel(date: String): String = runCatching { LocalDate.parse(date) }.getOrNull()?.let {
+    if (it == LocalDate.now(RegionTimeZone)) "今天" else "${it.monthValue}/${it.dayOfMonth}"
+} ?: "日期待同步"
 
 private fun regionTimeLabel(timestamp: Long): String = Instant.ofEpochMilli(timestamp).atZone(RegionTimeZone)
     .format(DateTimeFormatter.ofPattern("HH:mm"))

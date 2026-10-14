@@ -1,6 +1,7 @@
 package cn.edu.bucea.library
 
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Rect
 import android.os.Build
 import android.os.SystemClock
@@ -9,7 +10,10 @@ import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import cn.edu.bucea.library.ui.NativeSeat
@@ -21,6 +25,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -37,6 +42,7 @@ class SeatFilterUiInstrumentedTest {
 
     @Test fun toggleImmediatelyFiltersTheLoadedPageAndAppliesToNewPagesWithoutAnotherQuery() {
         val selected = AtomicInteger()
+        val favorites = AtomicInteger()
         val searches = AtomicInteger()
         val nextPages = AtomicInteger()
         val mixedPage = SeatSearchState(hasSearched = true, hasNextPage = true, seats = listOf(
@@ -51,28 +57,47 @@ class SeatFilterUiInstrumentedTest {
         try {
             instrumentation.runOnMainSync {
                 activity.setContent {
-                    MaterialTheme {
-                        SeatSearchScreen(
-                            state = screen.value,
-                            onFilter = { key, value -> screen.value = screen.value.copy(filters = screen.value.filters + (key to value)) },
-                            onSearch = { searches.incrementAndGet() },
-                            onNextPage = {
-                                nextPages.incrementAndGet()
-                                screen.value = mixedPage.copy(page = 1, hasNextPage = true, seats = listOf(
-                                    NativeSeat("fixture-unavailable", "C303", "测试区域", status = "不可用", available = false),
-                                ))
-                            },
-                            onPreviousPage = { screen.value = mixedPage },
-                            onSelectSeat = { selected.incrementAndGet() },
-                            onBack = {},
-                            onOpenMap = {},
-                        )
+                    val density = LocalDensity.current.density
+                    CompositionLocalProvider(LocalDensity provides Density(density, fontScale = 1.6f)) {
+                        MaterialTheme {
+                            SeatSearchScreen(
+                                state = screen.value,
+                                onFilter = { key, value -> screen.value = screen.value.copy(filters = screen.value.filters + (key to value)) },
+                                onSearch = { searches.incrementAndGet() },
+                                onNextPage = {
+                                    nextPages.incrementAndGet()
+                                    screen.value = mixedPage.copy(page = 1, hasNextPage = true, seats = listOf(
+                                        NativeSeat("fixture-unavailable", "C303", "测试区域", status = "不可用", available = false),
+                                    ))
+                                },
+                                onPreviousPage = { screen.value = mixedPage },
+                                onSelectSeat = { selected.incrementAndGet() },
+                                onToggleFavorite = { favorites.incrementAndGet() },
+                                onBack = {},
+                                onOpenMap = {},
+                            )
+                        }
                     }
                 }
             }
             instrumentation.waitForIdleSync()
-            waitFor("Mixed fixture page must show both loaded seats") { hasText("本页显示 2 / 已加载 2 个") }
+            findWithScroll("Mixed fixture page must show both loaded seats") { findText("本页显示 2 / 已加载 2 个") }
             val blocked = findWithScroll("The unavailable fixture seat must be visible") { findText("B202") }
+            val freeBounds = Rect().apply { requireNotNull(findDescription("座位 A101")).getBoundsInScreen(this) }
+            val blockedBounds = Rect().apply { requireNotNull(findDescription("座位 B202")).getBoundsInScreen(this) }
+            val screenWidthDp = instrumentation.targetContext.resources.configuration.screenWidthDp
+            assertEquals("Large text must keep two seat cards on the same row at ${screenWidthDp}dp", freeBounds.top, blockedBounds.top)
+            assertEquals("Adjacent available and unavailable cards must have the same bottom edge", freeBounds.bottom, blockedBounds.bottom)
+            assertTrue("The second card must appear beside the first without overlap", freeBounds.right < blockedBounds.left)
+            val favorite = requireNotNull(findDescription("收藏 A101"))
+            val favoriteBounds = Rect().apply { (clickableParent(favorite) ?: favorite).getBoundsInScreen(this) }
+            val minimumTouchPixels = (48 * instrumentation.targetContext.resources.displayMetrics.density).toInt()
+            assertTrue("Favorites retain a separate 48dp touch target",
+                favoriteBounds.width() >= minimumTouchPixels && favoriteBounds.height() >= minimumTouchPixels)
+            click(favorite)
+            waitFor("The independent favorite callback must be delivered") { favorites.get() == 1 }
+            assertEquals("The favorite hit target must invoke only its own callback", 1, favorites.get())
+            assertEquals("Favoriting must not choose a reservation time", 0, selected.get())
             touch(blocked)
             instrumentation.waitForIdleSync()
             assertEquals("An unavailable card body must not select a seat", 0, selected.get())
@@ -111,6 +136,9 @@ class SeatFilterUiInstrumentedTest {
             findWithScroll("The hidden unavailable seat must return without another query") { findText("E505") }
             assertEquals("No fixture state change may require another search", 0, searches.get())
             assertEquals("The UI test must not select or reserve any seat", 0, selected.get())
+        } catch (failure: Throwable) {
+            captureFailure(failure)
+            throw failure
         } finally {
             instrumentation.runOnMainSync { activity.finish() }
             instrumentation.waitForIdleSync()
@@ -118,6 +146,7 @@ class SeatFilterUiInstrumentedTest {
     }
 
     private fun nodes(): List<AccessibilityNodeInfo> {
+        if (Build.VERSION.SDK_INT >= 33) automation.clearCache()
         val found = mutableListOf<AccessibilityNodeInfo>()
         fun visit(node: AccessibilityNodeInfo) {
             if (node.packageName?.toString() == appPackage && node.isVisibleToUser) found += node
@@ -129,11 +158,32 @@ class SeatFilterUiInstrumentedTest {
 
     private fun findText(value: String) = nodes().firstOrNull { node ->
         val text = node.text?.toString().orEmpty()
-        text == value || text.lines().any { it.trim() == value } ||
+        text.replace(Regex("\\s+"), " ").trim() == value || text.lines().any { it.trim() == value } ||
             (value.matches(Regex("[A-E][0-9]{3}")) && Regex("(?:^|\\s|,)${Regex.escape(value)}(?:$|\\s|,)").containsMatchIn(text))
     }
 
     private fun hasText(value: String) = findText(value) != null
+
+    private fun captureFailure(failure: Throwable) {
+        runCatching {
+            val fixtureNodes = nodes()
+            val dump = fixtureNodes.joinToString("\n", prefix = "Synthetic seat fixture: ${failure.message}\n") { node ->
+                val bounds = Rect().apply { node.getBoundsInScreen(this) }
+                "bounds=$bounds enabled=${node.isEnabled} clickable=${node.isClickable} scrollable=${node.isScrollable}" +
+                    " text=[${node.text}] description=[${node.contentDescription}] state=[${node.stateDescription}]"
+            }
+            File(instrumentation.targetContext.filesDir, "seat-filter-fixture-failure.txt").writeText(dump)
+            automation.takeScreenshot()?.let { screenshot ->
+                try {
+                    File(instrumentation.targetContext.filesDir, "seat-filter-fixture-failure.png").outputStream().use {
+                        screenshot.compress(Bitmap.CompressFormat.PNG, 100, it)
+                    }
+                } finally { screenshot.recycle() }
+            }
+        }.onFailure { failure.addSuppressed(it) }
+    }
+
+    private fun findDescription(value: String) = nodes().firstOrNull { it.contentDescription?.toString() == value }
 
     private fun filterSwitch(): AccessibilityNodeInfo? {
         val current = nodes()

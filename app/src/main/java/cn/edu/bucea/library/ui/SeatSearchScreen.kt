@@ -8,9 +8,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -78,7 +80,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -296,12 +297,12 @@ fun SeatSearchScreen(
             )
         }
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val columns = if (maxWidth < 300.dp || LocalDensity.current.fontScale >= 1.6f) 1 else 2
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            val columns = if (maxWidth < 260.dp) 1 else 2
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 shownSeats.chunked(columns).forEach { seats ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         seats.forEach { seat ->
-                            SeatCard(seat, !state.loading && !state.reservationBusy, Modifier.weight(1f), { onToggleFavorite(seat) }) { onSelectSeat(seat) }
+                            SeatCard(seat, !state.loading && !state.reservationBusy, Modifier.weight(1f).fillMaxHeight(), { onToggleFavorite(seat) }) { onSelectSeat(seat) }
                         }
                         repeat(columns - seats.size) { Spacer(Modifier.weight(1f)) }
                     }
@@ -356,15 +357,18 @@ private fun SeatCard(seat: NativeSeat, enabled: Boolean, modifier: Modifier, onF
     val status = seat.status.ifBlank { "状态未知" }
     val availability = SeatPresentationPolicy.availabilityLabel(seat.available)
     Card(
-        modifier.semantics { stateDescription = "$status，$availability" }
+        modifier.heightIn(min = 48.dp).semantics {
+            contentDescription = "座位 ${seat.name}"
+            stateDescription = "$status，$availability"
+        }
             .clickable(enabled = enabled && seat.available, onClick = onSelect),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         border = BorderStroke(1.dp, Line),
     ) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Column(Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(seat.name, fontSize = 24.sp, lineHeight = 30.sp, fontWeight = FontWeight.SemiBold,
+                Text(seat.name, fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.SemiBold,
                     color = Ink, modifier = Modifier.weight(1f))
                 IconButton(onClick = onFavorite, enabled = enabled, modifier = Modifier.size(48.dp)) {
                     Icon(if (seat.localFavorite) Icons.Outlined.Star else Icons.Outlined.StarBorder, if (seat.localFavorite) "取消收藏 ${seat.name}" else "收藏 ${seat.name}", tint = if (seat.localFavorite) Accent else Muted, modifier = Modifier.size(20.dp))
@@ -388,13 +392,14 @@ private fun SeatCard(seat: NativeSeat, enabled: Boolean, modifier: Modifier, onF
                     if (seat.window == true) SeatCapability(Icons.Outlined.Window, "靠窗", palette.foreground)
                 }
             }
+            Spacer(Modifier.weight(1f))
             if (seat.available) {
                 Button(onClick = onSelect, enabled = enabled, shape = RoundedCornerShape(11.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = SoftAccent, contentColor = Accent),
                     modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
                     Text("选时间", fontSize = 12.sp)
                 }
-            }
+            } else Spacer(Modifier.height(48.dp))
         }
     }
 }
