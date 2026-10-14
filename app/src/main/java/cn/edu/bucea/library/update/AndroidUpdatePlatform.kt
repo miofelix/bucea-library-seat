@@ -13,13 +13,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.net.URI
 import java.security.MessageDigest
 
 class AndroidUpdatePlatform(private val context: Context) : UpdatePlatform {
     private val manager = context.getSystemService(DownloadManager::class.java)
     private val internal = File(context.filesDir, "updates/install")
-    private val external: File get() = File(context.getExternalFilesDir(null)
-        ?: throw IllegalStateException("无法访问下载目录，请检查存储后重试"), "updates")
+    private val externalOrNull: File? get() = context.getExternalFilesDir(null)?.let { File(it, "updates") }
+    private val external: File get() = externalOrNull
+        ?: throw IllegalStateException("无法访问下载目录，请检查存储后重试")
     override val sdkInt get() = Build.VERSION.SDK_INT
     private val signingFlags get() = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else {
         @Suppress("DEPRECATION")
@@ -51,13 +53,16 @@ class AndroidUpdatePlatform(private val context: Context) : UpdatePlatform {
             .setDestinationInExternalFilesDir(context, "updates", downloadName(token)))
     }
 
-    override fun findDownload(token: String): Long? = manager.query(DownloadManager.Query())?.use { cursor ->
-        val uri = cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI)
-        val id = cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID)
-        while (cursor.moveToNext()) {
-            if (Uri.parse(cursor.getString(uri).orEmpty()).lastPathSegment == downloadName(token)) return@use cursor.getLong(id)
+    override fun findDownload(token: String): Long? {
+        val directory = externalOrNull ?: return null
+        return manager.query(DownloadManager.Query())?.use { cursor ->
+            val uri = cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI)
+            val id = cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID)
+            while (cursor.moveToNext()) {
+                if (updateDownloadToken(cursor.getString(uri), directory) == token) return@use cursor.getLong(id)
+            }
+            null
         }
-        null
     }
 
     override fun status(id: Long): DownloadSnapshot = manager.query(DownloadManager.Query().setFilterById(id))?.use { cursor ->
@@ -76,24 +81,25 @@ class AndroidUpdatePlatform(private val context: Context) : UpdatePlatform {
     fun readyFile(task: ConfirmedUpdate): File = File(internal, "${task.token}.apk")
 
     override fun cleanup(token: String) {
-        File(external, downloadName(token)).delete()
+        externalOrNull?.let { File(it, downloadName(token)).delete() }
         File(internal, "$token.apk").delete()
         File(internal, "$token.part").delete()
     }
 
     override fun cleanupOrphans(activeToken: String?) {
         val ids = mutableListOf<Long>()
-        val pattern = Regex("download-([0-9a-f-]{36})\\.apk")
-        manager.query(DownloadManager.Query())?.use { cursor ->
-            while (cursor.moveToNext()) {
-                val name = Uri.parse(cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI)).orEmpty())
-                    .lastPathSegment.orEmpty()
-                val token = pattern.matchEntire(name)?.groupValues?.get(1) ?: continue
-                if (token != activeToken) ids += cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID))
+        val directory = externalOrNull
+        if (directory != null) {
+            manager.query(DownloadManager.Query())?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val token = updateDownloadToken(cursor.getString(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_LOCAL_URI)),
+                        directory) ?: continue
+                    if (token != activeToken) ids += cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID))
+                }
             }
         }
         ids.forEach(::removeDownload)
-        external.listFiles()?.filter { it.name != activeToken?.let(::downloadName) }?.forEach { it.delete() }
+        directory?.listFiles()?.filter { it.name != activeToken?.let(::downloadName) }?.forEach { it.delete() }
         internal.listFiles()?.filter { it.name != "$activeToken.apk" && it.name != "$activeToken.part" }?.forEach { it.delete() }
     }
 
@@ -166,6 +172,15 @@ class AndroidUpdatePlatform(private val context: Context) : UpdatePlatform {
 
     private fun downloadName(token: String) = "download-$token.apk"
 }
+
+/** A matching basename elsewhere in this app's downloads does not belong to the updater. */
+internal fun updateDownloadToken(localUri: String?, directory: File): String? = runCatching {
+    if (localUri == null) return@runCatching null
+    val file = File(URI(localUri)).canonicalFile
+    if (file.parentFile != directory.canonicalFile) return@runCatching null
+    Regex("download-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\\.apk")
+        .matchEntire(file.name)?.groupValues?.get(1)
+}.getOrNull()
 
 internal fun sameSigningCertificates(installed: List<ByteArray>, candidate: List<ByteArray>): Boolean {
     if (installed.isEmpty() || candidate.isEmpty()) return false
