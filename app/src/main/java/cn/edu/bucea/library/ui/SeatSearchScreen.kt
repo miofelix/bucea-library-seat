@@ -48,6 +48,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -238,8 +239,9 @@ fun SeatSearchScreen(
                     Text(if (advanced) "收起筛选条件" else "时间、电源与靠窗", fontSize = 12.sp)
                     Icon(Icons.Outlined.ExpandMore, null, modifier = Modifier.size(18.dp))
                 }
-                Button(onClick = { focusManager.clearFocus(); onSearch() }, enabled = !state.loading && state.options.isNotEmpty() && !state.filters["onDate"].isNullOrBlank(), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().height(50.dp)) {
-                    if (state.loading) CircularProgressIndicator(Modifier.size(17.dp), color = Color.White, strokeWidth = 2.dp)
+                Button(onClick = { focusManager.clearFocus(); onSearch() }, enabled = !state.loading && state.options.isNotEmpty() && !state.filters["onDate"].isNullOrBlank(), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().height(50.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary, contentColor = MaterialTheme.colorScheme.onTertiary)) {
+                    if (state.loading) CircularProgressIndicator(Modifier.size(17.dp), color = MaterialTheme.colorScheme.onTertiary, strokeWidth = 2.dp)
                     else Icon(Icons.Outlined.Search, null, modifier = Modifier.size(19.dp))
                     Spacer(Modifier.width(9.dp))
                     Text("查找可用座位", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)

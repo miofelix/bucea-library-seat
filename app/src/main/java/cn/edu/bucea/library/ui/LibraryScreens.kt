@@ -236,7 +236,7 @@ private fun SessionCard(state: LibraryUiState, account: AccountSummary, onLogin:
         Text(state.status, style = MaterialTheme.typography.bodySmall, color = Muted)
         Button(onClick = onLogin, enabled = !state.busy && state.campusAccess == CampusAccess.REACHABLE,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp)) {
-            if (state.busy) { CircularProgressIndicator(Modifier.size(16.dp), color = Color.White, strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)) }
+            if (state.busy) { CircularProgressIndicator(Modifier.size(16.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp); Spacer(Modifier.width(8.dp)) }
             Text(if (state.busy) "正在登录…" else "登录图书馆")
         }
     }
@@ -364,7 +364,7 @@ internal fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLog
             if (updatesExpanded) Box(Modifier.padding(vertical = 8.dp)) { updateContent() }
             HorizontalDivider(color = Line)
             SettingsEntry(Icons.Outlined.Palette, "主题颜色", state.themeColor.label, onClick = { showColors = true }, trailing = {
-                Box(Modifier.size(16.dp).clip(CircleShape).background(Accent))
+                Box(Modifier.size(16.dp).clip(CircleShape).background(MaterialTheme.colorScheme.tertiary))
             })
         }
         Column {

@@ -57,13 +57,13 @@ internal fun ThemeColorPicker(selectedColor: AppThemeColor, onSelect: (AppThemeC
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
                         Box(Modifier.size(28.dp).clip(CircleShape).background(swatch), contentAlignment = Alignment.Center) {
-                            if (isSelected) Icon(Icons.Outlined.Check, null, Modifier.size(17.dp), tint = Color.White)
+                            if (isSelected) Icon(Icons.Outlined.Check, null, Modifier.size(17.dp), tint = Color(themeColor.onPrimaryArgb))
                         }
                         Text(themeColor.label, color = if (isSelected) Accent else Ink, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium)
                     }
                 }
             }
         }
-        Text("点击即可切换，选择会自动保存。", color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
+        Text("点击即可切换，选择会自动保存，桌面图标同步变色。", color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
     }
 }

@@ -18,32 +18,7 @@ import cn.edu.bucea.library.AppThemeColor
 
 @Composable
 internal fun LibraryTheme(themeColor: AppThemeColor, content: @Composable () -> Unit) {
-    val colorScheme = remember(themeColor) {
-        val accent = Color(themeColor.primaryArgb)
-        val ink = Color(0xFF272729)
-        val muted = Color(0xFF707075)
-        val soft = lerp(accent, Color.White, 0.90f)
-        val paper = Color(0xFFFAFAFA)
-        val line = Color(0xFFE7E7E9)
-        val accentDeep = lerp(accent, Color.Black, 0.15f)
-        lightColorScheme(
-            primary = accent, onPrimary = Color.White,
-            primaryContainer = soft, onPrimaryContainer = accentDeep, inversePrimary = soft,
-            secondary = accentDeep, onSecondary = Color.White,
-            secondaryContainer = soft, onSecondaryContainer = ink,
-            tertiary = accent, onTertiary = Color.White,
-            tertiaryContainer = soft, onTertiaryContainer = ink,
-            background = paper, onBackground = ink,
-            surface = Color.White, onSurface = ink, surfaceTint = accent,
-            surfaceVariant = soft, onSurfaceVariant = muted,
-            outline = Color(0xFF96969C), outlineVariant = line,
-            inverseSurface = ink, inverseOnSurface = paper,
-            surfaceBright = Color.White, surfaceDim = line,
-            surfaceContainerHigh = Color.White, surfaceContainerHighest = soft,
-            surfaceContainer = Color.White, surfaceContainerLow = paper,
-            surfaceContainerLowest = Color.White,
-        )
-    }
+    val colorScheme = remember(themeColor) { libraryColorScheme(themeColor) }
     MaterialTheme(
         colorScheme = colorScheme,
         typography = LibraryTypography,
@@ -53,6 +28,36 @@ internal fun LibraryTheme(themeColor: AppThemeColor, content: @Composable () -> 
             extraLarge = RoundedCornerShape(28.dp),
         ),
         content = content,
+    )
+}
+
+internal fun libraryColorScheme(themeColor: AppThemeColor): androidx.compose.material3.ColorScheme {
+    val accent = Color(themeColor.primaryArgb)
+    val onAccent = Color(themeColor.onPrimaryArgb)
+    val readableAccent = Color(themeColor.readableAccentArgb)
+    val ink = Color(0xFF272729)
+    val muted = Color(0xFF707075)
+    val soft = lerp(accent, Color.White, 0.90f)
+    val paper = Color(0xFFFAFAFA)
+    val line = Color(0xFFE7E7E9)
+    val accentDeep = lerp(readableAccent, Color.Black, 0.15f)
+    return lightColorScheme(
+        // Default text buttons, outlined buttons and radio controls also use primary.
+        primary = readableAccent, onPrimary = Color.White,
+        primaryContainer = soft, onPrimaryContainer = readableAccent, inversePrimary = soft,
+        secondary = accentDeep, onSecondary = Color.White,
+        secondaryContainer = soft, onSecondaryContainer = ink,
+        tertiary = accent, onTertiary = onAccent,
+        tertiaryContainer = soft, onTertiaryContainer = ink,
+        background = paper, onBackground = ink,
+        surface = Color.White, onSurface = ink, surfaceTint = accent,
+        surfaceVariant = soft, onSurfaceVariant = muted,
+        outline = Color(0xFF96969C), outlineVariant = line,
+        inverseSurface = ink, inverseOnSurface = paper,
+        surfaceBright = Color.White, surfaceDim = line,
+        surfaceContainerHigh = Color.White, surfaceContainerHighest = soft,
+        surfaceContainer = Color.White, surfaceContainerLow = paper,
+        surfaceContainerLowest = Color.White,
     )
 }
 
@@ -76,7 +81,8 @@ private val LibraryTypography = Typography(
 
 internal val Ink: Color @Composable get() = MaterialTheme.colorScheme.onSurface
 internal val Muted: Color @Composable get() = MaterialTheme.colorScheme.onSurfaceVariant
-internal val Accent: Color @Composable get() = MaterialTheme.colorScheme.primary
+// Accent is also used for small text and outlined controls on white/soft surfaces.
+internal val Accent: Color @Composable get() = MaterialTheme.colorScheme.onPrimaryContainer
 internal val Paper: Color @Composable get() = MaterialTheme.colorScheme.background
 internal val SoftAccent: Color @Composable get() = MaterialTheme.colorScheme.primaryContainer
 internal val Line: Color @Composable get() = MaterialTheme.colorScheme.outlineVariant

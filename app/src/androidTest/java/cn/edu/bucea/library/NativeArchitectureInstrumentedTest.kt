@@ -13,11 +13,16 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class NativeArchitectureInstrumentedTest {
     @Suppress("DEPRECATION")
-    @Test fun applicationHasOnlyTheNativeMainActivity() {
+    @Test fun applicationHasOnlyTheNativeMainActivityAndItsLauncherAliases() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
-        val packageInfo = context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_ACTIVITIES)
-        assertEquals(listOf(MainActivity::class.java.name), packageInfo.activities.orEmpty().map { it.name }.sorted())
-        assertTrue(packageInfo.activities.orEmpty().single().exported)
+        val packageInfo = context.packageManager.getPackageInfo(context.packageName,
+            PackageManager.GET_ACTIVITIES or PackageManager.MATCH_DISABLED_COMPONENTS)
+        val activities = packageInfo.activities.orEmpty().filter { it.targetActivity == null }
+        assertEquals(listOf(MainActivity::class.java.name), activities.map { it.name }.sorted())
+        assertTrue(activities.single().exported)
+        val aliases = packageInfo.activities.orEmpty().filter { it.targetActivity != null }
+        assertEquals(AppThemeColor.entries.size, aliases.size)
+        assertTrue(aliases.all { it.targetActivity == MainActivity::class.java.name && it.exported })
     }
 
     @Test fun applicationAssetsContainModelsWithoutEmbeddedWebPagesOrScripts() {

@@ -4,4 +4,20 @@
     <color name="launcher_icon_background">#6C397F</color>
     <color name="launcher_icon_foreground">#FFFFFF</color>
     <color name="launcher_icon_accent">#EADDF2</color>
+
+    <color name="launcher_icon_blue_background">#315DA8</color>
+    <color name="launcher_icon_blue_foreground">#FFFFFF</color>
+    <color name="launcher_icon_blue_accent">#E0E7F2</color>
+    <color name="launcher_icon_teal_background">#28766C</color>
+    <color name="launcher_icon_teal_foreground">#FFFFFF</color>
+    <color name="launcher_icon_teal_accent">#DFF0EB</color>
+    <color name="launcher_icon_orange_background">#A85A20</color>
+    <color name="launcher_icon_orange_foreground">#FFFFFF</color>
+    <color name="launcher_icon_orange_accent">#F7E8DA</color>
+    <color name="launcher_icon_rose_background">#AC4567</color>
+    <color name="launcher_icon_rose_foreground">#FFFFFF</color>
+    <color name="launcher_icon_rose_accent">#F6DEE7</color>
+    <color name="launcher_icon_nailong_yellow_background">#FFCE32</color>
+    <color name="launcher_icon_nailong_yellow_foreground">#3C2B06</color>
+    <color name="launcher_icon_nailong_yellow_accent">#735300</color>
 </resources>
