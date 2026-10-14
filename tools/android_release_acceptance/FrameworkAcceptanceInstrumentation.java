@@ -15,6 +15,7 @@ import android.net.Uri;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
+import android.security.NetworkSecurityPolicy;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
@@ -30,6 +31,7 @@ import java.nio.file.Files;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -57,14 +59,17 @@ public final class FrameworkAcceptanceInstrumentation extends Instrumentation {
         try {
             require("true".equals(arguments.getString("live_update_acceptance")), "Explicit release acceptance opt-in is required");
             if ("final".equals(step)) checkFinalRelease();
+            else if ("snapshot-state".equals(step)) snapshotRawState();
+            else if ("check-state".equals(step)) assertRawState();
             else if ("no-task".equals(step)) checkNoTask();
             else if ("download-state".equals(step)) snapshotDownloadState();
             else if ("endpoint".equals(step)) inspectEndpoint();
+            else if ("campus-endpoint".equals(step)) inspectCampusEndpoint();
             else if ("record-task".equals(step)) recordReadyTask();
             else if ("transport".equals(step)) checkTransport();
             else if ("cancel-transport".equals(step)) cancelTrackedTransport();
             else if ("cleanup".equals(step)) cleanupAcceptance();
-            else throw new AssertionError("Choose final, no-task, download-state, endpoint, record-task, transport, cancel-transport or cleanup acceptance step");
+            else throw new AssertionError("Choose final, snapshot-state, check-state, no-task, download-state, endpoint, campus-endpoint, record-task, transport, cancel-transport or cleanup acceptance step");
             result.putAll(transportTelemetry);
             result.putString("result", "PASS");
             result.putString("step", step);
@@ -180,6 +185,68 @@ public final class FrameworkAcceptanceInstrumentation extends Instrumentation {
             transportTelemetry.putString("exception_class", failure.getClass().getName());
             throw new AssertionError("The SDK-only fixed update endpoint diagnostic request failed");
         } finally {
+            if (connection != null) connection.disconnect();
+        }
+    }
+
+    /** Read-only, application-UID HTTP reachability; never a credential/login submission. */
+    private void inspectCampusEndpoint() {
+        long began = SystemClock.elapsedRealtime();
+        transportTelemetry.putInt("http_status", -1);
+        transportTelemetry.putBoolean("http_reachable", false);
+        transportTelemetry.putBoolean("login_form_marker", false);
+        transportTelemetry.putBoolean("cleartext_permitted", NetworkSecurityPolicy.getInstance().isCleartextTrafficPermitted("10.1.20.7"));
+        HttpURLConnection connection = null;
+        try {
+            connection = (HttpURLConnection) new URL("http://10.1.20.7/login?targetUri=%2F").openConnection();
+            connection.setRequestMethod("GET");
+            connection.setConnectTimeout(8000);
+            connection.setReadTimeout(12000);
+            connection.setInstanceFollowRedirects(false);
+            connection.setAllowUserInteraction(false);
+            connection.setUseCaches(false);
+            connection.setRequestProperty("User-Agent", "BUCEA-Library-Android/0.1");
+            connection.setRequestProperty("Cookie", "");
+            connection.setRequestProperty("Authorization", "");
+            int status = connection.getResponseCode();
+            transportTelemetry.putInt("http_status", status);
+            require(status >= 100 && status <= 599, "Campus probe must receive a valid HTTP response status");
+            transportTelemetry.putBoolean("http_reachable", true);
+            transportTelemetry.putBoolean("same_campus_redirect", false);
+            if (status >= 300 && status <= 399) {
+                String location = connection.getHeaderField("Location");
+                if (location != null) {
+                    URL destination = new URL(connection.getURL(), location);
+                    transportTelemetry.putBoolean("same_campus_redirect", "10.1.20.7".equals(destination.getHost()));
+                }
+            }
+            InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+            if (stream != null) {
+                java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+                try (InputStream input = stream) {
+                    byte[] buffer = new byte[8192];
+                    int count;
+                    while (output.size() < 131072 && (count = input.read(buffer, 0, Math.min(buffer.length, 131072 - output.size()))) >= 0) {
+                        output.write(buffer, 0, count);
+                    }
+                }
+                String body = new String(output.toByteArray(), StandardCharsets.UTF_8);
+                boolean loginMarker = body.contains("/auth/signIn") ||
+                    (body.contains("name=\"username\"") && body.contains("name=\"password\"")) ||
+                    (body.contains("name='username'") && body.contains("name='password'"));
+                transportTelemetry.putBoolean("login_form_marker", loginMarker);
+            }
+        } catch (Exception failure) {
+            transportTelemetry.putString("exception_class", failure.getClass().getName());
+            Throwable root = failure;
+            for (int depth = 0; depth < 16 && root.getCause() != null && root.getCause() != root; depth++) root = root.getCause();
+            transportTelemetry.putString("root_cause_class", root.getClass().getName());
+            // Receiving any HTTP status proves reachability even if reading its body fails.
+            if (!transportTelemetry.getBoolean("http_reachable")) {
+                throw new AssertionError("The application-UID campus HTTP probe did not receive a response");
+            }
+        } finally {
+            transportTelemetry.putLong("elapsed_ms", SystemClock.elapsedRealtime() - began);
             if (connection != null) connection.disconnect();
         }
     }
@@ -352,6 +419,16 @@ public final class FrameworkAcceptanceInstrumentation extends Instrumentation {
         return name;
     }
 
+    private void snapshotRawState() throws Exception {
+        byte[] salt = new byte[32];
+        new SecureRandom().nextBytes(salt);
+        String[] digests = rawStateDigests(salt);
+        SharedPreferences acceptance = getTargetContext().getSharedPreferences(RELEASE_PREFS, Context.MODE_PRIVATE);
+        require(acceptance.edit().putString("salt", Base64.encodeToString(salt, Base64.NO_WRAP))
+            .putString("data_digest", digests[0]).putString("cookies_digest", digests[1]).commit(),
+            "Only salted private state digests must persist for overwrite acceptance");
+    }
+
     private void assertRawState() throws Exception {
         Context context = getTargetContext();
         SharedPreferences acceptance = context.getSharedPreferences(RELEASE_PREFS, Context.MODE_PRIVATE);
@@ -359,6 +436,15 @@ public final class FrameworkAcceptanceInstrumentation extends Instrumentation {
         require(encoded != null, "A private upgrade snapshot must have been recorded");
         byte[] salt = Base64.decode(encoded, Base64.NO_WRAP);
         require(salt.length == 32, "The private upgrade snapshot must have a full random salt");
+        String[] digests = rawStateDigests(salt);
+        require(digests[0].equals(acceptance.getString("data_digest", null)), "Encrypted accounts, choices, preferences, sign-out, manual favorites and appearance must be preserved");
+        if ("true".equals(arguments.getString("compare_upgrade_cookies"))) {
+            require(digests[1].equals(acceptance.getString("cookies_digest", null)), "Saved encrypted session cookies must be preserved");
+        }
+    }
+
+    private String[] rawStateDigests(byte[] salt) throws Exception {
+        Context context = getTargetContext();
         SaltedDigest data = new SaltedDigest(salt, "release-data-v1");
         SaltedDigest cookies = new SaltedDigest(salt, "release-cookies-v1");
         SharedPreferences vault = context.getSharedPreferences("library_vault", Context.MODE_PRIVATE);
@@ -366,10 +452,7 @@ public final class FrameworkAcceptanceInstrumentation extends Instrumentation {
         cookies.addPreferences("library_vault", vault, 2);
         data.addPreferences("seat_favorites", context.getSharedPreferences("seat_favorites", Context.MODE_PRIVATE), 0);
         data.addPreferences("library_appearance", context.getSharedPreferences("library_appearance", Context.MODE_PRIVATE), 0);
-        require(data.finish().equals(acceptance.getString("data_digest", null)), "Encrypted accounts, choices, preferences, sign-out, manual favorites and appearance must be preserved");
-        if ("true".equals(arguments.getString("compare_upgrade_cookies"))) {
-            require(cookies.finish().equals(acceptance.getString("cookies_digest", null)), "Saved encrypted session cookies must be preserved");
-        }
+        return new String[] { data.finish(), cookies.finish() };
     }
 
     private void checkTransport() throws Exception {
