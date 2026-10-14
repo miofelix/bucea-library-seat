@@ -1,6 +1,6 @@
 # GitHub Release 更新服务
 
-开发机负责构建、签名与发布；树莓派只运行 Python 同步器和 Caddy，缓存 GitHub Release 的成品。使用用户维护的 Cloudflare Tunnel。
+开发机负责构建、签名与发布；树莓派运行独立 Python HTTP 服务和同步器，缓存 GitHub Release 成品。服务直接提供 HTTP 端口，域名和 Cloudflare Tunnel 由用户配置。
 
 - 清单：`https://bucea-library-seat.miofelix.com/updates/latest.json`
 - APK：`https://bucea-library-seat.miofelix.com/updates/apks/<GitHub资产ID>.apk`
@@ -35,15 +35,21 @@
 
 `tools/update_mirror.py` 使用 Python 3.9+ 标准库，每次运行完成一次同步。systemd timer 每 10 分钟启动；文件锁防止并发同步。Release 和附件列表都完整分页，使用 ETag / Last-Modified 条件请求；遇到限流记录持久退避时间，下一次定时运行继续，不在进程里长时间等待。
 
-`/var/lib/bucea-updates/` 包含 `state/`、`scratch/` 和 `public/updates/`。Caddy 的根目录必须限制为 `public/`。GitHub token 可放在 root 所有、权限 0600 的 `/etc/bucea-updates.env`，只需读取该公开仓库的权限。
+`/var/lib/bucea-updates/` 包含 `state/`、`scratch/` 和 `public/updates/`。HTTP 服务只允许访问公开清单与 APK，不暴露状态目录。GitHub token 可放在 root 所有、权限 0600 的 `/etc/bucea-updates.env`，只需读取该公开仓库的权限。
 
 只有非草稿、附件完整、清单字段和校验文件一致的 Release 才进入候选。APK 先下载到私有临时目录，验证大小和 SHA-256、fsync 后原子移动到资产 ID 路径，最后原子替换 `latest.json`。资产 ID 文件已有内容时必须一致，不能覆盖为不同内容。
 
-网络、GitHub、分页或磁盘故障保留最后成功清单。完整扫描后，如果当前发布消失，再用单独的 release ID 请求确认撤回，避免移动分页误撤回。确认撤回或附件不再有效后重新选择；没有候选时删除公开清单，由 Caddy 返回 503。缓存 APK 继续可下载。
+网络、GitHub、分页或磁盘故障保留最后成功清单。完整扫描后，如果当前发布消失，再用单独的 release ID 请求确认撤回，避免移动分页误撤回。确认撤回或附件不再有效后重新选择；没有候选时删除公开清单，由 HTTP 服务返回 503。缓存 APK 继续可下载。
 
 清理保留当前和前两个成功选中的资产；其他资产自最后选中或首次缓存起至少保留 7 天。整个同步和清理使用同一把锁，当前清单引用的文件永远受到保护。磁盘不足时保留现状，需运维清理或扩容。
 
-Caddy 原生提供 Range、ETag 和条件请求。清单响应为 `no-cache, max-age=0, must-revalidate`，APK 为 `public, max-age=604800, immutable`。Cloudflare 中不要给 `/updates/latest.json` 配置覆盖这些头的“缓存一切”规则，也不要缓存 503。
+## HTTP 服务
+
+`tools/update_server.py` 仅使用 Python 3.9+ 标准库，默认监听 `0.0.0.0:9080`，可通过 `--listen` / `--port` 调整。systemd 服务为 `bucea-updates-http.service`。服务接受公网 Host 头，域名由用户转发到这个 HTTP 端口；部署不涉及修改 Tunnel 或安装其他 Web 服务器。
+
+服务只提供清单和资产 ID APK 两种路径，支持 GET / HEAD、单段 Range、ETag、Last-Modified 和条件请求。Range 支持指定起止、从某字节继续和末尾片段；无效范围返回 416，If-Range 不匹配时返回完整文件。每次响应持有独立文件描述符，原子切换或清理不改变正在传输的内容。并发连接上限为 32，空闲读取超时 30 秒。
+
+清单成功响应为 `no-cache, max-age=0, must-revalidate`，APK 成功响应为 `public, max-age=604800, immutable`，错误响应为 `no-store`。HTTP 服务以独立的 systemd 动态账号运行，只有读取权限，不需要 GitHub token。由用户维护的转发应保留这些缓存语义。
 
 ## Android 行为
 

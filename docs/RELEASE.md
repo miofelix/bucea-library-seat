@@ -37,6 +37,6 @@ Release 标题使用 `北建大图书馆选座 v0.3.4 测试版`，下载文件�
 
 ## 启用
 
-先在树莓派部署镜像与 Caddy，确认空源时返回 503；发布第一个完整 Release 后等待定时同步或手动启动服务，验证公开清单与 APK。已有 0.3.3 用户需手动安装 0.3.4 以获得更新模块，后续版本才可在应用内更新。
+先在树莓派部署镜像同步器和独立 HTTP 服务，确认端口可用、空源时返回 503，再由用户将域名转发到该端口。发布第一个完整 Release 后等待定时同步或手动启动服务，验证公开清单与 APK。已有 0.3.3 用户需手动安装 0.3.4 以获得更新模块，后续版本才可在应用内更新。
 
 详细协议见 [UPDATES.md](UPDATES.md)，交接见 [RASPBERRY_PI_HANDOFF.md](RASPBERRY_PI_HANDOFF.md)，测试与待验项目见 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md)。

@@ -1,74 +1,73 @@
 # 从 MacBook 接续到树莓派
 
-## 合适的接续时机
+## 接续范围
 
-MacBook 上代码、离线测试、release 构建和 Lint 完成后，就可以转到树莓派部署缓存服务。**现在已达到这个时机。** 不需要在树莓派安装 JDK、Gradle、Android SDK 或签名密钥。
+MacBook 已完成代码、离线测试和 Android 构建，现在可以转到树莓派。树莓派只部署独立 Python HTTP 服务和 GitHub Release 同步定时器，不需要 JDK、Gradle、Android SDK、签名密钥或额外 Web 服务器。
 
-当前没有执行 Git push、GitHub Release 发布或树莓派部署。旧 Release 没有 `update.json` 时会全部跳过，因此第一次部署返回 503 是预期状态。服务准备好后回 MacBook 发布包含三个附件的版本；没有 ADB 的设备验收仍单独待办。
+**域名和 CF Tunnel 由用户配置。** 部署任务只负责把服务运行在树莓派端口上，并报告实际监听地址、端口和验证结果。Android 和公开清单使用固定域名 `https://bucea-library-seat.miofelix.com`。
 
-## 把当前代码带过去
+当前没有执行 Git push、GitHub Release 发布或树莓派部署。旧 Release 没有 `update.json` 时会全部跳过，因此首次部署返回 503 是预期状态。服务准备好后回 MacBook 发布包含三个附件的版本；Android 设备验收仍单独待办。
 
-优先把审查后的代码提交并推送到你自己的分支，再在树莓派获取该分支。如果还没有推送，可将 MacBook 生成的 `build/updates-handoff.tar.gz` 拷贝过去，解压到单独目录。交接包包含运行服务所需的脚本、配置、Python 测试和这些文档，以及整个实现的源码补丁和基础提交 SHA；没有 APK、账号、Token 或签名密钥。
+## 把代码带过去
 
-只部署服务器时可以直接从交接目录安装 `tools/update_mirror.py`。若需要在树莓派仓库审查完整实现，切到 `BASE_COMMIT.txt` 中的基础提交，然后先 `git apply --check updates-source.patch`，再应用补丁；补丁包含新增文件。
+可将已提交的代码推送后在树莓派获取，或直接复制 MacBook 上的 `build/updates-handoff.tar.gz`，解压到单独目录。交接包包含 HTTP 服务、同步器、systemd 配置、Python 测试、文档，以及相对上游基础提交的完整源码补丁；不含 APK、Token 或签名密钥。本地已提交但尚未推送的实现也包含在补丁中。
 
-重新生成交接包：
+只部署服务器时直接使用包中的脚本。需要审查完整源码时，在干净的仓库中切到 `BASE_COMMIT.txt` 指定的基础提交；补丁非空时先 `git apply --check updates-source.patch`，再应用补丁。重新生成交接包是在 MacBook 上运行 `python3 tools/make_update_handoff.py`。
+
+## 本地运行
+
+要求 Python 3.9+，无需安装 Python 依赖。默认监听 `0.0.0.0:9080`：
 
 ```sh
-python3 tools/make_update_handoff.py
+python3 tools/update_server.py --root /var/lib/bucea-updates/public --listen 0.0.0.0 --port 9080
 ```
 
-## 部署顺序
+如果 9080 已被占用，选择其他可用端口并将最终端口告诉用户。服务接受 Tunnel 保留的公网 Host 头，提供 `/updates/latest.json` 和 `/updates/apks/<资产ID>.apk`，其余路径返回 404。只有 GET / HEAD 可读取文件。
 
-先检查树莓派的发行版、磁盘空间、Python 版本、已有 Caddy 和 cloudflared 的运行方式，以及该域名当前 Tunnel ingress。备份现有配置，保留现有站点和服务。GitHub token 可选，用于避免公开 API 的每小时限额；不要在日志或回复中打印 token。
+## 部署 systemd 服务
 
-下面是使用系统 Caddy、`/opt/bucea-library` 和服务账号的示例，在代码所在目录执行。已有同名目录/服务时先比较再更新：
+先检查树莓派的 Python 版本、磁盘、端口占用及同名应用服务。只更新本应用的服务文件，保留现有站点和其他服务。在代码所在目录执行以下示例，账号已存在时跳过创建：
 
 ```sh
 sudo useradd --system --home-dir /var/lib/bucea-updates --shell /usr/sbin/nologin bucea-updates
 sudo install -d -m 0755 /opt/bucea-library/tools
-sudo install -m 0644 tools/update_mirror.py /opt/bucea-library/tools/update_mirror.py
-sudo install -d -o bucea-updates -g bucea-updates -m 0755 /var/lib/bucea-updates
+sudo install -m 0644 tools/update_mirror.py tools/update_server.py /opt/bucea-library/tools/
+sudo install -d -o bucea-updates -g bucea-updates -m 0755 /var/lib/bucea-updates/public/updates/apks
 sudo install -m 0644 deploy/updates/bucea-update-mirror.service /etc/systemd/system/
 sudo install -m 0644 deploy/updates/bucea-update-mirror.timer /etc/systemd/system/
+sudo install -m 0644 deploy/updates/bucea-updates-http.service /etc/systemd/system/
 sudo systemctl daemon-reload
+sudo systemctl enable --now bucea-updates-http.service
 sudo systemctl start bucea-update-mirror.service
 sudo systemctl enable --now bucea-update-mirror.timer
 ```
 
-账号已存在时跳过创建。若配置 token，复制 `.env.example` 到 `/etc/bucea-updates.env`，编辑值并设 root 所有、0600 权限。同步器读取该环境文件，Caddy 不需要 token。
+同步器以 `bucea-updates` 账号运行；HTTP 服务通过 systemd 的 `DynamicUser` 使用独立账号，仅读取公开文件。HTTP 服务不依赖首次同步成功，即使缓存目录为空也能启动并对清单返回 503。
 
-安装或沿用 Caddy，配置见 `deploy/updates/Caddyfile`。默认只监听 `http://127.0.0.1:9080`，静态根目录是 `/var/lib/bucea-updates/public`。可以把这个 site 加入已有 Caddy 配置，或将同样的三个 handle 合并到现有 site。先 `caddy validate`，成功后再 reload；不要直接覆盖已有 Caddyfile。
+GitHub token 可选，用于避免公开 API 的每小时限额。需要时将 `deploy/updates/bucea-updates.env.example` 复制为 `/etc/bucea-updates.env`，编辑值并设 root 所有、0600 权限，不要输出 token。HTTP 服务不读取这个文件。
 
-现有 CF Tunnel 的 ingress 中，将该域名 `/updates/*` 路径映射到这个 HTTP origin，并将这条规则放在该域名的通配路径前。例如：
+修改监听地址或端口时，将 `deploy/updates/bucea-updates-http.env.example` 复制为 `/etc/bucea-updates-http.env`，修改 `UPDATE_LISTEN` / `UPDATE_PORT` 并重启 `bucea-updates-http.service`。
 
-```yaml
-ingress:
-  - hostname: bucea-library-seat.miofelix.com
-    path: ^/updates/.*$
-    service: http://127.0.0.1:9080
-  # 后续沿用已有站点规则和最终兜底规则
-```
+## 验证与回报
 
-如果 cloudflared 在容器中，`127.0.0.1` 指容器自身，需要按现有容器网络让它能够访问 Caddy，例如沿用已有代理或共享宿主机网络；使用宿主机其他接口地址时也要相应调整 Caddy 的 `bind`。不要只修改 Tunnel 地址。由 Cloudflare 托管的 Tunnel 在现有管理界面配置等效路径路由。清单必须绕过覆盖源站头的 CDN 强制缓存规则。
-
-## 验证
-
-在树莓派代码目录执行 `python3 -m unittest discover -s tools/tests -v`；安装了 Caddy 后，三个真实 HTTP 测试会自动运行。交接包只包含镜像及 HTTP 测试，完整源码仓库还包含打包和发布测试。检查：
+执行 `python3 -m unittest discover -s tools/tests -v`，所有 HTTP 测试直接启动 Python 服务，无额外依赖或跳过。交接包包含镜像和 HTTP 测试，完整源码仓库还包含打包及发布测试。
 
 ```sh
-systemctl status bucea-update-mirror.timer bucea-update-mirror.service
-journalctl -u bucea-update-mirror.service -n 50 --no-pager
+systemctl status bucea-updates-http.service bucea-update-mirror.timer bucea-update-mirror.service
+journalctl -u bucea-updates-http.service -u bucea-update-mirror.service -n 50 --no-pager
 curl -i http://127.0.0.1:9080/updates/latest.json
+```
+
+上游全是旧版时清单应返回 503；HTTP 服务和 timer 必须 active，oneshot 同步服务执行后 inactive 是正常现象。GitHub 限流/网络故障应保留已有公开文件。
+
+首个完整 Release 发布后，手动启动同步服务，验证清单版本、预发布标识、下载文件的大小和摘要。APK 支持 `Range: bytes=0-1023`，要求 206 和正确 `Content-Range`；使用 ETag 重新验证要求 304。重启本应用 HTTP 服务和同步器后，旧资产仍可下载和续传。用隔离测试检查撤回、故障和清理，不修改真实 GitHub Release。
+
+部署完成后把树莓派可访问的 HTTP 地址和端口告诉用户，由用户将域名转发到该端口。用户配置完成后，只请求公开 URL 验证：
+
+```sh
 curl -i https://bucea-library-seat.miofelix.com/updates/latest.json
 ```
 
-上游全是旧版时两个入口应返回 503，含重新验证缓存头，且 APK 目录为空。GitHub 限流/网络故障应记录错误并保留已有公开文件；oneshot 服务执行后显示 inactive 是正常现象，timer 必须 active。
-
-首次完整 Release 发布后，手动启动同步服务，确认清单为 200、`apk.url` 是固定域名资产 ID 地址，版本代码正确，测试版标记正确。下载文件应与公开清单和 GitHub 的 SHA-256、字节数一致。用 `curl -H 'Range: bytes=0-1023'` 请求 APK，要求 206 和正确 `Content-Range`；使用清单的 ETag 再请求，要求 304。
-
-重启 Caddy 和同步服务，验证缓存仍可下载；停止 timer 并用隔离测试验证上游故障，不删除或修改真实 GitHub Release。确认旧资产 URL 在新版本切换后保持内容。没有完整 Release 时先完成本地 HTTP 回归，不把 503 标记为部署失败。
-
 ## 可以直接粘贴的接续提示词
 
-> 我已从 MacBook 带来 bucea-library 的更新服务代码或交接包。请先阅读 docs/RASPBERRY_PI_HANDOFF.md、docs/UPDATES.md 和 docs/UPDATE_VALIDATION.md，检查当前树莓派环境及已有 Caddy / Cloudflare Tunnel 配置，然后实际部署并验证 GitHub Release 缓存服务。使用固定入口 https://bucea-library-seat.miofelix.com/updates/latest.json 和 /updates/apks/资产ID.apk；沿用我管理的 CF Tunnel。树莓派只同步、校验、缓存 APK，不构建、不签名、不发布 Android 版本。保留现有网站和服务，先备份、比较并验证配置，再启用 systemd 的十分钟同步 timer。没有完整 Release 时 503 是预期状态；完成本地 Range、ETag、503、原子切换、撤回、故障保留和清理测试，再检查公网路径。当前无法连接 ADB，不执行或声称通过设备测试，也不要修改真实 GitHub Release 来做故障测试。继续完成所有可在树莓派完成的工作，最后告诉我部署结果及何时回 MacBook 发布首个带 update.json 的版本。
+> 请阅读 docs/RASPBERRY_PI_HANDOFF.md、docs/UPDATES.md 和 docs/UPDATE_VALIDATION.md，然后在树莓派实际部署独立 Python HTTP 更新服务和 GitHub Release 同步定时器。默认端口 9080，如有占用选其他可用端口并告诉我。域名和 CF Tunnel 由我配置，不要安装或配置其他 Web 服务器，不要修改我的 Tunnel。你只需验证本地服务、Range、ETag、503、重启续传和同步故障保留，最后报告可供 Tunnel 转发的 HTTP 地址与端口；我配置域名后再请求固定地址 https://bucea-library-seat.miofelix.com/updates/latest.json 验证。树莓派不构建、签名或发布 APK。没有完整 Release 时 503 属于预期。当前无法连接 ADB，不做或声称通过设备测试，也不要修改真实 GitHub Release 做故障测试。

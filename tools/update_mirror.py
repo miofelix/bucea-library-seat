@@ -345,7 +345,7 @@ class Mirror:
             self.github.download(asset, temporary, expected["size"])
             if temporary.stat().st_size != expected["size"] or sha256_file(temporary) != expected["sha256"]:
                 raise IntegrityError("APK checksum/size mismatch")
-            # mkstemp is 0600; Caddy runs under a different service account.
+            # mkstemp is 0600; the HTTP server uses a different service account.
             temporary.chmod(0o644)
             os.replace(temporary, target)
             fsync_directory(target.parent)
@@ -368,7 +368,7 @@ class Mirror:
 
     def sync(self):
         # One lock covers selection, publication and cleanup. A crashed run leaves only
-        # private scratch files; Caddy continues serving the last atomic public state.
+        # private scratch files; the HTTP server keeps serving the last public state.
         with (self.state / "sync.lock").open("w") as lock:
             try:
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -421,7 +421,7 @@ class Mirror:
                 LOG.info("published versionCode=%s asset=%s prerelease=%s", manifest["versionCode"], asset["id"], manifest["prerelease"])
                 return manifest
             # Only a fully successful upstream scan reaches withdrawal. No candidates
-            # means Caddy's explicit missing-manifest route returns HTTP 503.
+            # means the HTTP server's missing-manifest route returns HTTP 503.
             (self.public / "latest.json").unlink(missing_ok=True)
             fsync_directory(self.public)
             self.cleanup(catalog)

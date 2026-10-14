@@ -8,11 +8,17 @@ import tarfile
 
 def main():
     root = Path(__file__).resolve().parents[1]
-    files = ["tools/update_mirror.py", "tools/tests/test_update_mirror.py", "tools/tests/test_update_caddy.py",
+    files = ["tools/update_mirror.py", "tools/update_server.py",
+             "tools/tests/test_update_mirror.py", "tools/tests/test_update_server.py",
              "docs/UPDATES.md", "docs/RELEASE.md", "docs/UPDATE_VALIDATION.md", "docs/RASPBERRY_PI_HANDOFF.md"]
-    files.extend(str(path.relative_to(root)) for path in sorted((root / "deploy/updates").iterdir()) if path.is_file())
-    base = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root)
-    patch = subprocess.check_output(["git", "diff", "HEAD", "--binary"], cwd=root)
+    files.extend("deploy/updates/" + name for name in ("bucea-update-mirror.service", "bucea-update-mirror.timer",
+                 "bucea-updates-http.service", "bucea-updates.env.example", "bucea-updates-http.env.example"))
+    upstream = subprocess.run(["git", "rev-parse", "--verify", "@{upstream}"],
+                              cwd=root, capture_output=True, text=True)
+    # Keep committed, unpushed work in the patch so a Pi at origin/main can apply it.
+    base = subprocess.check_output(["git", "merge-base", "HEAD", upstream.stdout.strip()], cwd=root) if upstream.returncode == 0 else (
+        subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root))
+    patch = subprocess.check_output(["git", "diff", base.decode().strip(), "--binary"], cwd=root)
     added = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard", "-z"], cwd=root)
     for raw in added.split(b"\0"):
         if not raw:

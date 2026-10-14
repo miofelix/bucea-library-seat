@@ -4,8 +4,8 @@
 
 ## 已完成
 
-- Python **28 个测试通过**，包含实际运行 Caddy 2.11.7 的 3 个 HTTP 集成测试。覆盖最大版本选择、预发布、完整分页、条件请求、限流退避、草稿/不完整附件、撤回与分页移动、元数据及摘要失败、原子切换、崩溃恢复、资产内容不变、故障保留和至少 7 天清理。检查了公开文件 0644 与私有状态 0600 权限。
-- Caddy 验证清单 200 / 304 / 503、缓存重新验证、APK Range 206、旧资产在版本切换和服务重启后继续续传、私有路径不可访问、缺失 APK 不缓存。请求使用 Tunnel 转发的公网 Host 头；配置解析通过，仅监听 127.0.0.1。
+- 按用户补充要求，服务改为直接监听端口的独立 Python HTTP 服务，域名和 CF Tunnel 交由用户配置。Python **38 个测试通过**，无需外部 HTTP 服务器或依赖，包含 **13 个真实 HTTP 集成测试**。同步器覆盖最大版本选择、预发布、完整分页、条件请求、限流退避、草稿/不完整附件、撤回与分页移动、元数据及摘要失败、原子切换、崩溃恢复、资产内容不变、故障保留和至少 7 天清理。检查了公开文件 0644 与私有状态 0600 权限。
+- HTTP 服务验证清单 200 / 304 / 503、缓存重新验证、Range 206 / 416、If-Range、HEAD、旧资产切换与重启续传、并发下载与连接限额、私有路径和符号链接隔离、缺失 APK 不缓存、空目录启动及正常停止。请求保留公网 Host 头，默认端口为 9080。
 - Android JVM **21 个测试通过**，其中 16 个状态机测试、5 个清单/客户端/签名测试。覆盖确认前无下载、重复点击和并发检查合并、版本快照、失败重试、取消、下载与校验重启恢复、丢失任务、实际已安装版本比较、空间不足、24 小时限频及暂停提示、非法 URL/字段、客户端隔离和签名集合。
 - Debug APK、release APK、AndroidTest APK 构建通过；`lint` 与全量 `lintRelease` 均为 **0 errors**，Debug 有 45 个建议性警告，release 有 46 个建议性警告。将仅 Debug 存在的预览 Activity 移除规则迁至 Debug Manifest，解决原有 release Lint 的 MissingClass 错误。
 - `stageBetaApk` 输出 APK、`SHA256SUMS`、`update.json`。`aapt` 验证包名 `cn.edu.bucea.library`、版本 **0.3.4 / code 8**、最低 **API 26**、无 `application-debuggable`，包含 arm64-v8a、armeabi-v7a、x86、x86_64，使用通用 APK。
@@ -17,17 +17,17 @@
 ## 可复现命令
 
 ```sh
-CADDY_BINARY="$PWD/build/tools/caddy" python3 -m unittest discover -s tools/tests -v
+python3 -m unittest discover -s tools/tests -v
 ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lint :app:lintRelease :app:stageBetaApk
-build/tools/caddy validate --config deploy/updates/Caddyfile --adapter caddyfile
+python3 tools/update_server.py --root /var/lib/bucea-updates/public --listen 0.0.0.0 --port 9080
 python3 tools/make_update_handoff.py
 ```
 
-Caddy 二进制来自官方 GitHub Release，仅用于本机 HTTP 测试，位于忽略的 `build/tools/`，不包含在交接包中。树莓派安装了 `caddy` 时 Python 测试自动使用 PATH 中的 Caddy；没有 Caddy 的环境会明确跳过 3 个 HTTP 集成测试，不应把跳过计为通过。
+HTTP 测试直接启动 Python 服务，不依赖额外软件，MacBook 和树莓派均运行全部测试。服务运行命令会前台监听端口，使用 Ctrl+C 停止；部署后由 systemd 管理。
 
 ## 树莓派待验
 
-systemd 的实际定时运行、Caddy 服务账号权限、服务器重启、现有 CF Tunnel ingress 和公开 HTTPS 入口，须在树莓派执行。首个完整 Release 发布后验证真实 APK 下载、摘要与 Range，保留已有站点配置。步骤与接续提示词见 [RASPBERRY_PI_HANDOFF.md](RASPBERRY_PI_HANDOFF.md)。
+HTTP 服务与同步器的 systemd 运行、独立服务账号读取权限、服务器重启和实际监听端口，须在树莓派执行。部署完成后报告 HTTP 地址和端口，用户负责配置域名及 CF Tunnel，再请求公开 HTTPS 入口验证。首个完整 Release 发布后验证真实 APK 下载、摘要与 Range。步骤与接续提示词见 [RASPBERRY_PI_HANDOFF.md](RASPBERRY_PI_HANDOFF.md)。
 
 ## Android 8 / 16 待验
 
