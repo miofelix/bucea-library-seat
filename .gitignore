@@ -8,6 +8,7 @@ local.properties
 __pycache__/
 *.py[cod]
 .private/
+app/src/androidTest/assets/update-fixtures/
 *.jks
 *.keystore
 *.env
