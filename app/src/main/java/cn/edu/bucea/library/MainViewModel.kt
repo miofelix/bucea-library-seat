@@ -42,7 +42,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { mutableState.update {
                 val access = CampusAccessPolicy.afterFailure(it.campusAccess, e)
-                it.copy(status = if (access == CampusAccess.UNREACHABLE) "无法访问图书馆，请连接可访问校园内网的网络后重试" else repository.userMessage(e),
+                it.copy(status = if (access == CampusAccess.UNREACHABLE) "暂时无法访问图书馆，请检查校园网络或稍后重试" else repository.userMessage(e),
                     campusAccess = access, authenticated = false,
                     overviewStale = it.overviewStale || access == CampusAccess.UNREACHABLE)
             } }
@@ -75,6 +75,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     overview = overview.copy(displayName = restored?.displayName)) }
             }
         } else mutableState.update { it.copy(status = "已连接校园网，添加账号即可登录") }
+    }
+
+    /** Recheck after returning from Wi-Fi settings without interrupting an active operation. */
+    fun onForeground() {
+        val current = state.value
+        if (CampusAccessPolicy.shouldRetryOnForeground(current.campusAccess, current.busy)) refresh()
     }
 
     fun login() = run {

@@ -147,7 +147,9 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
                     Text(when { state.busy -> "正在连接图书馆…"; state.authenticated -> "找一个好座位";
                         account != null -> "登录并同步"; else -> "添加账号，开始使用" },
                         color = MaterialTheme.colorScheme.onPrimaryContainer, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-                    Text(when { state.campusAccess != CampusAccess.REACHABLE -> "请先连接校园网络";
+                    Text(when { state.campusAccess == CampusAccess.UNREACHABLE -> "暂时无法访问图书馆";
+                        state.campusAccess == CampusAccess.CHECKING -> "正在检测连接";
+                        state.campusAccess == CampusAccess.UNKNOWN -> "请先连接校园网络";
                         state.overview?.available == null -> "同步后查看可用座位";
                         state.overviewStale -> "${state.overview.available} 席可用 · 上次数据";
                         else -> "${state.overview.available} 席可用" }, color = Muted, fontSize = 12.sp)
@@ -169,7 +171,12 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Outlined.Wifi, null, tint = Muted, modifier = Modifier.size(15.dp))
-            Text(if (state.campusAccess == CampusAccess.REACHABLE) "校园网络已连接" else "等待连接校园网络",
+            Text(when (state.campusAccess) {
+                CampusAccess.REACHABLE -> "校园网络已连接"
+                CampusAccess.UNREACHABLE -> "等待图书馆连接"
+                CampusAccess.CHECKING -> "正在检测连接"
+                CampusAccess.UNKNOWN -> "等待连接校园网络"
+            },
                 color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
             TextButton(onClick = { showOverview = true }) { Text("馆内概况", fontSize = 11.sp) }
         }
@@ -457,10 +464,11 @@ private fun CampusAccessNotice(state: LibraryUiState, onCheckCampus: () -> Unit)
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 Icon(Icons.Outlined.Wifi, null, tint = if (unavailable) MaterialTheme.colorScheme.error else Accent, modifier = Modifier.size(20.dp))
-                Text(when { unavailable -> "请先连接校园网"; checking -> "正在检测校园网"; else -> "登录需要校园网" },
+                Text(when { unavailable -> "暂时无法访问图书馆"; checking -> "正在检测校园网"; else -> "登录需要校园网" },
                     color = Ink, style = MaterialTheme.typography.titleSmall)
             }
-            Text("请连接可访问图书馆的校园 Wi-Fi，再检测连接。", color = Muted, style = MaterialTheme.typography.bodySmall)
+            Text(if (unavailable) "校园网络或图书馆服务可能暂时无法连通。请重新检测连接，或稍后重试。"
+                else "请连接可访问图书馆的校园 Wi-Fi，再检测连接。", color = Muted, style = MaterialTheme.typography.bodySmall)
             if (checking) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 CircularProgressIndicator(Modifier.size(16.dp), color = Accent, strokeWidth = 2.dp)
                 Text("正在检查连接…", color = Muted, fontSize = 12.sp)

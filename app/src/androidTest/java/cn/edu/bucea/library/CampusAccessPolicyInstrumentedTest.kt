@@ -12,6 +12,19 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class CampusAccessPolicyInstrumentedTest {
     @Test
+    fun foregroundRetriesOnlyAnIdleFailedAccessCheck() {
+        assertTrue(CampusAccessPolicy.shouldRetryOnForeground(CampusAccess.UNREACHABLE, busy = false))
+        for (access in CampusAccess.entries) {
+            assertFalse("Foreground must not interrupt an active operation: $access",
+                CampusAccessPolicy.shouldRetryOnForeground(access, busy = true))
+            if (access != CampusAccess.UNREACHABLE) {
+                assertFalse("Foreground must not duplicate startup checks or refresh a healthy session: $access",
+                    CampusAccessPolicy.shouldRetryOnForeground(access, busy = false))
+            }
+        }
+    }
+
+    @Test
     fun schoolHttpAndLoginErrorsProveReachabilityWhileTransportFailureDoesNot() {
         for (kind in FailureKind.entries) {
             assertEquals("A server reply cannot be labeled as an inaccessible campus network", CampusAccess.REACHABLE,
