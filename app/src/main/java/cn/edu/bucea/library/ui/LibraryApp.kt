@@ -61,16 +61,18 @@ import cn.edu.bucea.library.MainViewModel
 import cn.edu.bucea.library.NativeAccountViewModel
 import cn.edu.bucea.library.NativeMapViewModel
 import cn.edu.bucea.library.NativeVerificationViewModel
+import cn.edu.bucea.library.RegionOverviewViewModel
 import cn.edu.bucea.library.update.UpdateViewModel
 import kotlinx.coroutines.delay
 
 @Composable
-fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps: NativeMapViewModel,
+fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regions: RegionOverviewViewModel, maps: NativeMapViewModel,
     nativeAccount: NativeAccountViewModel, verification: NativeVerificationViewModel,
     updates: UpdateViewModel, onInstallUpdate: () -> Unit) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val seatState by features.search.collectAsStateWithLifecycle()
     val hubState by features.hub.collectAsStateWithLifecycle()
+    val regionState by regions.state.collectAsStateWithLifecycle()
     val extensionOptions by features.extensionTimes.collectAsStateWithLifecycle()
     val mutating by features.mutationBusy.collectAsStateWithLifecycle()
     val mapState by maps.mapState.collectAsStateWithLifecycle()
@@ -86,8 +88,9 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
     var signOutOpen by remember { mutableStateOf(false) }
     var accountMessage by remember { mutableStateOf<String?>(null) }
     var verificationOrigin by remember { mutableStateOf("search") }
+    var refreshRegionsAfterSync by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val businessBusy = state.busy || mutating || seatState.loading || hubState.loading || mapState.loading ||
+    val businessBusy = state.busy || mutating || seatState.loading || hubState.loading || mapState.loading || regionState.loading ||
         seatState.reservationBusy || accountState.busy || interactions.focusedInputs.intValue > 0 ||
         seatState.selectedSeat != null || hubState.selectedRecord != null || mapOpen || signOutOpen ||
         verificationState.context != null || extensionOptions.isNotEmpty() || interactions.dialogs.intValue > 0
@@ -102,6 +105,7 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
         "我的" to Icons.Outlined.AutoStories, "账号" to Icons.Outlined.Person, "设置" to Icons.Outlined.Settings)
     LaunchedEffect(state.activeAccountId, state.authenticated) {
         features.bindAccount(state.activeAccountId, state.authenticated)
+        regions.bindAccount(state.activeAccountId, state.authenticated)
         maps.bindAccount(state.activeAccountId, state.authenticated)
         nativeAccount.bindAccount(state.activeAccountId, state.authenticated)
         verification.dismiss()
@@ -116,6 +120,18 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
         if (state.authenticated && tab == 1 && !mapOpen) features.loadSearch()
         if (state.authenticated && tab == 2) features.refreshHub()
         if (state.authenticated && mapOpen) maps.refresh()
+    }
+    LaunchedEffect(tab, mapOpen, state.activeAccountId, state.authenticated, state.busy,
+        mutating, seatState.reservationBusy, accountState.busy, lifecycleState, refreshRegionsAfterSync) {
+        if (!state.busy && !state.authenticated) refreshRegionsAfterSync = false
+        if (tab == 0 && !mapOpen && state.authenticated && !state.busy && !mutating &&
+            !seatState.reservationBusy && !accountState.busy && lifecycleState == Lifecycle.State.RESUMED) {
+            regions.bindAccount(state.activeAccountId, state.authenticated)
+            if (refreshRegionsAfterSync) {
+                refreshRegionsAfterSync = false
+                regions.refresh()
+            } else regions.ensureFresh()
+        }
     }
     LaunchedEffect(seatState.verificationRequired, mapState.verificationRequired, state.activeAccountId) {
         val id = state.activeAccountId
@@ -170,11 +186,19 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
                         onOpenReservations = { features.dismissReservation(); mapOpen = false; tab = 2 }) }
                 }
                 tab == 0 -> Dashboard(state.copy(busy = state.busy || mutating || seatState.reservationBusy || accountState.busy), hubState, Modifier.padding(padding), viewModel::login,
-                    onRefresh = { viewModel.refresh(); if (state.authenticated) features.refreshHub() },
+                    onRefresh = {
+                        refreshRegionsAfterSync = true
+                        viewModel.refresh()
+                        if (state.authenticated) features.refreshHub()
+                    },
                     onOpenLibrary = { tab = 1 },
                     onReservations = { features.selectHubSection(HubSection.RESERVATIONS); tab = 2 }, onAccounts = { tab = 3 },
                     onOpenMap = { tab = 1; mapOpen = true },
-                    onFavorites = { features.selectHubSection(HubSection.FAVORITES); tab = 2 })
+                    onFavorites = { features.selectHubSection(HubSection.FAVORITES); tab = 2 },
+                    regions = regionState, onRefreshRegions = regions::refresh,
+                    onVerifyRegions = { state.activeAccountId?.let {
+                        verificationOrigin = "regions"; verification.begin(it, regionState.verificationUserId)
+                    } })
                 tab == 1 -> if (state.authenticated) Box(Modifier.padding(padding).consumeWindowInsets(padding)) {
                     SeatSearchScreen(seatState, features::setFilter, features::searchSeats, features::nextPage, features::previousPage,
                         features::selectSeat, onBack = { tab = 0 }, onOpenMap = { tab = 1; mapOpen = true }, onToggleFavorite = features::toggleFavorite,
@@ -205,7 +229,9 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, maps
             onConfirm = { signOutOpen = false; viewModel.logout() }, onDismiss = { if (!state.busy) signOutOpen = false })
         NativeVerificationDialog(verificationState, verification::refresh, verification::dismiss, onVerified = { proof ->
             features.verificationCompleted(proof, resumeSearch = verificationOrigin == "search")
-            verification.dismiss(); if (verificationOrigin == "map") maps.refresh()
+            verification.dismiss()
+            if (verificationOrigin == "map") maps.refresh()
+            if (verificationOrigin == "regions") regions.onVerified()
         })
         if (extensionOptions.isNotEmpty()) {
             var selected by remember(extensionOptions) { mutableStateOf<String?>(null) }

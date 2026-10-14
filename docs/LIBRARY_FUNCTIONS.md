@@ -4,6 +4,7 @@ Version 0.3.3 implements application screens and interactions in Kotlin and Jetp
 
 | Task | Native interaction | School data source |
 | --- | --- | --- |
+| Read each region's current seats | Homepage discovers today's buildings/floors/rooms and reads layouts sequentially; status counts, timestamps, two-minute cache, partial/error/verification states | `/map`, `/mapBook/ajaxGetFloor`, `/mapBook/ajaxGetRooms`, `/mapBook/getSeatsByRoom` |
 | Select date and filters | Native chips, selection dialogs and search field | `/self`, `/freeBook/ajaxGetRooms` |
 | Find a seat | Colored status cards, immediate loaded-page availability filter, pagination | `/freeBook/ajaxSearch` |
 | Find seat number | Match real labels in selected room catalogs | `/mapBook/getSeatsByRoom` |

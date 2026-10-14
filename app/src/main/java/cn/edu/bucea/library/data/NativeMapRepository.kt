@@ -21,10 +21,7 @@ class NativeMapRepository(private val request: suspend (SavedAccount, String) ->
     suspend fun floors(account: SavedAccount, building: String): List<LibraryOption> {
         val response = request(account, path("/mapBook/ajaxGetFloor", "id" to building))
         requireData(response)
-        if (response.trimStart().startsWith("{")) {
-            val data = runCatching { JSONObject(response) }.getOrNull()
-            if (data?.optBoolean("limit") == true) throw VerificationRequired(data.optString("userId"))
-        }
+        verificationUserId(response)?.let { throw VerificationRequired(it) }
         return LibraryFunctionsRepository.parseOptionsFragment(response)
     }
 
@@ -40,8 +37,10 @@ class NativeMapRepository(private val request: suspend (SavedAccount, String) ->
     }
 
     private suspend fun authenticatedPage(account: SavedAccount, endpoint: String): Document {
-        val document = LibraryHtml.parse(request(account, endpoint))
-        requireData(document.outerHtml())
+        val response = request(account, endpoint)
+        requireData(response)
+        verificationUserId(response)?.let { throw VerificationRequired(it) }
+        val document = LibraryHtml.parse(response)
         document.selectFirst("#sysUsername")?.attr("value")?.let {
             if (it != account.username) throw LoginFailure(FailureKind.CREDENTIALS, "登录状态已变化，请重新登录")
         }
@@ -62,30 +61,43 @@ class NativeMapRepository(private val request: suspend (SavedAccount, String) ->
                 throw LoginFailure(FailureKind.CREDENTIALS, "登录已失效，请重新登录")
         }
 
+        /** An empty ID is still a challenge; null alone means no rate-limit/verification response. */
+        private fun verificationUserId(response: String): String? {
+            val data = if (response.trimStart().startsWith("{")) runCatching { JSONObject(response) }.getOrNull() else null
+            return if (response.contains("clickVerifyCode(") || response.contains("您操作的频率太快") ||
+                data?.optBoolean("limit") == true) data?.optString("userId").orEmpty() else null
+        }
+
         fun parseRooms(response: String): NativeMapRooms {
             requireData(response)
+            verificationUserId(response)?.let {
+                return NativeMapRooms(emptyList(), true, "学校要求额外验证，请先完成验证", it)
+            }
             val data = try { JSONObject(response) } catch (_: Exception) {
                 throw LoginFailure(FailureKind.PROTOCOL, "无法读取阅览区域，请刷新重试")
             }
-            val verification = data.optBoolean("limit")
             val array = data.optJSONArray("rooms")
-            val rooms = if (verification || array == null) emptyList() else (0 until array.length()).mapNotNull { index ->
+                ?: throw LoginFailure(FailureKind.PROTOCOL, "无法读取阅览区域，请刷新重试")
+            val rooms = (0 until array.length()).mapNotNull { index ->
                 val room = array.optJSONObject(index) ?: return@mapNotNull null
                 val id = room.optString("id")
                 val name = room.optString("name")
                 if (id.isBlank() || name.isBlank()) null else NativeMapRoom(id, name)
             }
-            return NativeMapRooms(rooms, verification, data.optString("msg").ifBlank {
-                if (verification) "学校要求额外验证，请稍后再试" else if (rooms.isEmpty()) "该楼层暂无可预约区域" else ""
-            }, if (verification) data.optString("userId") else "")
+            if (array.length() > 0 && rooms.isEmpty())
+                throw LoginFailure(FailureKind.PROTOCOL, "阅览区域数据无法读取，请刷新重试")
+            val incomplete = rooms.size != array.length()
+            return NativeMapRooms(rooms, message = if (incomplete) "部分阅览区域数据无法读取" else data.optString("msg").ifBlank {
+                if (rooms.isEmpty()) "该楼层暂无可预约区域" else ""
+            }, incomplete = incomplete)
         }
 
         fun parseLayout(response: String, roomId: String, roomName: String): NativeRoomLayout {
             requireData(response)
-            val data = if (response.trimStart().startsWith("{")) runCatching { JSONObject(response) }.getOrNull() else null
-            val verification = response.contains("clickVerifyCode(") || response.contains("您操作的频率太快") || data?.optBoolean("limit") == true
-            if (verification) return NativeRoomLayout(roomId, roomName, 0, 0, emptyList(), true, "学校要求额外验证，请先完成验证",
-                data?.optString("userId").orEmpty())
+            verificationUserId(response)?.let {
+                return NativeRoomLayout(roomId, roomName, 0, 0, emptyList(), true,
+                    "学校要求额外验证，请先完成验证", it)
+            }
             val document = LibraryHtml.parse(response)
             val container = document.selectFirst("#seatLayout") ?: document.body()
             val table = container.selectFirst("table")
@@ -123,6 +135,10 @@ class NativeMapRepository(private val request: suspend (SavedAccount, String) ->
             val seatElement = if (element.id().startsWith("seat_")) element else element.selectFirst("[id^=seat_]")
             val anchor = seatElement?.selectFirst("a")
             val classes = (element.className() + " " + anchor?.className().orEmpty()).lowercase()
+            val classTokens = classes.split(Regex("\\s+"))
+            fun hasStatus(vararg names: String) = classTokens.any { token ->
+                names.any { token == it || token.startsWith("${it}_") }
+            }
             val title = anchor?.attr("title").orEmpty()
             val local = anchor?.attr("local").equals("true", ignoreCase = true)
             val available = anchor?.classNames()?.any { it == "idle" || it.startsWith("idle_") } == true && !local
@@ -130,11 +146,12 @@ class NativeMapRepository(private val request: suspend (SavedAccount, String) ->
                 seatElement.id().removePrefix("seat_"), anchor.text().trim(), room,
                 title.ifBlank { when {
                     local -> "仅限现场预约"
-                    classes.contains("idle") -> "座位空闲"
-                    classes.contains("agreement") -> "已被预约"
-                    classes.contains("leave") -> "暂离中"
-                    classes.contains("nousre") -> "不可用"
-                    else -> "正在使用"
+                    hasStatus("nousre", "unavailable", "disabled", "unfree", "not_available") -> "不可用"
+                    hasStatus("leave", "away") -> "暂离中"
+                    hasStatus("usre", "inuse", "in_use", "using", "occupied", "checked_in") -> "正在使用"
+                    hasStatus("agreement", "order", "reserved", "reserve", "booked", "awaiting_check_in") -> "已被预约"
+                    hasStatus("idle", "free", "available") -> "座位空闲"
+                    else -> "未知状态"
                 } }, available,
             ) else null
             val label = element.clone().apply { select(".seatLayoutTip, script, input").remove() }.text().replace('\u00a0', ' ').trim()

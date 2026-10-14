@@ -7,7 +7,8 @@ data class NativeMapOptions(
 )
 
 data class NativeMapRoom(val id: String, val name: String)
-data class NativeMapRooms(val rooms: List<NativeMapRoom>, val verificationRequired: Boolean = false, val message: String = "", val verificationUserId: String = "")
+data class NativeMapRooms(val rooms: List<NativeMapRoom>, val verificationRequired: Boolean = false,
+    val message: String = "", val verificationUserId: String = "", val incomplete: Boolean = false)
 enum class NativeMapCellKind { EMPTY, SEAT, TABLE, WALL, DOOR, WINDOW, LABEL }
 
 /** Coordinates refer to the server's actual row/column grid, including its empty aisles. */

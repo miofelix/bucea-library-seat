@@ -26,9 +26,11 @@ class MainActivity : ComponentActivity() {
             val maps: NativeMapViewModel = viewModel()
             val nativeAccount: NativeAccountViewModel = viewModel()
             val verification: NativeVerificationViewModel = viewModel()
+            val regions: RegionOverviewViewModel = viewModel()
             LibraryApp(
                 viewModel = mainViewModel,
                 features = features,
+                regions = regions,
                 maps = maps,
                 nativeAccount = nativeAccount,
                 verification = verification,
