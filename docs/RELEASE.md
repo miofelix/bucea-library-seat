@@ -1,6 +1,6 @@
 # Android 发布
 
-所有构建、签名与发布在保存原签名密钥的 MacBook 上执行。树莓派只缓存成品。版本在 `app/build.gradle.kts` 中维护，当前开发版本为 **0.3.4 / versionCode 8**，每次后续更新递增 `versionCode`。
+所有构建、签名与发布在保存原签名密钥的 MacBook 上执行。树莓派只缓存成品。版本在 `app/build.gradle.kts` 中维护，当前发布版本为 **0.3.4 / versionCode 9**，每次后续更新递增 `versionCode`。
 
 ## 构建
 
@@ -31,12 +31,12 @@ python3 -m unittest discover -s tools/tests -v
 python3 tools/publish_release.py --directory app/build/outputs/beta-release --tag v0.3.4-beta.1 --target <已审查并推送的40位提交SHA> --notes docs/releases/0.3.4.md --prerelease
 ```
 
-正式版移除 `--prerelease` 并使用正式产物/标签。发布脚本使用 `gh` 的当前授权；本轮实现没有执行上传或发布。如果上传失败，草稿会保留，检查附件后人工完成或删除草稿重试。不要用 `--clobber` 替换已发布资产。
+正式版移除 `--prerelease` 并使用正式产物/标签。发布脚本使用 `gh` 的当前授权。如果上传失败，草稿会保留，检查附件后人工完成或删除草稿重试。不要用 `--clobber` 替换已发布资产。
 
-Release 标题使用 `北建大图书馆选座 v0.3.4 测试版`，下载文件名保持包含应用名称和版本号的 ASCII 名称。说明如实记录验证结果：目前无法连接 ADB，Android 8 / 16 设备验收尚未完成；依赖图书馆内部 Wi-Fi 的签到等操作也没有实测。
+Release 标题使用 `北建大图书馆选座 v0.3.4 测试版`，下载文件名保持包含应用名称和版本号的 ASCII 名称。本次 Android 16 / API 36 的分阶段 ADB 验收见 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md)；Android 8 / API 26 设备验证仍未完成，依赖图书馆内部 Wi-Fi 的实际签到与后续使用操作未执行。不能将模拟任务或安装器测试记作公开网络更新成功。
 
 ## 启用
 
-先在树莓派部署镜像同步器和独立 HTTP 服务，确认端口可用、空源时返回 503，再由用户将域名转发到该端口。发布第一个完整 Release 后等待定时同步或手动启动服务，验证公开清单与 APK。已有 0.3.3 用户需手动安装 0.3.4 以获得更新模块，后续版本才可在应用内更新。
+树莓派已使用当前用户的 systemd 服务部署镜像同步器和 HTTP 服务，实际监听 `0.0.0.0:9080`，公开域名可达。HTTP 服务重启、镜像手动同步与空源时的 `503 / no-store` 已验证；现有旧 Release 均缺少 `update.json`。发布第一个完整 Release 后等待定时同步或运行 `systemctl --user start bucea-update-mirror.service`，验证公开清单、APK 摘要、Range 与 ETag。已有 0.3.3 用户需手动安装 0.3.4 以获得更新模块，后续版本才可在应用内更新。
 
 详细协议见 [UPDATES.md](UPDATES.md)，交接见 [RASPBERRY_PI_HANDOFF.md](RASPBERRY_PI_HANDOFF.md)，测试与待验项目见 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md)。

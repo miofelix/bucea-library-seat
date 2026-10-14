@@ -1,8 +1,19 @@
 # Validation — 2026-10-14
 
-The initial 2026-10-14 update-module implementation and MacBook-only results are in [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md). The subsequent native UI implementation was installed and checked on the connected device as recorded below; earlier versioned results remain historical snapshots.
+The current **0.3.4 / versionCode 9** release acceptance is recorded phase by phase in [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md), with update-specific results in [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md). The MacBook-only implementation and earlier versioned device runs below are historical snapshots.
 
-## 2026-10-14 native 留白 interface
+## 0.3.4 staged ADB acceptance
+
+- Android 16 / API 36, arm64: **106 independent device tests passed in 21.277 seconds**, with no skips. This includes **32 updater service tests in 0.827 seconds** using actual PackageManager, DownloadProvider, FileProvider and persistent Android storage. **23 JVM tests** and **38 Python tests** passed.
+- Real campus read-only business and inventory checks each passed once. Native query, time selection and reservation review were exercised without submission; Canvas/list/pan/fit passed on all four returned floors. The closed password entry's transient Toast was independently observed by its passing device test.
+- Actual old release **0.3.3 / code 7** and debug **0.3.4 / code 8** overwrite-install checks preserved salted fingerprints of decrypted accounts, preferences, bookmarks and theme, plus exact stored cookies. Tests used the existing signing certificate and did not clear production data.
+- Raspberry Pi user HTTP service restart and listener recovery passed; the mirror timer stayed active and a manual synchronization completed successfully. Before the first complete release, the public HTTPS manifest correctly returned **503 / no-store** because older releases have no update manifest. Private state and configuration files use 0600 permissions. Both services currently run under the same existing OS account.
+- The final non-debuggable code 9 release was installed through the actual OEM system installer. SDK-only readback verified its exact APK bytes, preserved account/preferences/bookmarks/theme data and automatic cleanup. Permission denial/grant/return, cancellation and a subsequent successful attempt were exercised; full native UI/four-floor regression passed on the minified release. Local installation fixtures do not establish a completed public-network update.
+- This run submitted no real reservation, cancellation or seat-use mutation. Android 8 / API 26 remains untested; the user confirmed campus Wi-Fi only and deferred library check-in and a second authorized real identity is unavailable. Password modification remains unimplemented in the product.
+
+Private evidence is under `.private/qa-0.3.4/`; credentials, session captures and fixture APKs are excluded from Git.
+
+## Historical 2026-10-14 native 留白 interface
 
 - The native application now uses the **留白** interface across dashboard, seat search, map, reservation sheets, records/favorites/frequent seats/violations, accounts, settings, verification and update dialogs. The native design specification is maintained in [UI_DESIGN.md](UI_DESIGN.md); temporary HTML comparison/selection prototypes have been removed.
 - Debug and instrumentation APK builds passed. **21 JVM unit tests passed** with no failures, errors or skips. The tested debug APK is version **0.3.4 / code 8** and was installed over the existing application without clearing its data.
@@ -14,15 +25,15 @@ The initial 2026-10-14 update-module implementation and MacBook-only results are
 - Android 33+ UI fixtures clear the UiAutomation node cache before reading Compose text/enabled states. Failure artifacts are limited to synthetic fixtures; authenticated screenshots and logs remain ignored under `.private/whitespace-ui/`.
 - This UI acceptance did not create/cancel a real reservation, change a library password, or invoke live check-in/leave/renew/finish operations. Those transaction results are not inferred from presentation tests.
 
-## Current actual campus-service run
+## Historical actual campus-service run
 
 The current application uses native Kotlin/Compose screens and interactions. Website HTML is parsed only for business data; it is never rendered. Installed-APK architecture tests inspect native activity declarations and verify that the assets contain no HTML, JavaScript or CSS.
 
-The current live outcomes are recorded in [ACTUAL_TEST_RESULTS.md](ACTUAL_TEST_RESULTS.md). Two future reservations and one same-day “start now” reservation were submitted, read back and canceled; no active test reservation remains. That run corrected receipt parsing, the school's fresh-token POST cancellation form, and canceled-record recognition. The three canceled audit records are retained by the school.
+Earlier live outcomes are recorded in [ACTUAL_TEST_RESULTS.md](ACTUAL_TEST_RESULTS.md). Two future reservations and one same-day “start now” reservation were submitted, read back and canceled; no active test reservation remains. That run corrected receipt parsing, the school's fresh-token POST cancellation form, and canceled-record recognition. The three canceled audit records are retained by the school.
 
 Two real password-change attempts encountered the school's error page and did not establish success. The original credential was subsequently authenticated, the saved value restored, and encrypted recovery removed. The application entry is now temporarily closed and displays “修改密码当前未实现”. Successful password mutation is **not** a passed live acceptance result.
 
-At the user's direction, this run skips check-in on library-internal Wi-Fi and the leave, resume, renewal and finish-use operations that depend on check-in. These are not counted as passed live transactions. Only one authorized real identity was supplied; multiple-account isolation is exercised with separate synthetic device accounts.
+At the user's direction, that earlier run skipped check-in on library-internal Wi-Fi and the leave, resume, renewal and finish-use operations that depend on check-in. These are not counted as passed live transactions. Only one authorized real identity was supplied; multiple-account isolation is exercised with separate synthetic device accounts.
 
 The versioned results below are snapshots of earlier phases, including the former browser-based prototype. They do not describe the current APK or override the newer live outcome record. A later build/test total must be recorded from its own run output rather than inferred from source test counts.
 
