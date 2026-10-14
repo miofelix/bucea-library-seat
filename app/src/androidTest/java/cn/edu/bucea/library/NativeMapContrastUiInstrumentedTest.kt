@@ -174,11 +174,18 @@ class NativeMapContrastUiInstrumentedTest {
     /** UI semantics and click callbacks can settle before the next frame reaches the compositor. */
     private fun captureAfterDraw(bounds: Rect, ready: (Bitmap) -> Boolean): Bitmap {
         val deadline = SystemClock.uptimeMillis() + 5_000
+        var previous: Bitmap? = null
         while (true) {
             val screenshot = captureCanvas(bounds)
-            // Keep the last image on timeout so the unchanged assertions report the actual defect.
-            if (ready(screenshot) || SystemClock.uptimeMillis() >= deadline) return screenshot
-            screenshot.recycle()
+            // Initial seat colors can appear before the automatic fit changes their coordinates.
+            // A tap must use a settled image, rather than a correctly colored earlier frame.
+            val settled = ready(screenshot) && previous?.sameAs(screenshot) == true
+            if (settled || SystemClock.uptimeMillis() >= deadline) {
+                previous?.recycle()
+                return screenshot
+            }
+            previous?.recycle()
+            previous = screenshot
             SystemClock.sleep(100)
         }
     }
