@@ -2,7 +2,7 @@
 
 北京建筑大学图书馆的非官方 Android 客户端，让登录、选座和预约更方便。全部界面采用原生「留白」设计，以简洁、清爽和易用为优先。
 
-[下载测试版 v0.3.4-beta.1](https://github.com/miofelix/bucea-library-seat/releases/tag/v0.3.4-beta.1)
+[下载测试版 v0.3.5-beta.1](https://github.com/miofelix/bucea-library-seat/releases/tag/v0.3.5-beta.1)
 
 支持 Android 8.0 及以上。使用前请连接可访问图书馆的校园网；签到需要连接图书馆内部 Wi-Fi。
 
@@ -20,10 +20,10 @@
 
 修改图书馆密码当前未实现，点击入口会显示提示。
 
-测试版 0.3.4 加入应用内更新：打开“设置”，展开顶部“应用更新”后点击“手动检查更新”，确认后下载并由系统安装。检查更新无需连接校园网。旧版需先手动安装含更新模块的版本。构建与发布在开发机完成，树莓派只缓存 GitHub Release 成品；部署说明见 [更新服务](docs/UPDATES.md) 和 [树莓派接续文档](docs/RASPBERRY_PI_HANDOFF.md)。
+从 0.3.4 起支持应用内更新：打开“设置”，展开顶部“应用更新”后点击“手动检查更新”，确认后下载并由系统安装。检查更新无需连接校园网。旧版需先手动安装含更新模块的版本。构建与发布在开发机完成，树莓派只缓存 GitHub Release 成品；部署说明见 [更新服务](docs/UPDATES.md) 和 [树莓派接续文档](docs/RASPBERRY_PI_HANDOFF.md)。
 
 开发作者：樊彧。欢迎在 [GitHub Issues](https://github.com/miofelix/bucea-library-seat/issues) 提交问题与建议。
 
 QQ 交流群：**1109482748**。欢迎加入交流群分享体验、反馈问题，也欢迎安利给同学一起使用。
 
-[本次 ADB 验收](docs/ADB_ACCEPTANCE_0.3.4.md) · [详细验证记录](docs/VALIDATION.md)
+[本次 ADB 验收](docs/ADB_ACCEPTANCE_0.3.5.md) · [详细验证记录](docs/VALIDATION.md)

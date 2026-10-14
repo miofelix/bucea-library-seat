@@ -1,8 +1,18 @@
 # Validation — 2026-10-14
 
-The current **0.3.4 / versionCode 9** release acceptance is recorded phase by phase in [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md), with update-specific results in [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md). The MacBook-only implementation and earlier versioned device runs below are historical snapshots.
+The final candidate is **0.3.5 / versionCode 10**, with acceptance in [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md). Its production implementation retains the verified 0.3.4 behavior and increments the displayed version and version code. The bootstrap phase remains recorded in [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md), with update-specific evidence in [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md).
 
-## 0.3.4 staged ADB acceptance
+## 0.3.5 final-release checkpoint
+
+- The published bootstrap **v0.3.4-beta.1 / code 9** has three matching assets and is available through the Raspberry Pi mirror. Its public manifest matches GitHub release ID 412320050 and APK asset ID 639131095. The complete public APK is **102488215 bytes**, SHA-256 `55d01ce683e4dbcc33b77e856691bf1a02ff8a2acce1bbd5510443b5f0c2cd98`, with the historical signing certificate.
+- Public manifest/APK conditional requests returned 304, HEAD returned 200, valid Range returned 206 with exact bytes, and continuation worked after restarting the deployed HTTP service. Origin unsatisfiable Range returned 416 / no-store; Cloudflare generated its cached 416 with the APK's immutable header. The forwarding-layer difference is recorded without modifying user-managed Cloudflare configuration.
+- The actual native public transaction **debug code 8 → published release code 9** passed discovery, the visible update prompt, deferral with quiet process restart and zero managed downloads, download confirmation, cancellation and an actual network-waiting task. A second offline task retained the same token/Download ID/manifest across force-stop and Wi-Fi restoration, then downloaded and verified the public APK to READY without opening an installer automatically.
+- An explicit install click completed the public code 9 update through the OEM installer. SDK-only final readback verified non-debuggable installed code 9, exact public APK digest, preserved account/preferences/bookmarks/theme fingerprints and automatic cleanup. Wi-Fi and mobile-data settings returned to their original values. The native manifest-client diagnostic passed one test in 2.028 seconds after transient Wi-Fi reconnection failures; failed connection attempts are not counted as successful checks.
+- Code 10 retains the same production implementation and only increments version metadata. Its build, **23 JVM tests** and both Lint variants passed. Final code 10 publication, native public installation and post-publication mirror results remain separate follow-up checks; code 10 is not yet reported installed at this checkpoint.
+
+The completed 0.3.4 baseline and earlier versioned runs below remain historical snapshots; their counts are not reassigned to an unexecuted final-version run.
+
+## 0.3.4 bootstrap staged ADB acceptance
 
 - Android 16 / API 36, arm64: **106 independent device tests passed in 21.277 seconds**, with no skips. This includes **32 updater service tests in 0.827 seconds** using actual PackageManager, DownloadProvider, FileProvider and persistent Android storage. **23 JVM tests** and **38 Python tests** passed.
 - Real campus read-only business and inventory checks each passed once. Native query, time selection and reservation review were exercised without submission; Canvas/list/pan/fit passed on all four returned floors. The closed password entry's transient Toast was independently observed by its passing device test.

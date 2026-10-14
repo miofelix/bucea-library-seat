@@ -1,8 +1,20 @@
 # 更新功能验证 — 2026-10-14
 
-当前候选 Release 为 **v0.3.4-beta.1 / versionCode 9**。本轮已连接 Android 16 / API 36 实机并完成实际 Android 服务测试；分阶段证据与最终安装结果见 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md)。下方初始 MacBook 记录仅保留为历史证据。
+最终候选 Release 为 **v0.3.5-beta.1 / versionCode 10**，保留 0.3.4 已验证的生产实现并递增版本。最终验收见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)；引导版本的设备测试见 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md)。初始 MacBook 记录仅保留为历史证据。
 
-## 当前已完成
+## 公开更新源验收与最终版本接续
+
+- 完整引导版本 **v0.3.4-beta.1 / code 9** 已发布并同步。公开清单返回 200，GitHub Release ID **412320050**、APK asset ID **639131095** 和三个附件一致。真实公开下载得到 **102488215 字节**，SHA-256 为 `55d01ce683e4dbcc33b77e856691bf1a02ff8a2acce1bbd5510443b5f0c2cd98`，既有签名证书验证通过。
+- 公开清单 / APK 的 ETag 请求返回 304，HEAD 为 200，Range 为 206 且内容一致；部署 HTTP 服务重启后可继续读取下一段。origin 的无效 Range 为 **416 / no-store**，Cloudflare 从缓存 APK 生成的 416 保留 **immutable** 响应头。此转发层差异已记录，未修改用户维护的 Cloudflare 配置。
+- 真实应用原生公网 **debug code 8 → 已发布 release code 9** 流程通过。实际检查显示更新提示；“稍后”后进程重启安静，更新文件和该应用管理的 DownloadManager 行均为 0。实际公网 APK 达到 READY，摘要与公开附件一致；删除校验文件后任务与残留归零。
+- 断网确认的唯一任务实际处于 **PAUSED / 等待网络，0 字节**，原生取消按钮清除任务。第二次断网任务经 force-stop、恢复 Wi-Fi 和应用重启后保留同一 token / Download ID / 已确认清单，完成实际下载并校验到 READY；后台完成未自动启动安装器。
+- 用户明确点击后实际 OEM 安装器成功安装公开 code 9。SDK-only 最终验收通过：实际安装版本 / 关闭调试 / 精确 APK 摘要一致，加密账号、偏好、收藏和主题指纹保留，任务和更新文件自动清理。原始 Wi-Fi 开启、移动数据关闭状态均已恢复。
+- 原生 UpdateHttpClient 的独立诊断 **1 项通过，2.028 秒**，实际读到公开清单 code 9；恢复 Wi-Fi 后的瞬时未联网失败保留为过程证据，不计为完成的检查。原生 UI 最终验证以成功重连后的结果为准。
+- 最终 **0.3.5 / code 10** 仅递增版本，构建、**23 项 JVM 测试**与两种 Lint 已通过。code 10 的发布、原生更新安装和发布后镜像审计仍待后续阶段完成，当前未声称已安装。
+
+公开服务证据位于 `.private/qa-0.3.4/bootstrap-public-audit-final.log` 及 `public-audit-v0.3.4-beta.1/`。首次含更新模块的版本仍需手动安装。
+
+## 已完成的 0.3.4 引导版本验收
 
 - **106 项独立设备测试通过，21.277 秒，无跳过**；其中 **32 项更新服务测试通过，0.827 秒**。另有 **23 项 JVM 测试**与 **38 项 Python 测试**通过；Python 包含 13 项真实 HTTP 集成测试。
 - 实际 PackageManager 接受同证书、更高版本、关闭调试的通用 APK，拒绝截断、错误摘要、非 APK、错误包名 / 版本 / 最低 SDK / 签名、debuggable 构建、设备不支持的 SDK 和已安装版本。APK 测试夹具与替代测试密钥均留在忽略目录。
@@ -14,13 +26,13 @@
 - 已部署树莓派用户 systemd 服务实测 HTTP 重启和监听恢复、镜像手动同步成功、timer 保持 active / waiting。监听 `0.0.0.0:9080`；部署脚本与本地源码摘要相同。私有状态及环境配置为 0600；HTTP 私有路径返回 404。HTTP 与同步器使用同一既有 OS 用户，未配置独立 HTTP 账号。
 - 首个完整 Release 发布前，现有三个 GitHub Release 均缺少 `update.json`。树莓派 origin 与公开 `https://bucea-library-seat.miofelix.com/updates/latest.json` 的 GET / HEAD 均返回预期 **503 / no-store**。这证明空源响应与部署可用，尚不证明真实公开 APK 下载。
 
-实机、服务和构建证据位于忽略目录 `.private/qa-0.3.4/`；安装器完成和 Release 发布后的公开清单、下载、Range、ETag 与重启续传结果在分阶段 ADB 文档继续记录。首次含更新模块的版本仍需手动安装。
+实机、服务和构建证据位于忽略目录 `.private/qa-0.3.4/`。这些设备和本地安装结果属于 0.3.4 引导阶段；公开源结果见本文上方，最终版本结果在单独的 ADB 文档记录。
 
 ## 尚无本次验证的条件
 
 Android 8 / API 26 设备或模拟器不可用，API 36 结果不能代替 API 26 验收。本轮未提交真实预约、取消、签到或后续座位使用操作；用户确认仅校园网，并暂不测馆内签到及其后续流程，第二个已授权真实账号不可用。修改密码当前未实现，入口提示通过不等于密码修改成功。
 
-真实公开网络 APK 更新、移动网络 / Wi-Fi 切换、系统暂停、整机重启和空间耗尽场景不能从本地 DownloadProvider 测试行推断完成。最终安装与发布后的实际结果以 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md) 为准。
+实际公网检查、确认、下载、取消、等待网络、进程重启恢复和系统安装已经在引导 code 9 上通过。移动网络切换、人工系统暂停、整机重启和实际空间耗尽仍未实测，不能从本地测试行或 JVM 测试推断完成。最终 code 10 的安装与发布后结果以 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md) 为准。
 
 # 2026-10-14 初始实现的历史记录
 
