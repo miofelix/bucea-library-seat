@@ -21,6 +21,8 @@ import cn.edu.bucea.library.ui.HubRecord
 import cn.edu.bucea.library.ui.HubSection
 import cn.edu.bucea.library.ui.LibraryHubScreen
 import cn.edu.bucea.library.ui.LibraryHubState
+import cn.edu.bucea.library.data.models.ReservationSchedule
+import cn.edu.bucea.library.ui.reservationTimeline
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -30,6 +32,9 @@ import org.junit.runner.RunWith
 import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.ZoneId
 
 /**
  * Synthetic presentation fixtures only. MainActivity can make its normal startup reads,
@@ -41,6 +46,44 @@ class LibraryHubUiInstrumentedTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val automation get() = instrumentation.uiAutomation
     private val appPackage get() = instrumentation.targetContext.packageName
+
+    @Test fun reservationTimelineDisplaysEveryScheduledSeatInOrderAndKeepsPaginationAndDetails() {
+        val date = LocalDate.now(ZoneId.of("Asia/Shanghai")).plusDays(1)
+        val evening = HubRecord("fixture-evening", "晚间预约 A101", "已预约", listOf("座位：A101", "位置：图书馆二层东区"),
+            canCancel = true, schedule = ReservationSchedule(date.toString(), "18:00", "20:00"))
+        val late = HubRecord("fixture-late", "晚间预约 B202", "待签到", listOf("座位：B202", "位置：图书馆三层西区"),
+            canCancel = true, schedule = ReservationSchedule(date.toString(), "20:30", "22:00"))
+        val tomorrow = HubRecord("fixture-following-day", "次日预约 C303", "已预约", listOf("座位：C303", "位置：图书馆一层南区"),
+            canCancel = true, schedule = ReservationSchedule(date.plusDays(1).toString(), "08:00", "10:00"))
+        val records = listOf(tomorrow, late, evening)
+        assertEquals(listOf(evening.id, late.id, tomorrow.id),
+            reservationTimeline(records, LocalDateTime.of(date, java.time.LocalTime.NOON)).single().records.map { it.id })
+        val state = mutableStateOf(LibraryHubState(currentStatus = "NO_RESERVATION", records = records, hasMore = true))
+        val opened = AtomicReference<String?>()
+        val loads = AtomicInteger()
+        withHub(state, onLoadMore = { loads.incrementAndGet() }, onOpenRecord = { record ->
+            opened.set(record.id)
+            state.value = state.value.copy(selectedRecord = record)
+        }) {
+            findWithScroll("The reservation screen must show its timeline") { findText("预约时间线") }
+            assertFalse("My reservations must remove the redundant search shortcut", hasText("查找座位"))
+            assertFalse("My reservations must remove the redundant map shortcut", hasText("布局选座"))
+            val expected = listOf(evening to "18:00 — 20:00", late to "20:30 — 22:00", tomorrow to "08:00 — 10:00")
+            expected.forEach { (record, time) ->
+                findWithScroll("Each scheduled reservation must show its real time") { findText(time) }
+                findWithScroll("Each scheduled reservation must show its seat") { findText(record.details.first().substringAfter('：') + " 号座位") }
+                findWithScroll("Each scheduled reservation must show its location") { findText(record.details[1]) }
+                findWithScroll("The timeline record remains available for details", backwards = true) { findText(record.title) }
+            }
+            click(findWithScroll("Pagination must remain available below the loaded timeline") { findText("加载更多") })
+            waitFor("Pagination must invoke the existing callback") { loads.get() == 1 }
+            click(findWithScroll("The following-day reservation must allow details", backwards = true) { findText(tomorrow.title) })
+            waitFor("Timeline details must retain the original server record") { opened.get() == tomorrow.id && hasText("关闭") }
+            assertTrue("An active timeline record may still expose server-authorized cancellation in details", hasText("取消预约"))
+            click(requireNode("Timeline details must remain dismissible") { findText("关闭") })
+            waitFor("Closing details must return to the timeline") { !hasText("关闭") }
+        }
+    }
 
     @Test fun restrictedLocationExplainsLibraryWifiAndOffersRefreshWithoutAnUnsupportedMessage() {
         val refreshes = AtomicInteger()
@@ -160,6 +203,8 @@ class LibraryHubUiInstrumentedTest {
         onRemoveFavorite: (HubFavorite) -> Unit = {},
         onAction: (HubAction) -> Unit = {},
         onCancelRecord: (HubRecord) -> Unit = {},
+        onLoadMore: () -> Unit = {},
+        onOpenRecord: (HubRecord) -> Unit = { state.value = state.value.copy(selectedRecord = it) },
         assertions: () -> Unit,
     ) {
         val activity = instrumentation.startActivitySync(
@@ -175,14 +220,14 @@ class LibraryHubUiInstrumentedTest {
                             state = state.value,
                             onRefresh = onRefresh,
                             onSection = onSection,
-                            onLoadMore = {},
+                            onLoadMore = onLoadMore,
                             onSearch = {},
                             onOpenMap = {},
                             onFavorite = onFavorite,
                             onRemoveFavorite = onRemoveFavorite,
                             onAction = onAction,
                             onCancelRecord = onCancelRecord,
-                            onOpenRecord = { state.value = state.value.copy(selectedRecord = it) },
+                            onOpenRecord = onOpenRecord,
                             onDismissRecord = { state.value = state.value.copy(selectedRecord = null) },
                         )
                     }

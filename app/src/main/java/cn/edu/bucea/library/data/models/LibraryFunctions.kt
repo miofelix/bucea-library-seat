@@ -77,6 +77,14 @@ data class ReservationReceipt(
 
 data class ReservationResult(val success: Boolean, val message: String, val receipt: ReservationReceipt? = null)
 
+/** Validated server schedule; absent or ambiguous fields remain unknown. */
+data class ReservationSchedule(
+    val date: String? = null,
+    val begin: String? = null,
+    val end: String? = null,
+    val dateLabel: String? = null,
+)
+
 data class LibraryHistoryItem(
     val id: String,
     val title: String,
@@ -86,6 +94,7 @@ data class LibraryHistoryItem(
     val cancelMethod: String? = null,
     val reservationId: String? = null,
     val detailPath: String? = null,
+    val schedule: ReservationSchedule = ReservationSchedule(),
 )
 
 data class ReservationHistory(

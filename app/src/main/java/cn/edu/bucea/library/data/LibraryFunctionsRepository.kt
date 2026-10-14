@@ -196,7 +196,16 @@ class LibraryFunctionsRepository(
             "位置：${it.location}", "状态：${it.status}") }
             ?: document.select(".receipt dd, #receipt dd, .reserveResult dd, .layoutSeat dd, .myReserveList dd, .reserveTime dd")
                 .map { it.text() }.filter { it.isNotBlank() }
-        return record.copy(details = details.ifEmpty { record.details }, status = receipt?.status?.ifBlank { record.status } ?: record.status)
+        val updatedSchedule = receipt?.let { ReservationSchedules.fromReceipt(it) }
+            ?: ReservationSchedules.parse("", details)
+        val schedule = updatedSchedule.copy(
+            date = if (updatedSchedule.dateLabel != null) updatedSchedule.date else record.schedule.date,
+            begin = updatedSchedule.begin ?: record.schedule.begin,
+            end = updatedSchedule.end ?: record.schedule.end,
+            dateLabel = updatedSchedule.dateLabel ?: record.schedule.dateLabel,
+        )
+        return record.copy(details = details.ifEmpty { record.details },
+            status = receipt?.status?.ifBlank { record.status } ?: record.status, schedule = schedule)
     }
 
     suspend fun extensionTimes(account: SavedAccount): List<LibraryOption> {
@@ -384,7 +393,7 @@ class LibraryFunctionsRepository(
                 response.contains("clickVerifyCode(") || response.contains("您操作的频率太快"))
         }
 
-        fun parseHistory(document: Document): ReservationHistory {
+        fun parseHistory(document: Document, referenceDate: LocalDate = LocalDate.now(ZoneId.of("Asia/Shanghai"))): ReservationHistory {
             val container = document.selectFirst(".myReserveList, #myReserveList") ?: document.body()
             val items = container.select("dl").filterNot { it.id() == "moreBlock" || it.select("dd").isEmpty() }.map { item ->
                 val details = item.select("dd").map { it.text() }.filter { it.isNotBlank() }
@@ -416,9 +425,11 @@ class LibraryFunctionsRepository(
                 // Older pages omit DOM IDs. Content-based IDs remain stable across pagination.
                 val contentId = MessageDigest.getInstance("SHA-256").digest(item.text().toByteArray(Charsets.UTF_8))
                     .joinToString("") { "%02x".format(it) }
+                val title = item.selectFirst("dt")?.text().orEmpty()
                 LibraryHistoryItem(serverId?.let { "reservation_$it" } ?: item.id().ifBlank { "history_$contentId" },
-                    item.selectFirst("dt")?.text().orEmpty(), details, status, cancel,
-                    cancel?.let { if (cancelForm != null) "POST" else "GET" }, serverId, detail)
+                    title, details, status, cancel,
+                    cancel?.let { if (cancelForm != null) "POST" else "GET" }, serverId, detail,
+                    ReservationSchedules.parse(title, details, referenceDate))
             }
             val scripts = document.select("script").joinToString("\n") { it.data() }
             val status = Regex("currentReservationStatus\"\\s*:\\s*\"([^\"]+)\"").find(scripts)?.groupValues?.get(1).orEmpty()

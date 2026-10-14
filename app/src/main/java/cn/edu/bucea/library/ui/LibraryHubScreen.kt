@@ -4,17 +4,21 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,7 +38,6 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.Button
@@ -60,17 +63,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import cn.edu.bucea.library.data.models.ReservationSchedule
+import java.time.LocalDate
 
 enum class HubSection { RESERVATIONS, FAVORITES, FREQUENT, VIOLATIONS }
 
-data class HubRecord(val id: String, val title: String, val status: String, val details: List<String>, val canCancel: Boolean = false)
+data class HubRecord(val id: String, val title: String, val status: String, val details: List<String>, val canCancel: Boolean = false,
+    val schedule: ReservationSchedule = ReservationSchedule())
 data class HubFavorite(val id: String, val name: String, val location: String, val local: Boolean = false)
 data class HubAction(val id: String, val label: String, val description: String, val destructive: Boolean = false)
 data class LibraryHubState(
@@ -127,13 +135,13 @@ fun LibraryHubScreen(
         }
     }
     val sectionTitle = when (state.section) {
-        HubSection.RESERVATIONS -> "预约记录"
+        HubSection.RESERVATIONS -> "预约时间线"
         HubSection.FAVORITES -> "收藏座位"
         HubSection.FREQUENT -> "常用座位"
         HubSection.VIOLATIONS -> "违约记录"
     }
     val subtitle = when (state.section) {
-        HubSection.RESERVATIONS -> "座位与预约，一目了然。"
+        HubSection.RESERVATIONS -> "按时间，安排下一次到馆。"
         HubSection.FAVORITES -> "喜欢的位置，留到下次。"
         HubSection.FREQUENT -> "熟悉的位置，轻松找到。"
         HubSection.VIOLATIONS -> "每一次按时赴约，都值得。"
@@ -196,12 +204,6 @@ fun LibraryHubScreen(
                     }
                 }
             }
-            item(key = "shortcuts") {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    HubShortcut("查找座位", "按时间筛选", Icons.Outlined.Search, !state.loading, Modifier.weight(1f), onSearch)
-                    HubShortcut("布局选座", "按位置查找", Icons.Outlined.GridView, !state.loading, Modifier.weight(1f), onOpenMap)
-                }
-            }
         }
         state.notice?.takeIf { it.isNotBlank() }?.let { notice ->
             item(key = "notice") { Text(notice, color = Muted, fontSize = 12.sp, lineHeight = 20.sp) }
@@ -210,6 +212,19 @@ fun LibraryHubScreen(
         if (favoriteSection) {
             items(state.favorites, key = { "favorite_${it.id}" }) { favorite ->
                 FavoriteCard(favorite, state.loading, { onFavorite(favorite) }, { removingFavorite = favorite })
+            }
+        } else if (state.section == HubSection.RESERVATIONS) {
+            if (state.hasMore) item(key = "timeline-scope") {
+                Text("已加载的预约按时间排列，加载更多可查看其余记录。", color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
+            }
+            reservationTimeline(state.records).forEach { group ->
+                item(key = "timeline_${group.title}") {
+                    Text(group.title, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Muted)
+                }
+                items(group.records, key = { "record_${it.id}" }) { record ->
+                    HubReservationTimelineEntry(record, !state.loading, { onOpenRecord(record) },
+                        if (record.canCancel) ({ cancellingRecord = record }) else null)
+                }
             }
         } else {
             items(state.records, key = { "record_${it.id}" }) { record ->
@@ -461,6 +476,7 @@ private fun hubDetailText(text: String): Pair<String?, String> {
 private fun hubSeatNumber(details: List<String>): String? = details.firstNotNullOfOrNull { detail ->
     Regex("座位(?:号)?\\s*[：:]?\\s*([0-9A-Za-z][0-9A-Za-z-]{0,15})").find(detail)?.groupValues?.get(1)
         ?: Regex("([0-9A-Za-z]+)\\s*号座位").find(detail)?.groupValues?.get(1)
+        ?: Regex("([0-9]{2,}[A-Za-z][0-9A-Za-z-]*|[0-9]{2,})\\s*号").find(detail)?.groupValues?.get(1)
 }
 
 @Composable
@@ -476,34 +492,53 @@ private fun HubDetailLine(text: String) {
 }
 
 @Composable
-private fun HubShortcut(title: String, detail: String, icon: ImageVector, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Card(onClick = onClick, enabled = enabled, modifier = modifier.heightIn(min = 72.dp), shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Surface(color = SoftAccent, shape = RoundedCornerShape(10.dp)) {
-                Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) { Icon(icon, null, tint = Accent, modifier = Modifier.size(18.dp)) }
-            }
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(title, color = Ink, fontWeight = FontWeight.Medium, fontSize = 13.sp)
-                Text(detail, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
-            }
+private fun HubReservationTimelineEntry(record: HubRecord, enabled: Boolean, onClick: () -> Unit, onCancel: (() -> Unit)?) {
+    val accent = Accent
+    val line = Line
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).semantics { contentDescription = "预约时间线 ${record.id}" },
+        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Canvas(Modifier.width(14.dp).fillMaxHeight()) {
+            val markerY = 24.dp.toPx()
+            drawLine(line, Offset(size.width / 2, 0f), Offset(size.width / 2, size.height), 2.dp.toPx())
+            drawCircle(accent, 5.dp.toPx(), Offset(size.width / 2, markerY))
         }
+        HubRecordCard(record, enabled, onClick, onCancel, timeline = true)
     }
 }
 
 @Composable
-private fun HubRecordCard(record: HubRecord, enabled: Boolean, onClick: () -> Unit, onCancel: (() -> Unit)? = null) {
+private fun HubRecordCard(record: HubRecord, enabled: Boolean, onClick: () -> Unit, onCancel: (() -> Unit)? = null, timeline: Boolean = false) {
+    val seat = if (timeline) hubSeatNumber(record.details) else null
+    val title = if (timeline && record.schedule.begin?.let(record.title::contains) == true)
+        seat?.let { "$it 号座位" } ?: "座位预约" else record.title
     // Keep the changing status outside a merged clickable label. The title and
     // details affordance remain separate touch targets for readers and touch users.
     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (timeline) {
+                val date = record.schedule.date?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+                val label = date?.let { "${it.year}年${it.monthValue}月${it.dayOfMonth}日" }
+                    ?: record.schedule.dateLabel ?: "日期待确认"
+                Text(label, color = Muted, fontSize = 12.sp)
+                val time = when {
+                    record.schedule.begin != null && record.schedule.end != null -> "${record.schedule.begin} — ${record.schedule.end}"
+                    record.schedule.begin != null -> "开始 ${record.schedule.begin}"
+                    record.schedule.end != null -> "结束 ${record.schedule.end}"
+                    else -> "时段待确认"
+                }
+                Text(time, color = Accent, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, lineHeight = 26.sp)
+            }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(record.title, color = Ink, fontWeight = FontWeight.Medium, fontSize = 14.sp,
+                Text(title, color = Ink, fontWeight = FontWeight.Medium, fontSize = 14.sp,
                     modifier = Modifier.weight(1f).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
                         .heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically))
                 record.status.takeIf { it.isNotBlank() }?.let { HubStatusPill(it) }
             }
-            record.details.filter { it.isNotBlank() && hubDetailText(it).first != "状态" }.take(2).forEach {
+            if (seat != null && title != "$seat 号座位") Text("$seat 号座位", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            record.details.filter { it.isNotBlank() && hubDetailText(it).first != "状态" &&
+                (!timeline || hubDetailText(it).first !in setOf("日期", "预约日期", "时间", "时段", "凭证号", "预约编号", "座位", "座位号")) }.let {
+                if (timeline) it else it.take(2)
+            }.forEach {
                 Text(it, color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

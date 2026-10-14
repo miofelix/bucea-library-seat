@@ -9,8 +9,11 @@ import cn.edu.bucea.library.ocr.DdddOcr
 import cn.edu.bucea.library.ui.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -36,6 +39,8 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     val search = searchState.asStateFlow()
     private val hubState = MutableStateFlow(LibraryHubState())
     val hub = hubState.asStateFlow()
+    private val feedbackEvents = Channel<String>(Channel.BUFFERED)
+    val feedback: Flow<String> = feedbackEvents.receiveAsFlow()
     private var boundAccountId: String? = null
     private var authenticated = false
     private var searchJob: Job? = null
@@ -69,6 +74,7 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
             return
         }
         cancelWork()
+        while (feedbackEvents.tryReceive().isSuccess) { /* A new account must not consume the old account's queued notices. */ }
         boundAccountId?.let { repository.releaseSession(it) }
         boundAccountId = id
         authenticated = loggedIn
@@ -205,9 +211,11 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     fun toggleFavorite(seat: NativeSeat) {
         val id = boundAccountId ?: return
         val model = backendSeats[seat.id] ?: LibrarySeat(seat.id, seat.name, seat.location, seat.status, seat.available)
+        val wasFavorite = favorites.seats(id).any { it.id == seat.id }
         favorites.toggle(id, model)
         searchState.update { it.copy(seats = it.seats.map { shown -> if (shown.id == seat.id) shown.copy(localFavorite = !shown.localFavorite) else shown },
             selectedSeat = it.selectedSeat?.let { shown -> if (shown.id == seat.id) shown.copy(localFavorite = !shown.localFavorite) else shown }) }
+        feedbackEvents.trySend(if (wasFavorite) "已取消收藏" else "已收藏座位")
         if (hubState.value.section == HubSection.FAVORITES) refreshHub()
     }
 
@@ -294,14 +302,19 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
                     searchState.update { it.copy(verificationRequired = true, status = "正在自动处理学校图片验证") }; return@launch
                 }
                 submitted = true
+                feedbackEvents.trySend("正在提交预约…")
                 val result = functions.reserve(current, prepared)
                 verificationProof = null
                 searchState.update { it.copy(selectedSeat = if (result.success) null else it.selectedSeat, status = result.message,
                     reservationOutcomeUncertain = !result.success && result.message.contains("确认结果")) }
+                feedbackEvents.trySend(if (result.success) "预约成功" else result.message)
                 refreshHub()
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { searchState.update { it.copy(error = repository.userMessage(e) +
-                if (submitted) "；请在我的预约中确认结果，再决定是否重试" else "", reservationOutcomeUncertain = submitted) } }
+            catch (e: Exception) {
+                val message = repository.userMessage(e) + if (submitted) "；请在我的预约中确认结果，再决定是否重试" else ""
+                searchState.update { it.copy(error = message, reservationOutcomeUncertain = submitted) }
+                feedbackEvents.trySend(message)
+            }
             finally { if (coroutineContext[Job]?.isActive == true) searchState.update { it.copy(reservationBusy = false) } }
         }
     }
@@ -375,7 +388,8 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     private fun operationNotice(message: String) = listOfNotNull(lastActionMessage, message.takeIf { it.isNotBlank() }).joinToString("\n").ifBlank { null }
     private fun hubRecord(item: LibraryHistoryItem): HubRecord {
         historyItems[item.id] = item
-        return HubRecord(item.id, item.title.ifBlank { "座位记录" }, item.status, item.details, canCancel = item.cancelPath != null)
+        return HubRecord(item.id, item.title.ifBlank { "座位记录" }, item.status, item.details, canCancel = item.cancelPath != null,
+            schedule = item.schedule)
     }
 
     fun openRecord(record: HubRecord) {
@@ -431,9 +445,19 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
                 records = it.records.map { record -> record.copy(canCancel = false) }, selectedRecord = null,
                 detailsLoading = false, detailsError = null) }
             var error: String? = null
-            try { lastActionMessage = functions.cancelHistory(account(), item).message }
+            try {
+                val current = account()
+                feedbackEvents.trySend("正在取消预约…")
+                val result = functions.cancelHistory(current, item)
+                lastActionMessage = result.message
+                feedbackEvents.trySend(if (result.success) "取消预约成功" else result.message)
+            }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { error = repository.userMessage(e) + "；请同步记录核实取消结果" }
+            catch (e: Exception) {
+                val message = repository.userMessage(e) + "；请同步记录核实取消结果"
+                error = message
+                feedbackEvents.trySend(message)
+            }
             finally { if (coroutineContext[Job]?.isActive == true) { mutationState.value = false; hubState.update { it.copy(loading = false) } } }
             refreshHub(error)
         }
@@ -467,7 +491,10 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
 
     fun removeFavorite(item: HubFavorite) {
         if (!item.local || hubState.value.section != HubSection.FAVORITES) return
-        boundAccountId?.let { favorites.remove(it, item.id) }
+        val id = boundAccountId ?: return
+        val existed = favorites.seats(id).any { it.id == item.id }
+        favorites.remove(id, item.id)
+        if (existed) feedbackEvents.trySend("已取消收藏")
         refreshHub()
     }
     fun favoriteSeat(item: HubFavorite): NativeSeat = nativeSeat(backendSeats[item.id] ?: LibrarySeat(item.id, item.name, item.location,
@@ -495,19 +522,25 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
                 if (action.id == "getTimeExtend") {
                     val options = functions.extensionTimes(account())
                     extensionState.value = options
-                    if (options.isEmpty()) hubState.update { it.copy(notice = "当前没有可续约的时段") }
+                    if (options.isEmpty()) {
+                        hubState.update { it.copy(notice = "当前没有可续约的时段") }
+                        feedbackEvents.trySend("当前没有可续约的时段")
+                    }
                 } else {
                     attemptedMutation = true
                     actionRefreshRequired = true
                     val result = functions.performAction(account(), action.id)
                     lastActionMessage = result.message
                     hubState.update { it.copy(notice = result.message) }
+                    feedbackEvents.trySend(if (result.success) confirmedActionFeedback(action.id) else result.message)
                     refresh = true
                 }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
-                retainedError = repository.userMessage(e) + if (attemptedMutation) "；正在同步预约状态，请确认结果后再操作" else ""
+                val message = repository.userMessage(e) + if (attemptedMutation) "；正在同步预约状态，请确认结果后再操作" else ""
+                retainedError = message
                 hubState.update { it.copy(error = retainedError, actions = if (attemptedMutation) emptyList() else it.actions) }
+                feedbackEvents.trySend(message)
                 refresh = attemptedMutation
             }
             finally { if (coroutineContext[Job]?.isActive == true) { mutationState.value = false; hubState.update { it.copy(loading = false) } } }
@@ -528,10 +561,13 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
                 val result = functions.performAction(account(), "extend", value)
                 lastActionMessage = result.message
                 hubState.update { it.copy(notice = result.message) }; refresh = true
+                feedbackEvents.trySend(if (result.success) "续约成功" else result.message)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
-                retainedError = repository.userMessage(e) + "；正在同步预约状态，请确认结果后再操作"
+                val message = repository.userMessage(e) + "；正在同步预约状态，请确认结果后再操作"
+                retainedError = message
                 hubState.update { it.copy(error = retainedError, actions = emptyList()) }
+                feedbackEvents.trySend(message)
                 refresh = true
             }
             finally { if (coroutineContext[Job]?.isActive == true) { mutationState.value = false; hubState.update { it.copy(loading = false) } } }
@@ -540,6 +576,15 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     }
 
     fun dismissExtension() { extensionState.value = emptyList() }
+
+    private fun confirmedActionFeedback(action: String): String = when (action) {
+        "checkIn" -> "签到成功"
+        "leave" -> "暂离成功"
+        "resume" -> "继续使用成功"
+        "stopUsing" -> "结束使用成功"
+        "extend" -> "续约成功"
+        else -> "操作成功"
+    }
 
     private fun cancelWork() { listOf(optionsJob, searchJob, roomsJob, timesJob, hubJob, actionJob, detailsJob).forEach { it?.cancel() } }
     override fun onCleared() { cancelWork(); if (ocrResource.isInitialized()) ocrResource.value.close(); super.onCleared() }
