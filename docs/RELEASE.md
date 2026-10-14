@@ -1,6 +1,6 @@
 # Android 发布
 
-所有构建、签名与发布在保存原签名密钥的 MacBook 上执行。树莓派只缓存成品。版本在 `app/build.gradle.kts` 中维护，当前发布候选版本为 **0.3.5 / versionCode 10**，每次后续更新递增 `versionCode`。
+所有构建、签名与发布在保存原签名密钥的 MacBook 上执行。树莓派只缓存成品。版本在 `app/build.gradle.kts` 中维护，当前发布版本为 **0.3.5 / versionCode 10**，每次后续更新递增 `versionCode`。
 
 ## 构建
 

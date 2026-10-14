@@ -1,6 +1,6 @@
 # 更新功能验证 — 2026-10-14
 
-最终候选 Release 为 **v0.3.5-beta.1 / versionCode 10**，保留 0.3.4 已验证的生产实现并递增版本。最终验收见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)；引导版本的设备测试见 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md)。初始 MacBook 记录仅保留为历史证据。
+已发布的验证 Release 为 **v0.3.5-beta.1 / versionCode 10**，保留 0.3.4 已验证的生产实现并递增版本。最终验收见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)；引导版本的设备测试见 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md)。初始 MacBook 记录仅保留为历史证据。
 
 ## 公开更新源验收与最终版本接续
 
@@ -9,8 +9,8 @@
 - 真实应用原生公网 **debug code 8 → 已发布 release code 9** 流程通过。实际检查显示更新提示；“稍后”后进程重启安静，更新文件和该应用管理的 DownloadManager 行均为 0。实际公网 APK 达到 READY，摘要与公开附件一致；删除校验文件后任务与残留归零。
 - 断网确认的唯一任务实际处于 **PAUSED / 等待网络，0 字节**，原生取消按钮清除任务。第二次断网任务经 force-stop、恢复 Wi-Fi 和应用重启后保留同一 token / Download ID / 已确认清单，完成实际下载并校验到 READY；后台完成未自动启动安装器。
 - 用户明确点击后实际 OEM 安装器成功安装公开 code 9。SDK-only 最终验收通过：实际安装版本 / 关闭调试 / 精确 APK 摘要一致，加密账号、偏好、收藏和主题指纹保留，任务和更新文件自动清理。原始 Wi-Fi 开启、移动数据关闭状态均已恢复。
-- 原生 UpdateHttpClient 的独立诊断 **1 项通过，2.028 秒**，实际读到公开清单 code 9；恢复 Wi-Fi 后的瞬时未联网失败保留为过程证据，不计为完成的检查。原生 UI 最终验证以成功重连后的结果为准。
-- 最终 **0.3.5 / code 10** 仅递增版本，构建、**23 项 JVM 测试**与两种 Lint 已通过。code 10 的发布、原生更新安装和发布后镜像审计仍待后续阶段完成，当前未声称已安装。
+- 原生 UpdateHttpClient 的独立诊断 **1 项通过，2.028 秒**，实际读到公开清单 code 9；恢复 Wi-Fi 后的临时检查失败保留为过程证据，不计为完成的检查。原生 UI 最终验证以成功重连后的结果为准。
+- 最终 **0.3.5 / code 10** 仅递增版本，构建、**23 项 JVM 测试**与两种 Lint 已通过。**v0.3.5-beta.1** 已发布，真实手机从已发布 code 9 原生下载并安装到 code 10；SDK-only 验收确认非调试包、精确公开 APK 摘要、原账号/偏好/收藏/主题保留和任务自动清理。手动检查显示“已是最新版本”。最终公开附件、ETag、Range、服务重启续传与旧 code 9 资产保留审计通过。
 
 公开服务证据位于 `.private/qa-0.3.4/bootstrap-public-audit-final.log` 及 `public-audit-v0.3.4-beta.1/`。首次含更新模块的版本仍需手动安装。
 

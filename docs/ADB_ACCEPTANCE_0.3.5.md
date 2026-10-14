@@ -29,7 +29,22 @@ Evidence: `bootstrap-public-audit-final.log` and `public-audit-v0.3.4-beta.1/` i
 
 Version **0.3.5 / code 10** builds and both Lint variants pass. Its **23 JVM tests** pass. The unchanged updater/business implementation has the earlier **106 independent device tests**, **32 real Android updater-service tests**, **38 Python tests**, complete minified release UI/four-floor acceptance and the public update sequence above. These earlier counts are not new executions against code 10.
 
-The final code 10 public update/install and retained code 9 asset checks are recorded after publication below. No incomplete public transaction is inferred from a local READY fixture.
+The final release was published at commit `a87ad92` with exactly APK, `SHA256SUMS` and `update.json`. Its APK is **102,488,215 bytes**, SHA-256 `a40dd3492492814fd196b7b99d33fb918c5908452bf4efaf186ae0f7dd14f269`, retaining the original signer. GitHub release **412345933** supplies APK asset **639250049**.
+
+The phone then exercised the actual **published 0.3.4 / code 9 → published 0.3.5 / code 10** native update. Manual public discovery offered the new version, explicit consent started the download, “放到后台” hid the task, and reopening the controls reached READY. SDK-only inspection checked the actual READY file against the final expected size and checksum. Another explicit click opened the OEM installer and completed installation.
+
+Final SDK-only readback returned **PASS / code -1**: actual installed version **0.3.5 / code 10**, non-debuggable, exact final APK bytes, preserved original encrypted account/selection/preferences/bookmarks/theme state, and no tracked task/backup/partial/internal APK/external download remaining. This is a completed public update transaction; it uses no seeded READY task.
+
+Evidence: `final-public-available-ui.log`, `final-public-ready-ui.log`, `final-public-install-ui.log`, `phase3-framework-record-task.log` and `phase3-framework-final.log`. The framework steps for this final run received explicit expected version code/name and final SHA-256 arguments; earlier snapshots remain under their own private phase files.
+
+## Final public verification and cleanup
+
+- Manual checking on the actual installed code 10 reported **“已是最新版本”** from the real public manifest. Final system inspection found **zero managed downloads and zero task-record files**.
+- The final public APK was independently assembled from an already downloaded prefix and four disjoint valid HTTPS ranges after a slow Mac transfer. All **102,488,215 bytes**, SHA-256 and the original signer matched. This is real Range continuation, not a local staged-APK checksum substitution.
+- Public code 10 manifest 200/304, APK HEAD/ETag, exact Range 206, origin 416/no-store and HTTP-service restart continuation passed. The previous code 9 asset remained readable and its first 1024 bytes matched the earlier complete verified download. Public files are 0644; private mirror state is 0600; HTTP and timer services are healthy.
+- Removed only acceptance snapshot preferences and the manually pushed candidate APK. The legacy slow GitHub transfer was canceled and cleaned, not counted as a completed download. Restored the original unknown-source app-op (default), Wi-Fi enabled and mobile data disabled. Production credentials, selection, appearance and bookmarks were preserved.
+
+Evidence: `final-installed-latest-ui.log`, `phase3-framework-no-task.log`, `phase3-framework-cleanup.log`, `final-public-audit-complete.log`, `final-public-apk-ranges.log`, `final-mirror-permissions.txt`, and `public-audit-v0.3.5-beta.1/` under the private run directory. Published assets were not replaced.
 
 ## Remaining conditions
 
