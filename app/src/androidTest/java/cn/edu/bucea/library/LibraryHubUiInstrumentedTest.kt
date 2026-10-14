@@ -1,7 +1,9 @@
 package cn.edu.bucea.library
 
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.Rect
+import android.os.Build
 import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -25,6 +27,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
@@ -163,6 +166,7 @@ class LibraryHubUiInstrumentedTest {
             Intent(instrumentation.targetContext, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         ) as MainActivity
+        var fixtureReady = false
         try {
             instrumentation.runOnMainSync {
                 activity.setContent {
@@ -186,14 +190,56 @@ class LibraryHubUiInstrumentedTest {
             }
             instrumentation.waitForIdleSync()
             waitFor("The synthetic library hub must be in the foreground") { hasText("我的图书馆") }
+            fixtureReady = true
             assertions()
+        } catch (failure: Throwable) {
+            if (fixtureReady) captureHubFailure(state.value, failure)
+            throw failure
         } finally {
             instrumentation.runOnMainSync { activity.finish() }
             instrumentation.waitForIdleSync()
         }
     }
 
+    /** Capture only the synthetic fixture, before withHub restores or finishes the activity. */
+    private fun captureHubFailure(state: LibraryHubState, failure: Throwable) {
+        runCatching {
+            val root = automation.rootInActiveWindow ?: return
+            if (root.packageName?.toString() != appPackage) return
+            val dump = StringBuilder().apply {
+                appendLine("Synthetic LibraryHub fixture failure: ${failure.message}")
+                appendLine("section=${state.section} loading=${state.loading} currentStatus=${state.currentStatus}")
+                state.records.forEach { appendLine("record id=${it.id} title=${it.title} status=${it.status} canCancel=${it.canCancel}") }
+                appendLine("Accessibility nodes from target package only:")
+            }
+            fun value(text: CharSequence?): String = text?.toString().orEmpty()
+                .replace("\\", "\\\\").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+            fun visit(node: AccessibilityNodeInfo, depth: Int) {
+                if (node.packageName?.toString() == appPackage) {
+                    val bounds = Rect().apply { node.getBoundsInScreen(this) }
+                    dump.append("  ".repeat(depth))
+                        .append("class=${node.className} bounds=$bounds visible=${node.isVisibleToUser}")
+                        .append(" enabled=${node.isEnabled} clickable=${node.isClickable} scrollable=${node.isScrollable}")
+                        .append(" text=[${value(node.text)}] description=[${value(node.contentDescription)}]")
+                        .appendLine(" actions=${node.actionList.map { it.id }}")
+                }
+                repeat(node.childCount) { node.getChild(it)?.let { visit(it, depth + 1) } }
+            }
+            visit(root, 0)
+            File(instrumentation.targetContext.filesDir, "whitespace-hub-failure.txt").writeText(dump.toString())
+            automation.takeScreenshot()?.let { bitmap ->
+                try {
+                    File(instrumentation.targetContext.filesDir, "whitespace-hub-failure.png").outputStream().use {
+                        bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+                    }
+                } finally { bitmap.recycle() }
+            }
+        }.onFailure { failure.addSuppressed(it) }
+    }
+
     private fun nodes(): List<AccessibilityNodeInfo> {
+        // Some Android builds retain old Compose text/enabled nodes after a visual update.
+        if (Build.VERSION.SDK_INT >= 33) automation.clearCache()
         val found = mutableListOf<AccessibilityNodeInfo>()
         fun visit(node: AccessibilityNodeInfo) {
             if (node.packageName?.toString() == appPackage && node.isVisibleToUser) found += node

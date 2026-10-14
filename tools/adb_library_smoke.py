@@ -42,7 +42,7 @@ SAFE_LABELS = {
     "我的预约", "收藏座位", "常用座位", "违约记录", "返回首页",
     "布局选座", "地图", "列表", "关闭", "适应区域", "修改图书馆密码",
     "时间、电源与靠窗", "收起筛选条件", "场馆", "阅览区域", "使用时长",
-    "开始时间", "结束时间", "电源", "靠窗",
+    "开始时间", "结束时间", "选择开始时间", "选择结束时间", "电源", "靠窗",
 }
 FORBIDDEN_LABELS = {
     "确认预约", "签到", "确认签到", "结束使用", "确认结束使用",
@@ -222,7 +222,7 @@ class NativeSmoke:
             SEAT_LABEL.fullmatch(expected) or TIME_LABEL.fullmatch(expected)
         ):
             raise SmokeFailure("已阻止不在只读验收范围内的控件操作。")
-        if label(node) != expected or not self.visible(node):
+        if (label(node) != expected and node.get("content-desc") != expected) or not self.visible(node):
             raise SmokeFailure("目标控件已变化；验收已停止以避免误操作。")
         # Text semantics can be children of a clickable chip/card. Keep the tap at
         # the verified label's centre so adjacent bookmark/mutation icons are avoided.
@@ -273,16 +273,23 @@ class NativeSmoke:
         self.screenshot(name)
         print(f"PASS {name}", flush=True)
 
-    def time_choice(self, section: str) -> ET.Element | None:
-        heading = self.exact(section)
-        if heading is None:
-            return None
-        heading_y = bounds(heading)[3]
-        next_heading = self.exact("结束时间") if section == "开始时间" else None
-        next_y = bounds(next_heading)[1] if next_heading is not None else self.height
-        matches = self.nodes(lambda node: TIME_LABEL.fullmatch(label(node)) is not None and
-                             bounds(node)[1] >= heading_y and bounds(node)[3] <= next_y)
-        return min(matches, key=lambda node: (bounds(node)[1], bounds(node)[0])) if matches else None
+    def select_time(self, section: str) -> str:
+        """Choose a server-provided time through the compact native field."""
+        description = "选择" + section
+        trigger = self.wait(
+            lambda: next(iter(self.nodes(lambda node: node.get("content-desc") == description)), None),
+            "时段选择入口尚未就绪。",
+        )
+        self.tap(trigger, description)
+        self.wait(lambda: self.exact("关闭"), "原生时段选项未打开。")
+        choices = self.nodes(lambda node: TIME_LABEL.fullmatch(label(node)) is not None)
+        if not choices:
+            raise SmokeFailure("该座位没有可用服务器时段；验收未提交预约。")
+        choice = min(choices, key=lambda node: (bounds(node)[1], bounds(node)[0]))
+        value = label(choice)
+        self.tap(choice, value)
+        self.wait(lambda: self.exact("选择可用时段"), "时段选项未返回预约面板。")
+        return value
 
     def seat_choice(self) -> ET.Element | None:
         matches = self.nodes(lambda node: SEAT_LABEL.fullmatch(label(node)) is not None)
@@ -332,28 +339,8 @@ class NativeSmoke:
         selected_seat = label(seat_node)
         self.tap(seat_node, selected_seat)
         self.wait(lambda: self.exact("选择可用时段"), "未打开座位时段选择。")
-        start_node = self.wait(lambda: self.time_choice("开始时间"), "该座位没有可用开始时间，或时段查询未完成。")
-        selected_start = label(start_node)
-        self.tap(start_node, selected_start)
-        # Ending times are loaded asynchronously. Wait for the section's actual
-        # options before scrolling the bounded dialog viewport.
-        deadline = time.monotonic() + self.timeout
-        end_node = None
-        swipes = 0
-        while time.monotonic() < deadline:
-            self.snapshot()
-            end_node = self.time_choice("结束时间")
-            if end_node is not None:
-                break
-            # Keep a visible ending heading in place while its server choices load.
-            if self.exact("结束时间") is None and swipes < 6:
-                self.scroll()
-                swipes += 1
-            time.sleep(.4)
-        if end_node is None:
-            raise SmokeFailure("未显示可用结束时间；验收已停止，未提交预约。")
-        selected_end = label(end_node)
-        self.tap(end_node, selected_end)
+        selected_start = self.select_time("开始时间")
+        selected_end = self.select_time("结束时间")
         self.tap_exact("下一步")
 
         self.phase = "核对预约预览"
@@ -477,7 +464,10 @@ class NativeSmoke:
         return min(candidates, key=lambda node: bounds(node)[1]) if candidates else None
 
     def open_floor_options(self) -> list[str]:
-        button = self.find_scrolling(self.map_floor_button, "未找到原生楼层选择按钮。", up=True)
+        button = self.find_scrolling(
+            lambda: self.map_floor_button() if self.exact("刷新座位地图") is not None else None,
+            "未找到原生楼层选择按钮。", up=True,
+        )
         if self.exact("刷新座位地图") is None or self.clickable_ancestor(button) is None:
             raise SmokeFailure("楼层选择上下文已变化。")
         self.tap_center(button)
@@ -506,21 +496,23 @@ class NativeSmoke:
         self.pass_phase("06-native-filter-options")
 
     def switch_map_mode(self, target: str) -> None:
-        """Verify the state change before proceeding; retry one fresh safe toggle."""
-        current = "列表" if target == "list" else "地图"
-        changed = "地图" if target == "list" else "列表"
-        for attempt in range(2):
-            node = self.find_scrolling(lambda: self.exact(current), "未找到地图显示方式切换按钮。", up=True)
-            self.tap(node, current)
-            deadline = time.monotonic() + min(self.timeout, 8)
-            while time.monotonic() < deadline:
-                self.snapshot()
-                if self.exact(changed) is not None:
-                    return
-                time.sleep(.3)
-            # Retry only this display toggle using a new hierarchy. Never replay
-            # booking, account or reservation operations after an uncertain click.
-        raise SmokeFailure("地图显示方式未切换；已停止验收，未执行任何预约操作。")
+        """Verify selection for the two persistent map/list segment buttons."""
+        desired = "列表" if target == "list" else "地图"
+
+        def selected() -> bool:
+            node = self.exact(desired)
+            for _ in range(4):
+                if node is None:
+                    return False
+                if node.get("selected") == "true" or node.get("checked") == "true":
+                    return True
+                node = self.parents.get(node)
+            return False
+
+        node = self.find_scrolling(lambda: self.exact(desired), "未找到地图显示方式切换按钮。", up=True)
+        if not selected():
+            self.tap(node, desired)
+        self.wait(selected, "地图显示方式未切换；已停止验收，未执行任何预约操作。")
 
     def run_map_checks(self) -> None:
         self.phase = "原生地图楼层与区域"

@@ -4,20 +4,27 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -27,11 +34,11 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -41,9 +48,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -55,8 +60,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -108,7 +115,7 @@ fun LibraryHubScreen(
     val maximumDialogHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.45f).coerceAtMost(360.dp)
     LaunchedEffect(state.actions, state.favorites, state.records) {
         if (confirmingAction?.id?.let { id -> state.actions.none { it.id == id } } == true) confirmingAction = null
-        if (removingFavorite?.id?.let { id -> state.favorites.none { it.id == id } } == true) removingFavorite = null
+        if (removingFavorite?.id?.let { id -> state.favorites.none { it.id == id && it.local } } == true) removingFavorite = null
         if (cancellingRecord?.id?.let { id -> state.records.none { it.id == id && it.canCancel } } == true) cancellingRecord = null
     }
     BackHandler(enabled = state.selectedRecord != null || cancellingRecord != null || confirmingAction != null || removingFavorite != null) {
@@ -120,239 +127,206 @@ fun LibraryHubScreen(
         }
     }
     val sectionTitle = when (state.section) {
-        HubSection.RESERVATIONS -> "我的预约"
+        HubSection.RESERVATIONS -> "预约记录"
         HubSection.FAVORITES -> "收藏座位"
         HubSection.FREQUENT -> "常用座位"
         HubSection.VIOLATIONS -> "违约记录"
     }
+    val subtitle = when (state.section) {
+        HubSection.RESERVATIONS -> "座位与预约，一目了然。"
+        HubSection.FAVORITES -> "喜欢的位置，留到下次。"
+        HubSection.FREQUENT -> "熟悉的位置，轻松找到。"
+        HubSection.VIOLATIONS -> "每一次按时赴约，都值得。"
+    }
+    val favoriteSection = state.section == HubSection.FAVORITES || state.section == HubSection.FREQUENT
+    val empty = if (favoriteSection) state.favorites.isEmpty() else state.records.isEmpty()
 
     LazyColumn(
-        modifier = modifier.fillMaxSize(),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 24.dp, vertical = 20.dp),
+        modifier = modifier.fillMaxSize().background(Paper),
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("我的图书馆", fontSize = 25.sp, fontWeight = FontWeight.Bold, color = Ink)
-                    Text("座位与预约，一目了然。", color = Muted, fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp))
-                }
-                IconButton(onClick = onRefresh, enabled = !state.loading) {
-                    Icon(Icons.Outlined.Refresh, "刷新预约与座位", tint = Accent)
-                }
-            }
+        item(key = "heading") {
+            LibraryPageHeader("我的图书馆", subtitle, onRefresh = onRefresh, refreshDescription = "刷新预约与座位", refreshEnabled = !state.loading)
         }
-        if (state.loading) item { LinearProgressIndicator(Modifier.fillMaxWidth(), color = Accent) }
+        item(key = "sections") {
+            HubSectionSwitch(state.section, !state.loading, onSection)
+        }
+        if (state.loading) item(key = "loading") {
+            LinearProgressIndicator(Modifier.fillMaxWidth(), color = Accent, trackColor = SoftAccent)
+        }
         state.error?.let { error ->
-            item {
-                Card(shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF0EA))) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.Info, null, tint = Color(0xFF945344), modifier = Modifier.size(19.dp))
-                            Text("暂时无法同步", color = Color(0xFF945344), fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
-                        }
-                        Text(error, color = Ink, style = MaterialTheme.typography.bodySmall)
-                        TextButton(enabled = !state.loading, onClick = onRefresh) { Text("重试") }
+            item(key = "error") {
+                LibraryCard {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Icon(Icons.Outlined.Info, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(19.dp))
+                        Text("暂时无法同步", color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
                     }
+                    Text(error, color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
+                    TextButton(enabled = !state.loading, onClick = onRefresh, modifier = Modifier.heightIn(min = 48.dp)) { Text("重试") }
                 }
             }
         }
-        item {
-            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Ink)) {
-                Column(Modifier.fillMaxWidth().padding(21.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.CalendarMonth, null, tint = Color(0xFFD4B87D), modifier = Modifier.size(21.dp))
-                        Text("当前预约", color = Color.White.copy(alpha = .75f), fontSize = 13.sp, modifier = Modifier.padding(start = 8.dp))
-                    }
-                    Text(currentStatusLabel(state.currentStatus), color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 20.sp)
-                    state.currentDetails.filter { it.isNotBlank() }.forEach { detail ->
-                        Text(detail, color = Color.White.copy(alpha = .82f), fontSize = 13.sp, lineHeight = 21.sp)
-                    }
-                    state.actionMessage.takeIf { it.isNotBlank() }?.let { message ->
-                        Text(message, color = Color(0xFFD4B87D), fontSize = 13.sp, lineHeight = 21.sp)
-                    }
-                    if (state.actions.isNotEmpty()) {
-                        HorizontalDivider(color = Color.White.copy(alpha = .15f))
-                        state.actions.chunked(2).forEach { row ->
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                row.forEach { action ->
-                                    OutlinedButton(
-                                        onClick = { confirmingAction = action },
-                                        enabled = !state.loading,
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(12.dp),
-                                        border = BorderStroke(1.dp, Color.White.copy(alpha = .28f)),
-                                    ) { Text(action.label, color = Color.White, fontSize = 13.sp) }
-                                }
-                                if (row.size == 1) Spacer(Modifier.weight(1f))
-                            }
+        if (state.section == HubSection.RESERVATIONS) {
+            item(key = "current") {
+                HubCurrentReservation(state, onRefresh, onConfirmAction = { confirmingAction = it })
+            }
+            if (state.requiresLibraryWifi || state.currentStatus == "LOC_RESTRICT") item(key = "wifi") {
+                Surface(color = SoftAccent, shape = RoundedCornerShape(16.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(Icons.Outlined.Wifi, null, tint = Accent, modifier = Modifier.size(20.dp))
+                            Text("签到需连接图书馆 Wi-Fi", color = Ink, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                        }
+                        Text(
+                            state.actionMessage.takeIf { it.contains("Wi-Fi") }
+                                ?: "到馆后连接图书馆内部 Wi-Fi，再刷新预约状态。",
+                            color = Muted, fontSize = 12.sp, lineHeight = 20.sp,
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(
+                                onClick = { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) },
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(4.dp),
+                            ) { Text("打开 Wi-Fi 设置", fontSize = 12.sp) }
+                            TextButton(
+                                enabled = !state.loading, onClick = onRefresh,
+                                modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(4.dp),
+                            ) { Text("已连接，刷新状态", fontSize = 12.sp) }
                         }
                     }
-                    if (state.currentStatus.isBlank() && !state.loading) {
-                        TextButton(onClick = onRefresh) { Text("同步当前预约", color = Color(0xFFD4B87D)) }
-                    }
                 }
             }
-        }
-        item {
-            Surface(color = SoftAccent, shape = RoundedCornerShape(16.dp)) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Wifi, null, tint = Accent, modifier = Modifier.size(21.dp))
-                        Text("签到需连接图书馆 Wi-Fi", color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp))
-                    }
-                    Text("请到馆后连接图书馆内部 Wi-Fi，再刷新预约状态进行签到。可用的签到、暂离、续约与结束使用操作将随预约状态显示。", color = Muted, fontSize = 12.sp, lineHeight = 19.sp)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) }) { Text("打开 Wi-Fi 设置") }
-                        TextButton(enabled = !state.loading, onClick = onRefresh) { Text("已连接，刷新状态") }
-                    }
+            item(key = "shortcuts") {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    HubShortcut("查找座位", "按时间筛选", Icons.Outlined.Search, !state.loading, Modifier.weight(1f), onSearch)
+                    HubShortcut("布局选座", "按位置查找", Icons.Outlined.GridView, !state.loading, Modifier.weight(1f), onOpenMap)
                 }
-            }
-        }
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                HubShortcut("查找座位", "按日期与房间筛选", Icons.Outlined.Search, !state.loading, Modifier.weight(1f), onSearch)
-                HubShortcut("布局选座", "查看房间座位地图", Icons.Outlined.GridView, !state.loading, Modifier.weight(1f), onOpenMap)
             }
         }
         state.notice?.takeIf { it.isNotBlank() }?.let { notice ->
-            item {
-                Surface(color = SoftAccent, shape = RoundedCornerShape(14.dp)) {
-                    Text(notice, Modifier.fillMaxWidth().padding(14.dp), color = Accent, fontSize = 12.sp, lineHeight = 19.sp)
-                }
-            }
+            item(key = "notice") { Text(notice, color = Muted, fontSize = 12.sp, lineHeight = 20.sp) }
         }
-        item {
-            TabRow(
-                selectedTabIndex = state.section.ordinal,
-                containerColor = Color.Transparent,
-                contentColor = Accent,
-                divider = { HorizontalDivider(color = Line) },
-            ) {
-                HubSection.entries.forEach { section ->
-                    Tab(
-                        selected = state.section == section,
-                        onClick = { onSection(section) },
-                        enabled = !state.loading,
-                    ) {
-                        Text(when (section) {
-                            HubSection.RESERVATIONS -> "我的预约"
-                            HubSection.FAVORITES -> "收藏座位"
-                            HubSection.FREQUENT -> "常用座位"
-                            HubSection.VIOLATIONS -> "违约记录"
-                        }, modifier = Modifier.padding(vertical = 14.dp), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            }
-        }
-        item {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(sectionTitle, fontWeight = FontWeight.SemiBold, color = Ink, modifier = Modifier.weight(1f))
-            }
-        }
-        if (state.section == HubSection.FAVORITES || state.section == HubSection.FREQUENT) {
+        item(key = "section-title") { LibrarySectionTitle(sectionTitle) }
+        if (favoriteSection) {
             items(state.favorites, key = { "favorite_${it.id}" }) { favorite ->
                 FavoriteCard(favorite, state.loading, { onFavorite(favorite) }, { removingFavorite = favorite })
             }
         } else {
             items(state.records, key = { "record_${it.id}" }) { record ->
-                HubRecordCard(record, !state.loading, { onOpenRecord(record) },
-                    if (state.section == HubSection.RESERVATIONS && record.canCancel) ({ cancellingRecord = record }) else null)
+                HubRecordCard(
+                    record, !state.loading, { onOpenRecord(record) },
+                    if (state.section == HubSection.RESERVATIONS && record.canCancel) ({ cancellingRecord = record }) else null,
+                )
             }
         }
-        val empty = if (state.section == HubSection.FAVORITES || state.section == HubSection.FREQUENT) state.favorites.isEmpty() else state.records.isEmpty()
-        if (empty && !state.loading && state.error == null) item {
-            Card(shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(when (state.section) {
-                        HubSection.RESERVATIONS -> Icons.Outlined.CalendarMonth
-                        HubSection.FAVORITES -> Icons.Outlined.BookmarkBorder
-                        HubSection.FREQUENT -> Icons.Outlined.GridView
-                        HubSection.VIOLATIONS -> Icons.Outlined.WarningAmber
-                    }, null, tint = Accent, modifier = Modifier.size(30.dp))
-                    Text(when (state.section) {
-                        HubSection.RESERVATIONS -> "暂无预约记录"
-                        HubSection.FAVORITES -> "还没有收藏座位"
-                        HubSection.FREQUENT -> "暂无系统常用座位"
-                        HubSection.VIOLATIONS -> "暂无违约记录"
-                    }, color = Ink, fontWeight = FontWeight.Medium)
-                    Text(when (state.section) {
-                        HubSection.RESERVATIONS -> "找到合适的座位，开始一次专注时光。"
-                        HubSection.FAVORITES -> "在选座页面收藏喜欢的座位，下次更快找到。"
-                        HubSection.FREQUENT -> "常用座位由图书馆系统根据使用记录生成。"
-                        HubSection.VIOLATIONS -> "按时签到，结束使用后记得释放座位。"
-                    }, color = Muted, fontSize = 12.sp, lineHeight = 19.sp)
-                }
-            }
+        if (empty && !state.loading && state.error == null) item(key = "empty") {
+            LibraryEmptyState(
+                title = when (state.section) {
+                    HubSection.RESERVATIONS -> "暂无预约记录"
+                    HubSection.FAVORITES -> "还没有收藏座位"
+                    HubSection.FREQUENT -> "暂无系统常用座位"
+                    HubSection.VIOLATIONS -> "暂无违约记录"
+                },
+                message = when (state.section) {
+                    HubSection.RESERVATIONS -> "找到合适的座位，开始一次专注时光。"
+                    HubSection.FAVORITES -> "在选座页收藏喜欢的位置，下次更快找到。"
+                    HubSection.FREQUENT -> "常用座位由图书馆系统根据使用记录生成。"
+                    HubSection.VIOLATIONS -> "感谢你按时签到、合理使用座位。"
+                },
+                icon = when (state.section) {
+                    HubSection.RESERVATIONS -> Icons.Outlined.CalendarMonth
+                    HubSection.FAVORITES -> Icons.Outlined.BookmarkBorder
+                    HubSection.FREQUENT -> Icons.Outlined.GridView
+                    HubSection.VIOLATIONS -> Icons.Outlined.WarningAmber
+                },
+                actionLabel = if (state.section == HubSection.FAVORITES) "去选座" else null,
+                onAction = if (state.section == HubSection.FAVORITES) onSearch else null,
+            )
         }
-        if (state.hasMore) item {
-            OutlinedButton(enabled = !state.loading, onClick = onLoadMore, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+        if (state.hasMore) item(key = "more") {
+            OutlinedButton(
+                enabled = !state.loading, onClick = onLoadMore,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Line),
+            ) {
                 if (state.loading) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                 else Text("加载更多")
-            }
-        }
-        item {
-            OutlinedButton(onClick = onSearch, enabled = !state.loading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                Text("查找可用座位")
-                Spacer(Modifier.width(8.dp))
-                Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, Modifier.size(17.dp))
             }
         }
     }
 
     state.selectedRecord?.let { record ->
-        BusinessAlertDialog(onDismissRequest = onDismissRecord, title = { Text(record.title.ifBlank { "记录详情" }) },
-            text = { Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                if (state.detailsLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
-                record.status.takeIf { it.isNotBlank() }?.let { Text(it, color = Accent, fontWeight = FontWeight.Medium) }
-                state.detailsError?.let { error ->
-                    Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { onOpenRecord(record) }, enabled = !state.loading && !state.detailsLoading) { Text("重新读取详情") }
-                }
-                record.details.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
-            } }, confirmButton = { TextButton(onClick = onDismissRecord) { Text("关闭") } },
-            dismissButton = { if (record.canCancel && state.section == HubSection.RESERVATIONS)
-                TextButton(enabled = !state.loading && !state.detailsLoading, onClick = { onDismissRecord(); cancellingRecord = record }) { Text("取消预约", color = MaterialTheme.colorScheme.error) } })
-    }
-    cancellingRecord?.let { record ->
-        BusinessAlertDialog(onDismissRequest = { cancellingRecord = null }, title = { Text("取消这次预约？") },
-            text = { Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(record.title, fontWeight = FontWeight.Medium)
-                record.details.forEach { Text(it) }; Text("取消后该时段的座位将释放。")
-            } }, confirmButton = { TextButton(enabled = !state.loading, onClick = { cancellingRecord = null; onCancelRecord(record) }) { Text("确认取消预约") } },
-            dismissButton = { TextButton(onClick = { cancellingRecord = null }) { Text("保留预约") } })
-    }
-
-    confirmingAction?.let { action ->
-        val maximumHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.45f).coerceAtMost(360.dp)
         BusinessAlertDialog(
-            onDismissRequest = { if (!state.loading) confirmingAction = null },
-            title = { Text("确认${action.label}") },
+            onDismissRequest = onDismissRecord,
+            title = { Text(record.title.ifBlank { "记录详情" }) },
             text = {
-                Column(Modifier.fillMaxWidth().heightIn(max = maximumHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(currentStatusLabel(state.currentStatus), fontWeight = FontWeight.Medium, color = Accent)
-                    state.currentDetails.filter { it.isNotBlank() }.forEach { detail ->
-                        Text(detail, fontSize = 13.sp, lineHeight = 21.sp, color = Muted)
+                Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (state.detailsLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
+                    record.status.takeIf { it.isNotBlank() }?.let { HubStatusPill(it) }
+                    state.detailsError?.let { error ->
+                        Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, lineHeight = 21.sp)
+                        TextButton(onClick = { onOpenRecord(record) }, enabled = !state.loading && !state.detailsLoading, modifier = Modifier.heightIn(min = 48.dp)) {
+                            Text("重新读取详情")
+                        }
                     }
-                    HorizontalDivider(color = Line)
-                    Text(action.description.ifBlank { "确认对当前预约执行${action.label}？" })
+                    record.details.filter { it.isNotBlank() }.forEach { HubDetailLine(it) }
                 }
             },
-            confirmButton = { TextButton(enabled = !state.loading, onClick = { confirmingAction = null; onAction(action) }) {
-                Text("确认${action.label}", color = if (action.destructive) MaterialTheme.colorScheme.error else Accent)
-            } },
-            dismissButton = { TextButton(enabled = !state.loading, onClick = { confirmingAction = null }) { Text("取消") } },
+            confirmButton = { TextButton(onClick = onDismissRecord, modifier = Modifier.heightIn(min = 48.dp)) { Text("关闭") } },
+            dismissButton = {
+                if (record.canCancel && state.section == HubSection.RESERVATIONS) TextButton(
+                    enabled = !state.loading && !state.detailsLoading,
+                    onClick = { onDismissRecord(); cancellingRecord = record }, modifier = Modifier.heightIn(min = 48.dp),
+                ) { Text("取消预约", color = MaterialTheme.colorScheme.error) }
+            },
+        )
+    }
+    cancellingRecord?.let { record ->
+        BusinessAlertDialog(
+            onDismissRequest = { if (!state.loading) cancellingRecord = null }, title = { Text("取消这次预约？") },
+            text = {
+                Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(record.title, fontWeight = FontWeight.Medium)
+                    record.details.filter { it.isNotBlank() }.forEach { HubDetailLine(it) }
+                    Text("取消后该时段的座位将释放。", color = Muted, fontSize = 13.sp, lineHeight = 21.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !state.loading, onClick = { cancellingRecord = null; onCancelRecord(record) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("确认取消预约", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(enabled = !state.loading, onClick = { cancellingRecord = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text("保留预约") } },
+        )
+    }
+    confirmingAction?.let { action ->
+        BusinessAlertDialog(
+            onDismissRequest = { if (!state.loading) confirmingAction = null }, title = { Text("确认${action.label}") },
+            text = {
+                Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(currentStatusLabel(state.currentStatus), fontWeight = FontWeight.Medium, color = Accent)
+                    state.currentDetails.filter { it.isNotBlank() }.forEach { HubDetailLine(it) }
+                    HorizontalDivider(color = Line)
+                    Text(action.description.ifBlank { "确认对当前预约执行${action.label}？" }, fontSize = 13.sp, lineHeight = 21.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !state.loading, onClick = { confirmingAction = null; onAction(action) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("确认${action.label}", color = if (action.destructive) MaterialTheme.colorScheme.error else Accent)
+                }
+            },
+            dismissButton = { TextButton(enabled = !state.loading, onClick = { confirmingAction = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text("取消") } },
         )
     }
     removingFavorite?.let { favorite ->
         BusinessAlertDialog(
-            onDismissRequest = { if (!state.loading) removingFavorite = null },
-            title = { Text("移除收藏座位") },
+            onDismissRequest = { if (!state.loading) removingFavorite = null }, title = { Text("移除收藏座位") },
             text = { Text("将${favorite.name}从本机收藏中移除？") },
-            confirmButton = { TextButton(enabled = !state.loading, onClick = { removingFavorite = null; onRemoveFavorite(favorite) }) {
-                Text("移除", color = MaterialTheme.colorScheme.error)
-            } },
-            dismissButton = { TextButton(enabled = !state.loading, onClick = { removingFavorite = null }) { Text("取消") } },
+            confirmButton = {
+                TextButton(enabled = !state.loading, onClick = { removingFavorite = null; if (favorite.local) onRemoveFavorite(favorite) }, modifier = Modifier.heightIn(min = 48.dp)) {
+                    Text("移除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = { TextButton(enabled = !state.loading, onClick = { removingFavorite = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text("取消") } },
         )
     }
 }
@@ -371,28 +345,176 @@ internal fun currentStatusLabel(value: String): String = when (value) {
 }
 
 @Composable
-private fun HubShortcut(title: String, detail: String, icon: androidx.compose.ui.graphics.vector.ImageVector, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Card(onClick = onClick, enabled = enabled, modifier = modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-        Column(Modifier.fillMaxWidth().padding(17.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Icon(icon, null, tint = Accent, modifier = Modifier.size(24.dp))
-            Text(title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-            Text(detail, color = Muted, fontSize = 11.sp, lineHeight = 17.sp)
+private fun HubSectionSwitch(selected: HubSection, enabled: Boolean, onSection: (HubSection) -> Unit) {
+    Surface(color = Color(0xFFEFEFF0), shape = RoundedCornerShape(14.dp)) {
+        Row(Modifier.fillMaxWidth().padding(4.dp).selectableGroup(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            HubSection.entries.forEach { section ->
+                Surface(
+                    color = if (section == selected) Color.White else Color.Transparent,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f).selectable(section == selected, enabled = enabled, role = Role.Tab, onClick = { onSection(section) }),
+                ) {
+                    Box(Modifier.heightIn(min = 48.dp).padding(horizontal = 2.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
+                        Text(
+                            when (section) {
+                                HubSection.RESERVATIONS -> "我的预约"
+                                HubSection.FAVORITES -> "收藏座位"
+                                HubSection.FREQUENT -> "常用座位"
+                                HubSection.VIOLATIONS -> "违约记录"
+                            },
+                            color = if (section == selected) Accent else Muted, fontSize = 12.sp,
+                            fontWeight = if (section == selected) FontWeight.SemiBold else FontWeight.Normal,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun HubCurrentReservation(state: LibraryHubState, onRefresh: () -> Unit, onConfirmAction: (HubAction) -> Unit, onOpenDetails: (() -> Unit)? = null) {
+    var expanded by remember(state.currentDetails) { mutableStateOf(false) }
+    val details = state.currentDetails.filter { it.isNotBlank() }.distinct()
+    val seat = hubSeatNumber(details)
+    val visibleDetails = details.filterNot {
+        val label = hubDetailText(it).first
+        label == "状态" || label in setOf("凭证号", "预约编号") || (seat != null && label in setOf("座位", "座位号"))
+    }.sortedBy {
+        when (hubDetailText(it).first) {
+            "位置", "地点", "房间" -> 0
+            "日期", "预约日期" -> 1
+            "时间", "时段" -> 2
+            else -> 3
+        }
+    }.take(3)
+    val additionalDetails = details.filterNot {
+        it in visibleDetails || hubDetailText(it).first == "状态" || (seat != null && hubDetailText(it).first in setOf("座位", "座位号"))
+    }
+    val primaryAction = state.actions.firstOrNull { !it.destructive }
+    LibraryCard(highlighted = true) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Outlined.CalendarMonth, null, tint = Muted, modifier = Modifier.size(18.dp))
+                Text("当前预约", color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                if (seat != null) HubStatusPill(currentStatusLabel(state.currentStatus), Modifier.widthIn(max = 180.dp))
+            }
+            if (seat != null) {
+                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(seat, color = Accent, fontSize = 34.sp, fontWeight = FontWeight.SemiBold)
+                    Text("号座位", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 7.dp))
+                }
+            } else {
+                Text(currentStatusLabel(state.currentStatus), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Medium, lineHeight = 26.sp)
+            }
+            visibleDetails.forEach { HubDetailLine(it) }
+            if (expanded && onOpenDetails == null) additionalDetails.forEach { HubDetailLine(it) }
+            if (additionalDetails.isNotEmpty() && onOpenDetails == null) {
+                TextButton(onClick = { expanded = !expanded }, modifier = Modifier.heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 0.dp)) {
+                    Text(if (expanded) "收起预约信息" else "查看完整预约信息", fontSize = 12.sp)
+                }
+            }
+            state.actionMessage.takeIf { it.isNotBlank() && !(state.requiresLibraryWifi && it.contains("Wi-Fi")) }?.let { message ->
+                Text(message, color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
+            }
+            if (onOpenDetails != null) Button(onClick = onOpenDetails, enabled = !state.loading,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp)) { Text("查看我的预约") }
+            else state.actions.chunked(2).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                    row.forEach { action ->
+                        if (action == primaryAction) Button(
+                            onClick = { onConfirmAction(action) }, enabled = !state.loading,
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp),
+                        ) { Text(action.label, fontSize = 13.sp) }
+                        else OutlinedButton(
+                            onClick = { onConfirmAction(action) }, enabled = !state.loading,
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Line),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = if (action.destructive) MaterialTheme.colorScheme.error else Accent),
+                        ) { Text(action.label, fontSize = 13.sp) }
+                    }
+                }
+            }
+            if (state.currentStatus.isBlank() && !state.loading) {
+                TextButton(onClick = onRefresh, modifier = Modifier.heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 0.dp)) { Text("同步当前预约") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HubStatusPill(status: String, modifier: Modifier = Modifier) {
+    val inactive = listOf("取消", "完成", "已结束", "违约").any(status::contains)
+    Surface(color = if (inactive) Paper else SoftAccent, shape = RoundedCornerShape(8.dp), modifier = modifier) {
+        Text(status, Modifier.padding(horizontal = 8.dp, vertical = 5.dp), color = if (inactive) Muted else Accent, fontSize = 11.sp, lineHeight = 17.sp)
+    }
+}
+
+/** Format labels only for presentation; action requests always retain the original server data. */
+private fun hubDetailText(text: String): Pair<String?, String> {
+    val separator = text.indexOfFirst { it == '：' || it == ':' }
+    if (separator !in 1..12) return null to text
+    val label = text.take(separator).replace(Regex("[\\s\\u00a0]"), "")
+    if (label !in setOf("座位", "座位号", "位置", "地点", "房间", "日期", "预约日期", "时间", "时段", "状态", "凭证号", "预约编号")) return null to text
+    return label to text.drop(separator + 1).trim()
+}
+
+private fun hubSeatNumber(details: List<String>): String? = details.firstNotNullOfOrNull { detail ->
+    Regex("座位(?:号)?\\s*[：:]?\\s*([0-9A-Za-z][0-9A-Za-z-]{0,15})").find(detail)?.groupValues?.get(1)
+        ?: Regex("([0-9A-Za-z]+)\\s*号座位").find(detail)?.groupValues?.get(1)
+}
+
+@Composable
+private fun HubDetailLine(text: String) {
+    val (label, value) = hubDetailText(text)
+    if (label == null) Text(value, color = Muted, fontSize = 13.sp, lineHeight = 21.sp)
+    else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+        Text(label, color = Muted, fontSize = 12.sp, lineHeight = 22.sp, modifier = Modifier.width(54.dp))
+        Text(value, color = Ink, fontSize = if (label in setOf("时间", "时段")) 16.sp else 13.sp,
+            fontWeight = if (label in setOf("时间", "时段")) FontWeight.Medium else FontWeight.Normal,
+            lineHeight = 22.sp, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun HubShortcut(title: String, detail: String, icon: ImageVector, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Card(onClick = onClick, enabled = enabled, modifier = modifier.heightIn(min = 72.dp), shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
+        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Surface(color = SoftAccent, shape = RoundedCornerShape(10.dp)) {
+                Box(Modifier.size(34.dp), contentAlignment = Alignment.Center) { Icon(icon, null, tint = Accent, modifier = Modifier.size(18.dp)) }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(title, color = Ink, fontWeight = FontWeight.Medium, fontSize = 13.sp)
+                Text(detail, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+            }
         }
     }
 }
 
 @Composable
 private fun HubRecordCard(record: HubRecord, enabled: Boolean, onClick: () -> Unit, onCancel: (() -> Unit)? = null) {
-    Card(onClick = onClick, enabled = enabled, shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-        Column(Modifier.fillMaxWidth().padding(17.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
-            Text(record.title, color = Ink, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-            record.status.takeIf { it.isNotBlank() }?.let { status ->
-                Surface(color = SoftAccent, shape = RoundedCornerShape(7.dp)) { Text(status, Modifier.padding(horizontal = 9.dp, vertical = 4.dp), color = Accent, fontSize = 11.sp) }
+    // Keep the changing status outside a merged clickable label. The title and
+    // details affordance remain separate touch targets for readers and touch users.
+    Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(record.title, color = Ink, fontWeight = FontWeight.Medium, fontSize = 14.sp,
+                    modifier = Modifier.weight(1f).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+                        .heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically))
+                record.status.takeIf { it.isNotBlank() }?.let { HubStatusPill(it) }
             }
-            record.details.filter { it.isNotBlank() }.forEach { Text(it, color = Muted, fontSize = 13.sp, lineHeight = 21.sp) }
-            if (onCancel != null) {
-                OutlinedButton(enabled = enabled, onClick = onCancel, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) {
-                    Text("取消预约", color = MaterialTheme.colorScheme.error)
+            record.details.filter { it.isNotBlank() && hubDetailText(it).first != "状态" }.take(2).forEach {
+                Text(it, color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onClick, enabled = enabled, modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(0.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text("查看详情", color = Accent, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                        if (onCancel == null) Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Muted, modifier = Modifier.size(16.dp))
+                    }
+                }
+                if (onCancel != null) TextButton(enabled = enabled, onClick = onCancel, modifier = Modifier.heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 10.dp)) {
+                    Text("取消预约", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                 }
             }
         }
@@ -401,18 +523,19 @@ private fun HubRecordCard(record: HubRecord, enabled: Boolean, onClick: () -> Un
 
 @Composable
 private fun FavoriteCard(favorite: HubFavorite, loading: Boolean, onSelect: () -> Unit, onRemove: () -> Unit) {
-    Card(shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
-        Column(Modifier.fillMaxWidth().padding(17.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.BookmarkBorder, null, tint = Accent, modifier = Modifier.size(22.dp))
-                Text(favorite.name, color = Ink, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f).padding(start = 9.dp))
-                if (favorite.local) {
-                    IconButton(enabled = !loading, onClick = onRemove) { Icon(Icons.Outlined.DeleteOutline, "移除${favorite.name}", tint = Muted) }
-                }
+    LibraryCard {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(favorite.name, color = Accent, fontWeight = FontWeight.SemiBold, fontSize = if (favorite.name.length <= 12) 22.sp else 16.sp, modifier = Modifier.weight(1f))
+            if (favorite.local) IconButton(enabled = !loading, onClick = onRemove, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Outlined.DeleteOutline, "移除${favorite.name}", tint = Muted, modifier = Modifier.size(20.dp))
             }
-            Text(favorite.location, color = Muted, fontSize = 13.sp, lineHeight = 21.sp)
-            Text(if (favorite.local) "本机收藏 · 由你手动添加" else "系统常用 · 根据使用记录生成", color = Accent, fontSize = 12.sp)
-            Button(enabled = !loading, onClick = onSelect, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp)) { Text("选择使用时间") }
+        }
+        Text(favorite.location, color = Muted, fontSize = 13.sp, lineHeight = 21.sp)
+        Text(if (favorite.local) "本机收藏 · 由你手动添加" else "系统常用 · 根据使用记录生成", color = Muted, fontSize = 11.sp, lineHeight = 18.sp)
+        OutlinedButton(enabled = !loading, onClick = onSelect, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Line)) {
+            Text("选择使用时间", fontSize = 13.sp)
+            Spacer(Modifier.width(7.dp))
+            Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, modifier = Modifier.size(16.dp))
         }
     }
 }

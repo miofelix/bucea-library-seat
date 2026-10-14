@@ -1,6 +1,18 @@
-# Validation — 2026-10-13
+# Validation — 2026-10-14
 
-The 2026-10-14 update-module implementation and MacBook-only results are in [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md). No ADB/device tests were run for 0.3.4; the device results below remain historical snapshots.
+The initial 2026-10-14 update-module implementation and MacBook-only results are in [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md). The subsequent native UI implementation was installed and checked on the connected device as recorded below; earlier versioned results remain historical snapshots.
+
+## 2026-10-14 native 留白 interface
+
+- The native application now uses the **留白** interface across dashboard, seat search, map, reservation sheets, records/favorites/frequent seats/violations, accounts, settings, verification and update dialogs. The native design specification is maintained in [UI_DESIGN.md](UI_DESIGN.md); temporary HTML comparison/selection prototypes have been removed.
+- Debug and instrumentation APK builds passed. **21 JVM unit tests passed** with no failures, errors or skips. The tested debug APK is version **0.3.4 / code 8** and was installed over the existing application without clearing its data.
+- **6 UI regression tests passed in 17.246 seconds** on the connected Android device: cancellation confirmation/keep/Back/inactive records; library Wi-Fi guidance; manual favorites versus system frequent seats; immediate current-page seat filtering; busy account controls; and note editing with the save action above the visible keyboard. Note edits use synthetic accounts and callback recorders, never the account vault or campus mutation APIs.
+- The existing **9 seat-presentation/map-contract device checks** also passed in the targeted run, covering status versus server availability, loaded-page filtering, real grid geometry and read/verification contracts.
+- Actual campus read-only UI acceptance passed future-date seat search, compact start/end time selection, the complete reservation review **without submission**, all four library sections, and all seven advanced filter selectors.
+- Actual maps for **all four returned floors** passed Canvas display, pan, fit, list mode and switching back to the map. The smoke helper now reads the two persistent mode buttons' selected/checked state and restores the visible page header before reopening floor selection.
+- Native settings acceptance passed opening manual update controls and the theme picker. A temporary alternate color survived an application restart, then the original color was restored; account/login preferences were not modified. The unavailable password entry opened no form and submitted nothing; its transient Toast was not counted as independently observed in the smoke run.
+- Android 33+ UI fixtures clear the UiAutomation node cache before reading Compose text/enabled states. Failure artifacts are limited to synthetic fixtures; authenticated screenshots and logs remain ignored under `.private/whitespace-ui/`.
+- This UI acceptance did not create/cancel a real reservation, change a library password, or invoke live check-in/leave/renew/finish operations. Those transaction results are not inferred from presentation tests.
 
 ## Current actual campus-service run
 

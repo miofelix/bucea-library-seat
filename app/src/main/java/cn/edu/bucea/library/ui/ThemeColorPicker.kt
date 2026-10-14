@@ -33,11 +33,11 @@ import cn.edu.bucea.library.AppThemeColor
 
 @Composable
 internal fun ThemeColorPicker(selectedColor: AppThemeColor, onSelect: (AppThemeColor) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("当前：${selectedColor.label} · 默认建大紫", color = Muted, fontSize = 12.sp)
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Text("当前：${selectedColor.label} · 默认建大紫", color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
         FlowRow(
             modifier = Modifier.selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             AppThemeColor.entries.forEach { themeColor ->
@@ -47,23 +47,23 @@ internal fun ThemeColorPicker(selectedColor: AppThemeColor, onSelect: (AppThemeC
                     selected = isSelected,
                     onClick = { onSelect(themeColor) },
                     modifier = Modifier.semantics { role = Role.RadioButton },
-                    shape = RoundedCornerShape(14.dp),
-                    color = if (isSelected) SoftAccent else Paper,
-                    border = BorderStroke(1.dp, if (isSelected) Accent else Line),
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (isSelected) SoftAccent else Color.White,
+                    border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, if (isSelected) Accent else Line),
                 ) {
                     Row(
-                        modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 10.dp),
+                        modifier = Modifier.heightIn(min = 52.dp).padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(9.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Box(Modifier.size(26.dp).clip(CircleShape).background(swatch), contentAlignment = Alignment.Center) {
+                        Box(Modifier.size(28.dp).clip(CircleShape).background(swatch), contentAlignment = Alignment.Center) {
                             if (isSelected) Icon(Icons.Outlined.Check, null, Modifier.size(17.dp), tint = Color.White)
                         }
-                        Text(themeColor.label, color = Ink, fontSize = 13.sp, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium)
+                        Text(themeColor.label, color = if (isSelected) Accent else Ink, fontSize = 14.sp, fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium)
                     }
                 }
             }
         }
-        Text("点击即可切换，选择会自动保存。", color = Muted, fontSize = 12.sp)
+        Text("点击即可切换，选择会自动保存。", color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
     }
 }
