@@ -13,10 +13,13 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -47,6 +50,7 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -69,9 +73,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -85,6 +91,7 @@ import cn.edu.bucea.library.AccountSummary
 import cn.edu.bucea.library.AppThemeColor
 import cn.edu.bucea.library.CampusAccess
 import cn.edu.bucea.library.LibraryUiState
+import cn.edu.bucea.library.data.models.RegionOverviewState
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
@@ -113,12 +120,13 @@ internal fun FeatureLoginPrompt(state: LibraryUiState, modifier: Modifier, onLog
 @Composable
 internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Modifier,
     onLogin: () -> Unit, onRefresh: () -> Unit, onOpenLibrary: () -> Unit,
-    onReservations: () -> Unit, onAccounts: () -> Unit, onOpenMap: () -> Unit, onFavorites: () -> Unit) {
+    onReservations: () -> Unit, onAccounts: () -> Unit, onOpenMap: () -> Unit, onFavorites: () -> Unit,
+    regions: RegionOverviewState = RegionOverviewState(), onRefreshRegions: () -> Unit = onRefresh,
+    onVerifyRegions: () -> Unit = {}) {
     val account = state.accounts.firstOrNull { it.id == state.activeAccountId }
     val name = state.overview?.displayName?.takeIf(String::isNotBlank)
         ?: account?.label?.takeIf(String::isNotBlank) ?: "同学"
     val greeting = when (LocalTime.now().hour) { in 5..10 -> "早上好"; in 11..13 -> "中午好"; in 14..17 -> "下午好"; else -> "晚上好" }
-    var showOverview by rememberSaveable { mutableStateOf(false) }
     var noticesExpanded by rememberSaveable { mutableStateOf(false) }
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)) {
@@ -129,37 +137,19 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
                     fontSize = 10.sp, letterSpacing = 1.sp)
                 Text(if (state.authenticated) "$greeting，$name" else "给专注，留一席。",
                     style = MaterialTheme.typography.headlineMedium, color = Ink)
-                Text("今天也给专注留一点时间。", style = MaterialTheme.typography.bodySmall, color = Muted)
+                Text("北建大图书馆 · 今天也给专注留一点时间。", style = MaterialTheme.typography.bodySmall, color = Muted)
             }
             LibraryIconButton(Icons.Outlined.Person, "管理账号", onAccounts, enabled = !state.busy)
         }
         CampusAccessNotice(state, onRefresh)
-        Surface(onClick = { when { state.authenticated -> onOpenLibrary(); account != null -> onLogin(); else -> onAccounts() } },
-            enabled = !state.busy && (account == null || state.campusAccess == CampusAccess.REACHABLE),
-            shape = RoundedCornerShape(20.dp), color = SoftAccent) {
-            Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                        Icon(Icons.Outlined.AutoStories, null, tint = Accent, modifier = Modifier.size(16.dp))
-                        Text("北建大图书馆", fontSize = 11.sp, color = Accent)
-                    }
-                    Text(when { state.busy -> "正在连接图书馆…"; state.authenticated -> "找一个好座位";
-                        account != null -> "登录并同步"; else -> "添加账号，开始使用" },
-                        color = MaterialTheme.colorScheme.onPrimaryContainer, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-                    Text(when { state.campusAccess == CampusAccess.UNREACHABLE -> "暂时无法访问图书馆";
-                        state.campusAccess == CampusAccess.CHECKING -> "正在检测连接";
-                        state.campusAccess == CampusAccess.UNKNOWN -> "请先连接校园网络";
-                        state.overview?.available == null -> "同步后查看可用座位";
-                        state.overviewStale -> "${state.overview.available} 席可用 · 上次数据";
-                        else -> "${state.overview.available} 席可用" }, color = Muted, fontSize = 12.sp)
-                }
-                if (state.busy) CircularProgressIndicator(Modifier.size(21.dp), color = Accent, strokeWidth = 2.dp)
-                else Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Accent, modifier = Modifier.size(21.dp))
-            }
-        }
+        HomeOverviewCard(state, onRefresh,
+            onSelectSeat = { when { state.authenticated -> onOpenLibrary(); account != null -> onLogin(); else -> onAccounts() } },
+            selectSeatEnabled = !state.busy && (account == null || state.campusAccess == CampusAccess.REACHABLE),
+            selectSeatLabel = when { state.busy -> "正在连接图书馆…"; state.authenticated -> "找一个好座位";
+                account != null -> "登录并同步"; else -> "添加账号，开始使用" })
         if (state.authenticated && hub.currentStatus.isNotBlank() && hub.currentStatus != "NO_RESERVATION") {
-            HubCurrentReservation(hub, onRefresh, onConfirmAction = { onReservations() }, onOpenDetails = onReservations)
+            HubCurrentReservation(hub.copy(loading = hub.loading || state.busy), onRefresh,
+                onConfirmAction = { onReservations() }, onOpenDetails = onReservations)
         } else if (!state.authenticated && account != null) SessionCard(state, account, onLogin)
         if (state.authenticated) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -168,6 +158,8 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
             }
             HomeShortcut("预约记录", "随时查看", Icons.Outlined.AutoStories, onReservations, Modifier.fillMaxWidth(), !state.busy && !hub.loading)
         }
+        RegionOverviewSection(regions, onRefreshRegions, onVerifyRegions, authenticated = state.authenticated,
+            enabled = !state.busy && state.campusAccess == CampusAccess.REACHABLE)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Outlined.Wifi, null, tint = Muted, modifier = Modifier.size(15.dp))
@@ -178,7 +170,6 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
                 CampusAccess.UNKNOWN -> "等待连接校园网络"
             },
                 color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
-            TextButton(onClick = { showOverview = true }) { Text("馆内概况", fontSize = 11.sp) }
         }
         val notices = state.overview?.notices.orEmpty()
         if (notices.isNotEmpty()) {
@@ -194,20 +185,106 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
             Text("到馆后请连接图书馆内部 Wi-Fi 签到。", style = MaterialTheme.typography.bodySmall, color = Muted)
         }
     }
-    if (showOverview) BusinessSelectionSheet(onDismissRequest = { showOverview = false }, title = { Text("馆内概况") }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            OverviewRow("空闲座位", state.overview?.available)
-            OverviewRow("正在使用", state.overview?.inUse)
-            OverviewRow("等待签到", state.overview?.awaitingSignIn)
-            Text(if (state.overview == null) "同步后查看馆内情况。" else if (state.overviewStale) "上次同步的数据，刷新后查看最新情况。" else "已同步最新数据。", color = Muted, fontSize = 12.sp)
+}
+
+@Composable
+private fun HomeOverviewCard(state: LibraryUiState, onRefresh: () -> Unit,
+    onSelectSeat: () -> Unit, selectSeatEnabled: Boolean, selectSeatLabel: String) {
+    val values = listOf(state.overview?.available, state.overview?.inUse, state.overview?.awaitingSignIn)
+        .map { it?.takeIf { count -> count >= 0 } }
+    val complete = values.all { it != null }
+    val hasData = values.any { it != null }
+    val status = when {
+        state.busy -> "正在同步"
+        !hasData -> "尚未同步"
+        state.overviewStale -> "上次数据"
+        !complete -> "部分数据待同步"
+        else -> "最新同步"
+    }
+    val configuration = LocalConfiguration.current
+    val stackedMetrics = configuration.screenWidthDp < 360 || configuration.fontScale > 1.25f
+        || values.any { it != null && it.toString().length > 5 }
+    val metricColors = listOf(MaterialTheme.colorScheme.tertiary, Color(0xFF868993), Color(0xFFB28A32))
+    LibraryCard {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(Icons.Outlined.AutoStories, null, tint = Accent, modifier = Modifier.size(17.dp))
+            Text("当前馆内概况", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f))
+            LibraryIconButton(Icons.Outlined.Refresh, "刷新馆内概况", onRefresh,
+                enabled = !state.busy && state.campusAccess != CampusAccess.CHECKING)
         }
-    }, confirmButton = { Button(onClick = { showOverview = false; onRefresh() }, enabled = !state.busy,
-        shape = RoundedCornerShape(12.dp), modifier = Modifier.heightIn(min = 48.dp)) { Text("刷新图书馆数据") } })
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
+            Box(Modifier.size(6.dp).clip(CircleShape).background(
+                when { state.busy -> Accent; !hasData -> Muted; state.overviewStale -> metricColors[2]; else -> Color(0xFF176B48) }))
+            Text(status, color = if (state.overviewStale && hasData) Color(0xFF8C631B) else Muted, fontSize = 11.sp)
+        }
+        if (stackedMetrics) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                HomeOverviewMetric("空闲座位", values[0], metricColors[0], true, Modifier.fillMaxWidth(), horizontal = true)
+                HomeOverviewMetric("正在使用", values[1], metricColors[1], false, Modifier.fillMaxWidth(), horizontal = true)
+                HomeOverviewMetric("等待签到", values[2], metricColors[2], false, Modifier.fillMaxWidth(), horizontal = true)
+            }
+        } else Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            HomeOverviewMetric("空闲座位", values[0], metricColors[0], true, Modifier.weight(1.3f))
+            HomeOverviewMetric("正在使用", values[1], metricColors[1], false, Modifier.weight(1f))
+            HomeOverviewMetric("等待签到", values[2], metricColors[2], false, Modifier.weight(1f))
+        }
+        // This is a distribution of the three reported states, never a capacity or occupancy estimate.
+        val reportedTotal = if (complete) values.sumOf { requireNotNull(it).toLong() } else 0L
+        if (reportedTotal > 0) {
+            Row(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(6.dp))
+                .semantics { contentDescription = "馆内状态分布：空闲${values[0]}席，使用${values[1]}席，等待签到${values[2]}席" }) {
+                values.forEachIndexed { index, value ->
+                    if (requireNotNull(value) > 0) Box(Modifier.weight(value.toFloat() / reportedTotal.toFloat())
+                        .fillMaxHeight().background(metricColors[index]))
+                }
+            }
+        }
+        Text(when {
+            !hasData -> "同步后查看馆内情况。"
+            state.overviewStale -> "上次同步的数据，刷新后查看最新情况。"
+            !complete -> "部分馆内数据尚未同步，请刷新后查看。"
+            else -> "馆内状态一眼可见，选一个适合的位置。"
+        }, color = Muted, fontSize = 11.sp, lineHeight = 18.sp)
+        Button(onClick = onSelectSeat, enabled = selectSeatEnabled,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp), shape = RoundedCornerShape(12.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary,
+                contentColor = MaterialTheme.colorScheme.onTertiary)) {
+            Text(selectSeatLabel, fontSize = 15.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
+            if (state.busy) CircularProgressIndicator(Modifier.size(18.dp), color = MaterialTheme.colorScheme.onSurfaceVariant, strokeWidth = 2.dp)
+            else Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, modifier = Modifier.size(19.dp))
+        }
+    }
+}
+
+@Composable
+private fun HomeOverviewMetric(title: String, value: Int?, markerColor: Color, prominent: Boolean,
+    modifier: Modifier, horizontal: Boolean = false) {
+    val number = value?.toString() ?: "—"
+    val valueColor = if (prominent && value != null) Accent else if (value == null) Muted else Ink
+    val fontSize = if (horizontal) 26.sp else if (prominent) 38.sp else 25.sp
+    if (horizontal) Row(modifier.semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.size(6.dp).clip(CircleShape).background(markerColor))
+        Text(title, color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+        Text(number, color = valueColor, fontSize = fontSize, fontWeight = FontWeight.SemiBold)
+    } else Column(modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(number, color = valueColor, fontSize = fontSize, lineHeight = if (prominent) 42.sp else 32.sp,
+            fontWeight = FontWeight.SemiBold)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+            Box(Modifier.size(5.dp).clip(CircleShape).background(markerColor))
+            Text(title, color = Muted, fontSize = 11.sp)
+        }
+    }
 }
 
 @Composable
 private fun HomeShortcut(title: String, detail: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier, enabled: Boolean) {
-    Surface(onClick = onClick, enabled = enabled, modifier = modifier, color = Color.White, shape = RoundedCornerShape(14.dp)) {
+    Surface(onClick = onClick, enabled = enabled, modifier = modifier, color = Color.White,
+        border = BorderStroke(1.dp, Line), shape = RoundedCornerShape(14.dp)) {
         Row(Modifier.heightIn(min = 68.dp).padding(12.dp), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(SoftAccent), contentAlignment = Alignment.Center) {
@@ -218,14 +295,6 @@ private fun HomeShortcut(title: String, detail: String, icon: ImageVector, onCli
                 Text(detail, color = Muted, fontSize = 11.sp)
             }
         }
-    }
-}
-
-@Composable
-private fun OverviewRow(title: String, value: Int?) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, color = Muted, fontSize = 14.sp, modifier = Modifier.weight(1f))
-        Text(value?.toString() ?: "待同步", color = Accent, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
