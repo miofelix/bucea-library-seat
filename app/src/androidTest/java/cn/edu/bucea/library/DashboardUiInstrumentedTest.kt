@@ -215,16 +215,19 @@ class DashboardUiInstrumentedTest {
 
     /** Some Android versions expose merged Compose descendants as separate sibling text nodes. */
     private fun pairedValueVisible(label: AccessibilityNodeInfo, value: String): Boolean {
-        fun containsValue(node: AccessibilityNodeInfo, depth: Int): Boolean {
-            if (node.packageName?.toString() == appPackage && node.isVisibleToUser && value in textLines(node)) return true
-            if (depth == 0) return false
-            repeat(node.childCount) { node.getChild(it)?.let { child -> if (containsValue(child, depth - 1)) return true } }
-            return false
+        fun descendantTexts(node: AccessibilityNodeInfo, depth: Int): List<String> {
+            val texts = if (node.packageName?.toString() == appPackage && node.isVisibleToUser) textLines(node) else emptyList()
+            if (depth == 0) return texts
+            return texts + (0 until node.childCount).flatMap { index ->
+                node.getChild(index)?.let { descendantTexts(it, depth - 1) }.orEmpty()
+            }
         }
         var container = label
         // Horizontal metrics share one Row; vertical metrics wrap the label Row in a Column.
         repeat(3) {
-            if (containsValue(container, 3)) return true
+            val texts = descendantTexts(container, 3)
+            val categories = texts.filter { it in setOf("空闲座位", "正在使用", "等待签到") }.distinct()
+            if (categories.size == 1 && value in texts) return true
             container = container.parent ?: return false
         }
         return false
