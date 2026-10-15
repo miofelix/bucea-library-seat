@@ -27,8 +27,6 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -361,30 +359,12 @@ internal fun currentStatusLabel(value: String): String = when (value) {
 
 @Composable
 private fun HubSectionSwitch(selected: HubSection, enabled: Boolean, onSection: (HubSection) -> Unit) {
-    Surface(color = Color(0xFFEFEFF0), shape = RoundedCornerShape(14.dp)) {
-        Row(Modifier.fillMaxWidth().padding(4.dp).selectableGroup(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-            HubSection.entries.forEach { section ->
-                Surface(
-                    color = if (section == selected) Color.White else Color.Transparent,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.weight(1f).selectable(section == selected, enabled = enabled, role = Role.Tab, onClick = { onSection(section) }),
-                ) {
-                    Box(Modifier.heightIn(min = 48.dp).padding(horizontal = 2.dp, vertical = 12.dp), contentAlignment = Alignment.Center) {
-                        Text(
-                            when (section) {
-                                HubSection.RESERVATIONS -> "我的预约"
-                                HubSection.FAVORITES -> "收藏座位"
-                                HubSection.FREQUENT -> "常用座位"
-                                HubSection.VIOLATIONS -> "违约记录"
-                            },
-                            color = if (section == selected) Accent else Muted, fontSize = 12.sp,
-                            fontWeight = if (section == selected) FontWeight.SemiBold else FontWeight.Normal,
-                        )
-                    }
-                }
-            }
-        }
-    }
+    LibrarySegmentedTabs(
+        labels = listOf("我的预约", "收藏座位", "常用座位", "违约记录"),
+        selectedIndex = selected.ordinal,
+        onSelect = { onSection(HubSection.entries[it]) },
+        enabled = enabled,
+    )
 }
 
 @Composable

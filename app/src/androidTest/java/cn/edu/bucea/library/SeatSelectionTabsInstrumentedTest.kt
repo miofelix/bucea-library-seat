@@ -138,8 +138,8 @@ class SeatSelectionTabsInstrumentedTest {
             waitFor("Both peer tabs must appear in the initial viewport") {
                 findText("自选座位") != null && findText("布局选座") != null && findText("自选计数 0") != null
             }
-            val searchBounds = bounds(tab("自选座位"))
-            val layoutBounds = bounds(tab("布局选座"))
+            val searchBounds = visualTabBounds("自选座位")
+            val layoutBounds = visualTabBounds("布局选座")
             val headerBounds = bounds(requireNotNull(findText("选座")))
             assertFalse("The selection header must not expose a back arrow",
                 nodes().any { it.contentDescription?.toString() == "返回" })
@@ -227,8 +227,22 @@ class SeatSelectionTabsInstrumentedTest {
 
     private fun assertFixedControls(header: Rect, search: Rect, layout: Rect) {
         assertEquals("The common header must stay fixed while content scrolls", header, bounds(requireNotNull(findText("选座"))))
-        assertEquals("Search tab must remain fixed and available", search, bounds(tab("自选座位")))
-        assertEquals("Layout tab must remain fixed and available", layout, bounds(tab("布局选座")))
+        assertEquals("Search tab must remain fixed and available", search, visualTabBounds("自选座位"))
+        assertEquals("Layout tab must remain fixed and available", layout, visualTabBounds("布局选座"))
+    }
+
+    private fun visualTabBounds(text: String): Rect {
+        val control = tab(text)
+        val tabRole = instrumentation.targetContext.getString(androidx.compose.ui.R.string.tab)
+        // Compact tabs retain Compose's expanded touch area. Its clipping can
+        // depend on the neighbouring scroll content; compare the visible tab
+        // surface to verify that the fixed row itself never moves.
+        repeat(control.childCount) { index ->
+            control.getChild(index)?.let { child ->
+                if (AccessibilityNodeInfoCompat.wrap(child).roleDescription?.toString() == tabRole) return bounds(child)
+            }
+        }
+        return bounds(control)
     }
 
     private fun scrollForward() {

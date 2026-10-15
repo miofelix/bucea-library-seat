@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -34,10 +36,42 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+
+/** Compact section tabs shared by seat selection and the personal library. */
+@Composable
+internal fun LibrarySegmentedTabs(
+    labels: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    Surface(modifier.fillMaxWidth(), color = Color(0xFFEFEFF0), shape = RoundedCornerShape(14.dp)) {
+        Row(Modifier.fillMaxWidth().padding(2.dp).selectableGroup(), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            labels.forEachIndexed { index, label ->
+                val selected = index == selectedIndex
+                Surface(
+                    color = if (selected) Color.White else Color.Transparent,
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f).selectable(selected, enabled = enabled, role = Role.Tab,
+                        onClick = { onSelect(index) }),
+                ) {
+                    Box(Modifier.heightIn(min = 40.dp).padding(horizontal = 2.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+                        Text(label, color = if (selected) Accent else Muted, fontSize = 12.sp, lineHeight = 16.sp,
+                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                            textAlign = TextAlign.Center)
+                    }
+                }
+            }
+        }
+    }
+}
 
 /** Shared, theme-independent layout language for the 留白 interface. */
 @Composable

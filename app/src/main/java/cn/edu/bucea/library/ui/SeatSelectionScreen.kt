@@ -5,18 +5,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 
 /** The two seat selection modes share a fixed header and retain their own UI state. */
 @Composable
@@ -35,39 +29,24 @@ fun SeatSelectionScreen(
     Column(modifier.fillMaxSize().background(Paper)) {
         LibraryPageHeader(
             title = "选座",
+            subtitle = "为专注，找一个喜欢的位置。",
             onRefresh = onRefresh,
-            eyebrow = null,
             refreshDescription = if (layoutSelected) "刷新座位地图" else "刷新座位筛选",
             refreshEnabled = refreshEnabled,
             modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 12.dp),
         )
-        TabRow(
-            selectedTabIndex = if (layoutSelected) 1 else 0,
-            containerColor = Paper,
-            contentColor = Accent,
+        LibrarySegmentedTabs(
+            labels = listOf("自选座位", "布局选座"),
+            selectedIndex = if (layoutSelected) 1 else 0,
+            onSelect = { index ->
+                if (layoutSelected != (index == 1)) {
+                    focusManager.clearFocus()
+                    onSelectLayout(index == 1)
+                }
+            },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-        ) {
-            listOf("自选座位", "布局选座").forEachIndexed { index, label ->
-                val selected = layoutSelected == (index == 1)
-                Tab(
-                    selected = selected,
-                    onClick = {
-                        if (!selected) {
-                            focusManager.clearFocus()
-                            onSelectLayout(index == 1)
-                        }
-                    },
-                    enabled = enabled,
-                    selectedContentColor = Accent,
-                    unselectedContentColor = Muted,
-                    modifier = Modifier.heightIn(min = 48.dp),
-                    text = {
-                        Text(label, fontSize = 14.sp,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal)
-                    },
-                )
-            }
-        }
+            enabled = enabled,
+        )
         Box(Modifier.fillMaxWidth().weight(1f)) {
             contentState.SaveableStateProvider(if (layoutSelected) "layout" else "search") {
                 if (layoutSelected) layoutContent() else searchContent()
