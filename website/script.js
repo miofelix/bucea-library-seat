@@ -9,6 +9,14 @@ const heroPanels = {
   layout: document.querySelector(".mock-layout-panel"),
   library: document.querySelector(".mock-library-panel"),
 };
+const pageTitle = document.getElementById("mock-page-title");
+const pageSubtitle = document.getElementById("mock-page-subtitle");
+const seatSegment = document.getElementById("mock-seat-segment");
+const searchSegment = document.getElementById("mock-search-segment");
+const layoutSegment = document.getElementById("mock-layout-segment");
+const bottomNavItems = [
+  ...document.querySelectorAll(".mock-bottom-nav [data-nav]"),
+];
 function selectHeroScreenshot(tab) {
   heroTabs.forEach((item) => {
     const selected = item === tab;
@@ -18,6 +26,21 @@ function selectHeroScreenshot(tab) {
   heroPhone.dataset.screen = tab.dataset.screen;
   Object.entries(heroPanels).forEach(([name, panel]) => {
     panel.hidden = name !== tab.dataset.screen;
+  });
+  const screen = tab.dataset.screen;
+  const isLibrary = screen === "library";
+  pageTitle.textContent = isLibrary ? "我的图书馆" : "选座";
+  pageSubtitle.textContent = isLibrary
+    ? "按时间，安排下一次到馆。"
+    : "为专注，找一个喜欢的位置。";
+  seatSegment.hidden = isLibrary;
+  searchSegment.classList.toggle("selected", screen === "search");
+  layoutSegment.classList.toggle("selected", screen === "layout");
+  bottomNavItems.forEach((item) => {
+    item.classList.toggle(
+      "active",
+      item.dataset.nav === (screen === "layout" ? "search" : screen),
+    );
   });
 }
 heroTabs.forEach((tab, index) => {
