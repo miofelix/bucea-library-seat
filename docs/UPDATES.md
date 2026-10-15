@@ -67,35 +67,37 @@ R2 S3 API endpoint 为 `https://<CLOUDFLARE_ACCOUNT_ID>.r2.cloudflarestorage.com
 
 ### 2. 创建 R2 对象读写凭据
 
-1. 在 R2 概览中打开 **管理 R2 API 令牌（Manage R2 API Tokens）**，创建令牌。
+1. 在 R2 概览中打开 **管理 R2 API 令牌（Manage R2 API Tokens）**，创建令牌，名称使用 **BUCEA Library Seat GitHub Actions R2 Release Publisher**。
 2. 权限选择 **对象读和写（Object Read & Write）**；范围选择 **仅应用于特定存储桶（Apply to specific buckets only）**，只勾选上一步的 bucket。
-3. 创建后保存 **Access Key ID** 和 **Secret Access Key**。它们分别用于 GitHub 的 `R2_ACCESS_KEY_ID` 和 `R2_SECRET_ACCESS_KEY`；Secret Access Key 只在创建完成时显示。
+3. 创建后保存 **Access Key ID** 和 **Secret Access Key**。它们分别用于 GitHub 的 `CLOUDFLARE_R2_ACCESS_KEY_ID` 和 `CLOUDFLARE_R2_SECRET_ACCESS_KEY`；Secret Access Key 只在创建完成时显示。
 4. 不将 R2 S3 凭据填写为 Pages API token，也不把凭据写进仓库文件或命令行参数。
 
 ### 3. 获取 Pages 项目名称并创建 Pages token
 
 1. 进入 **Workers 和 Pages（Workers & Pages）**，打开已托管官网的 Pages 项目，记录**项目名称**。它是项目标识，不是 `library.miofelix.com` 域名。
-2. 在 Cloudflare 个人资料的 **API 令牌（API Tokens）** 中点击 **创建令牌 → 自定义令牌（Create Custom Token）**。
+2. 在 Cloudflare 个人资料的 **API 令牌（API Tokens）** 中点击 **创建令牌 → 自定义令牌（Create Custom Token）**，名称使用 **BUCEA Library Seat GitHub Actions Pages Production Deployment**。
 3. 添加权限 **账户（Account）→ Cloudflare Pages → 编辑（Edit）**，账户资源限定到托管官网的这个账户。
-4. 创建后将 token 保存为 GitHub 的 `CLOUDFLARE_API_TOKEN`。它负责 Pages 部署，R2 对象上传仍使用上一步的 S3 凭据。
+4. 创建后将 token 保存为 GitHub 的 `CLOUDFLARE_PAGES_DEPLOY_API_TOKEN`。它负责 Pages 部署，R2 对象上传仍使用上一步的 S3 凭据。
 
 ### 4. 配置 GitHub Actions
 
 打开仓库 **Settings → Secrets and variables → Actions**。在 **Variables** 页签创建以下 repository variables：
 
-| 名称                       | 值                                                    |
-| -------------------------- | ----------------------------------------------------- |
-| `CLOUDFLARE_ACCOUNT_ID`    | Cloudflare Account ID                                 |
-| `R2_BUCKET`                | 创建的 bucket 名称，建议 `miofelix-software-releases` |
-| `CLOUDFLARE_PAGES_PROJECT` | 已有 Pages 项目名称                                   |
+| 名称                                 | 值                                                    |
+| ------------------------------------ | ----------------------------------------------------- |
+| `CLOUDFLARE_ACCOUNT_ID`              | Cloudflare Account ID                                 |
+| `CLOUDFLARE_R2_RELEASES_BUCKET_NAME` | 创建的 bucket 名称，建议 `miofelix-software-releases` |
+| `CLOUDFLARE_PAGES_PROJECT_NAME`      | 已有 Pages 项目名称                                   |
 
 在 **Secrets** 页签创建以下 repository secrets：
 
-| 名称                   | 值                                |
-| ---------------------- | --------------------------------- |
-| `R2_ACCESS_KEY_ID`     | R2 token 的 Access Key ID         |
-| `R2_SECRET_ACCESS_KEY` | R2 token 的 Secret Access Key     |
-| `CLOUDFLARE_API_TOKEN` | 独立的 Cloudflare Pages API token |
+| 名称                                | 值                                |
+| ----------------------------------- | --------------------------------- |
+| `CLOUDFLARE_R2_ACCESS_KEY_ID`       | R2 token 的 Access Key ID         |
+| `CLOUDFLARE_R2_SECRET_ACCESS_KEY`   | R2 token 的 Secret Access Key     |
+| `CLOUDFLARE_PAGES_DEPLOY_API_TOKEN` | 独立的 Cloudflare Pages API token |
+
+工作流将上述仓库配置映射到 Wrangler 所需的 `CLOUDFLARE_API_TOKEN` 和 R2 S3 客户端所需的 `AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`。这些是工具内部使用的环境变量，无需另建同名 GitHub secrets。
 
 GitHub 的 `GITHUB_TOKEN` 由 Actions 提供，用于读取 Release，无需手动创建；Android 签名密钥不上传到 Actions 或 Cloudflare。
 

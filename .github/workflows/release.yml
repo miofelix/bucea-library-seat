@@ -24,11 +24,11 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
-      R2_BUCKET: ${{ vars.R2_BUCKET }}
-      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_PAGES_PROJECT_NAME: ${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }}
+      CLOUDFLARE_R2_RELEASES_BUCKET_NAME: ${{ vars.CLOUDFLARE_R2_RELEASES_BUCKET_NAME }}
+      CLOUDFLARE_R2_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+      CLOUDFLARE_R2_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PAGES_DEPLOY_API_TOKEN }}
       REQUESTED_TAG: ${{ inputs.tag || github.event.release.tag_name }}
     steps:
       - uses: actions/checkout@v7
@@ -42,9 +42,15 @@ jobs:
         run: |
           import os
           import re
-          names = ("CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_PAGES_PROJECT", "R2_BUCKET",
-                   "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "CLOUDFLARE_API_TOKEN")
-          missing = [name for name in names if not os.environ.get(name)]
+          settings = {
+              "CLOUDFLARE_ACCOUNT_ID": "CLOUDFLARE_ACCOUNT_ID",
+              "CLOUDFLARE_PAGES_PROJECT_NAME": "CLOUDFLARE_PAGES_PROJECT_NAME",
+              "CLOUDFLARE_R2_RELEASES_BUCKET_NAME": "CLOUDFLARE_R2_RELEASES_BUCKET_NAME",
+              "CLOUDFLARE_R2_ACCESS_KEY_ID": "CLOUDFLARE_R2_ACCESS_KEY_ID",
+              "CLOUDFLARE_R2_SECRET_ACCESS_KEY": "CLOUDFLARE_R2_SECRET_ACCESS_KEY",
+              "CLOUDFLARE_PAGES_DEPLOY_API_TOKEN": "CLOUDFLARE_API_TOKEN",
+          }
+          missing = [name for name, variable in settings.items() if not os.environ.get(variable)]
           if missing:
               raise SystemExit("Configure GitHub Actions settings first: " + ", ".join(missing) + ". See docs/UPDATES.md.")
           if not re.fullmatch(r"v[0-9][A-Za-z0-9._-]*", os.environ.get("REQUESTED_TAG", "")):
@@ -61,13 +67,13 @@ jobs:
           gh release download "$REQUESTED_TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/release-assets"
       - name: Verify and publish release to R2
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLOUDFLARE_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
         run: >-
           python3 tools/publish_cloudflare.py
           --directory "$RUNNER_TEMP/release-assets"
           --release-json "$RUNNER_TEMP/github-release.json"
-          --bucket "$R2_BUCKET"
+          --bucket "$CLOUDFLARE_R2_RELEASES_BUCKET_NAME"
           --endpoint-url "https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
           --download-origin https://download.miofelix.com
           --prefix bucea-library-seat
@@ -87,9 +93,9 @@ jobs:
       group: cloudflare-production
       cancel-in-progress: false
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PAGES_DEPLOY_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+      CLOUDFLARE_PAGES_PROJECT_NAME: ${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -112,7 +118,7 @@ jobs:
       - name: Deploy Cloudflare Pages
         run: >-
           npx --yes wrangler@4 pages deploy dist/website
-          --project-name "$CLOUDFLARE_PAGES_PROJECT" --branch main
+          --project-name "$CLOUDFLARE_PAGES_PROJECT_NAME" --branch main
       - name: Report publication
         run: |
           echo 'Release synchronized to R2 and website deployed to https://library.miofelix.com/.' >> "$GITHUB_STEP_SUMMARY"

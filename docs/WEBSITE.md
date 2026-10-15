@@ -50,7 +50,7 @@ Actions 使用 Wrangler 上传 `dist/website` 到现有项目的 `main` 生产�
 | 构建命令     | `python3 .github/scripts/build_website.py --metadata-url https://download.miofelix.com/bucea-library-seat/releases/latest.json --output dist/website` |
 | 构建输出目录 | `dist/website`                                                                                                                                        |
 
-Pages **项目名称**填写到 GitHub variable `CLOUDFLARE_PAGES_PROJECT`；不能填写官网域名。Account ID 填入 `CLOUDFLARE_ACCOUNT_ID`，独立的 Account / Cloudflare Pages / Edit token 填入 secret `CLOUDFLARE_API_TOKEN`。R2 S3 Access Key 不能用作 Pages token。创建 token 与逐项填写步骤见 [UPDATES.md](UPDATES.md)。
+Pages **项目名称**填写到 GitHub variable `CLOUDFLARE_PAGES_PROJECT_NAME`；不能填写官网域名。Account ID 填入 `CLOUDFLARE_ACCOUNT_ID`，独立的 Account / Cloudflare Pages / Edit token 填入 secret `CLOUDFLARE_PAGES_DEPLOY_API_TOKEN`。R2 S3 Access Key 不能用作 Pages token。创建 token 与逐项填写步骤见 [UPDATES.md](UPDATES.md)。
 
 ## GitHub Actions 部署
 

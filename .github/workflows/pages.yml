@@ -20,9 +20,9 @@ jobs:
   website:
     runs-on: ubuntu-latest
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PAGES_DEPLOY_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+      CLOUDFLARE_PAGES_PROJECT_NAME: ${{ vars.CLOUDFLARE_PAGES_PROJECT_NAME }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
@@ -36,8 +36,12 @@ jobs:
         shell: python
         run: |
           import os
-          names = ("CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_PAGES_PROJECT")
-          missing = [name for name in names if not os.environ.get(name)]
+          settings = {
+              "CLOUDFLARE_PAGES_DEPLOY_API_TOKEN": "CLOUDFLARE_API_TOKEN",
+              "CLOUDFLARE_ACCOUNT_ID": "CLOUDFLARE_ACCOUNT_ID",
+              "CLOUDFLARE_PAGES_PROJECT_NAME": "CLOUDFLARE_PAGES_PROJECT_NAME",
+          }
+          missing = [name for name, variable in settings.items() if not os.environ.get(variable)]
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:
               output.write("ready=" + str(not missing).lower() + "\n")
           if missing:
@@ -69,4 +73,4 @@ jobs:
         if: steps.configuration.outputs.ready == 'true'
         run: >-
           npx --yes wrangler@4 pages deploy dist/website
-          --project-name "$CLOUDFLARE_PAGES_PROJECT" --branch main
+          --project-name "$CLOUDFLARE_PAGES_PROJECT_NAME" --branch main
