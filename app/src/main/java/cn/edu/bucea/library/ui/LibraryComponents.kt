@@ -33,6 +33,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -54,7 +56,7 @@ internal fun LibraryPageHeader(
         if (onBack != null) LibraryIconButton(Icons.AutoMirrored.Outlined.ArrowBack, "返回", onBack)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             if (eyebrow != null && onBack == null) Text(eyebrow, color = Accent, fontSize = 10.sp, letterSpacing = 1.2.sp)
-            Text(title, style = MaterialTheme.typography.headlineMedium, color = Ink)
+            Text(title, style = MaterialTheme.typography.headlineMedium, color = Ink, modifier = Modifier.semantics { heading() })
             if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Muted)
         }
         if (onRefresh != null) LibraryIconButton(Icons.Outlined.Refresh, refreshDescription, onRefresh, enabled = refreshEnabled)
@@ -76,7 +78,7 @@ internal fun LibraryIconButton(icon: ImageVector, description: String, onClick: 
 internal fun LibrarySectionTitle(title: String, modifier: Modifier = Modifier,
     actionLabel: String? = null, onAction: (() -> Unit)? = null, actionEnabled: Boolean = true) {
     Row(modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(title, style = MaterialTheme.typography.titleSmall, color = Ink, modifier = Modifier.weight(1f))
+        Text(title, style = MaterialTheme.typography.titleSmall, color = Ink, modifier = Modifier.weight(1f).semantics { heading() })
         if (actionLabel != null && onAction != null) TextButton(onClick = onAction, enabled = actionEnabled) { Text(actionLabel, fontSize = 12.sp) }
     }
 }

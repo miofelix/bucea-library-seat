@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -33,6 +34,8 @@ import androidx.compose.material.icons.outlined.AutoStories
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.ExpandLess
+import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material.icons.outlined.Palette
@@ -55,6 +58,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,6 +78,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -292,10 +297,14 @@ internal fun AccountsScreen(state: LibraryUiState, modifier: Modifier, onSave: (
     onSelect: (String) -> Unit, onDelete: (String) -> Unit, onLogin: () -> Unit,
     onChangePassword: () -> Unit, onLogout: () -> Unit, onCheckCampus: () -> Unit,
     onRename: (String, String) -> Unit, message: String? = null) {
-    var editing by remember { mutableStateOf<AccountSummary?>(null) }
+    var editingAccountId by rememberSaveable { mutableStateOf<String?>(null) }
     var showEditor by rememberSaveable { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<AccountSummary?>(null) }
     val active = state.accounts.firstOrNull { it.id == state.activeAccountId }
+    val editing = state.accounts.firstOrNull { it.id == editingAccountId }
+    LaunchedEffect(editingAccountId, state.accounts) {
+        if (editingAccountId != null && editing == null) showEditor = false
+    }
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)) {
         LibraryPageHeader("账号管理", "你的登录信息，仅保存在本机。")
@@ -307,31 +316,14 @@ internal fun AccountsScreen(state: LibraryUiState, modifier: Modifier, onSave: (
                 Text("当前使用 · ${active.username} · ${if (state.authenticated) "已登录" else "未登录"}", color = Muted, fontSize = 12.sp)
             }
         }
-        LibrarySectionTitle("已保存的账号", actionLabel = "添加", onAction = { editing = null; showEditor = true }, actionEnabled = !state.busy)
+        LibrarySectionTitle("已保存的账号", actionLabel = "添加", onAction = { editingAccountId = null; showEditor = true }, actionEnabled = !state.busy)
         if (state.accounts.isEmpty()) LibraryEmptyState("添加第一个账号", "保存图书馆账号，连接校园网后自动登录。", icon = Icons.Outlined.Person)
         state.accounts.forEach { account ->
-            val selected = account.id == state.activeAccountId
-            Surface(onClick = { onSelect(account.id) }, enabled = !state.busy, modifier = Modifier.fillMaxWidth().semantics { this.selected = selected },
-                shape = RoundedCornerShape(18.dp), color = if (selected) SoftAccent else Color.White,
-                border = BorderStroke(1.dp, if (selected) Accent.copy(alpha = .20f) else Line)) {
-                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Avatar(account.label.ifBlank { account.username }, 36)
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(account.label.ifBlank { "图书馆账号" }, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(account.username, color = Muted, fontSize = 12.sp)
-                    }
-                    IconButton(onClick = { editing = account; showEditor = true }, enabled = !state.busy, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Outlined.Edit, "修改 ${account.username}", tint = Muted, modifier = Modifier.size(19.dp))
-                    }
-                    IconButton(onClick = { deleting = account }, enabled = !state.busy, modifier = Modifier.size(48.dp)) {
-                        Icon(Icons.Outlined.DeleteOutline, "删除 ${account.username}", tint = Muted, modifier = Modifier.size(19.dp))
-                    }
-                }
-            }
+            AccountCard(account, selected = account.id == state.activeAccountId, busy = state.busy,
+                onSelect = { onSelect(account.id) }, onEdit = { editingAccountId = account.id; showEditor = true },
+                onDelete = { deleting = account })
         }
-        Button(onClick = { editing = null; showEditor = true }, enabled = !state.busy, shape = RoundedCornerShape(12.dp),
+        Button(onClick = { editingAccountId = null; showEditor = true }, enabled = !state.busy, shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
             Icon(Icons.Outlined.Add, null, Modifier.size(19.dp)); Spacer(Modifier.width(8.dp)); Text("添加账号")
         }
@@ -346,7 +338,7 @@ internal fun AccountsScreen(state: LibraryUiState, modifier: Modifier, onSave: (
             Text("账号与密码加密保存在本机，验证码在设备上识别。", style = MaterialTheme.typography.bodySmall, color = Muted)
         }
     }
-    if (showEditor) AccountEditor(editing, state.busy, { showEditor = false }, onRename = { id, label -> onRename(id, label); showEditor = false },
+    if (showEditor && (editingAccountId == null || editing != null)) AccountEditor(editing, state.busy, { showEditor = false }, onRename = { id, label -> onRename(id, label); showEditor = false },
         onSave = { username, password, label -> onSave(username, password, label); showEditor = false })
     deleting?.let { account -> BusinessAlertDialog(onDismissRequest = { deleting = null },
         title = { Text("删除保存的账号") }, text = { Text("将从此设备删除 ${account.username} 的登录信息。") },
@@ -354,6 +346,55 @@ internal fun AccountsScreen(state: LibraryUiState, modifier: Modifier, onSave: (
             colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
             shape = RoundedCornerShape(12.dp), modifier = Modifier.heightIn(min = 48.dp)) { Text("删除") } },
         dismissButton = { TextButton(onClick = { deleting = null }) { Text("取消") } }) }
+}
+
+@Composable
+private fun AccountCard(account: AccountSummary, selected: Boolean, busy: Boolean, onSelect: () -> Unit,
+    onEdit: () -> Unit, onDelete: () -> Unit) {
+    val largeText = LocalConfiguration.current.fontScale > 1.25f
+    Surface(onClick = onSelect, enabled = !busy, modifier = Modifier.fillMaxWidth().semantics { this.selected = selected },
+        shape = RoundedCornerShape(18.dp), color = if (selected) SoftAccent else Color.White,
+        border = BorderStroke(1.dp, if (selected) Accent.copy(alpha = .20f) else Line)) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val separateActions = maxWidth < 320.dp || largeText
+            Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Avatar(account.label.ifBlank { account.username }, 36)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(account.label.ifBlank { "图书馆账号" }, color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+                            maxLines = if (separateActions) Int.MAX_VALUE else 1, overflow = TextOverflow.Ellipsis)
+                        Text(account.username, color = Muted, fontSize = 12.sp)
+                    }
+                    if (!separateActions) {
+                        IconButton(onClick = onEdit, enabled = !busy, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Outlined.Edit, "修改 ${account.username}", tint = Muted, modifier = Modifier.size(19.dp))
+                        }
+                        IconButton(onClick = onDelete, enabled = !busy, modifier = Modifier.size(48.dp)) {
+                            Icon(Icons.Outlined.DeleteOutline, "删除 ${account.username}", tint = Muted, modifier = Modifier.size(19.dp))
+                        }
+                    }
+                }
+                if (separateActions) {
+                    HorizontalDivider(color = Line)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = onEdit, enabled = !busy,
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = "修改 ${account.username}" }) {
+                            Icon(Icons.Outlined.Edit, null, Modifier.size(19.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("修改")
+                        }
+                        TextButton(onClick = onDelete, enabled = !busy,
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics { contentDescription = "删除 ${account.username}" }) {
+                            Icon(Icons.Outlined.DeleteOutline, null, Modifier.size(19.dp), tint = Muted)
+                            Spacer(Modifier.width(8.dp))
+                            Text("删除", color = Muted)
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -368,7 +409,8 @@ private fun AccountEditor(account: AccountSummary?, busy: Boolean, onDismiss: ()
     onRename: (String, String) -> Unit, onSave: (String, String, String) -> Unit) {
     var username by remember(account?.id) { mutableStateOf(account?.username.orEmpty()) }
     var password by remember(account?.id) { mutableStateOf("") }
-    var label by remember(account?.id) { mutableStateOf(account?.label.orEmpty()) }
+    // Only the note and account ID survive recreation; credentials remain in memory.
+    var label by rememberSaveable(account?.id) { mutableStateOf(account?.label.orEmpty()) }
     var visible by remember { mutableStateOf(false) }
     BusinessSelectionSheet(onDismissRequest = onDismiss, title = { Text(if (account == null) "添加图书馆账号" else "编辑账号") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -403,7 +445,7 @@ internal fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLog
         verticalArrangement = Arrangement.spacedBy(20.dp)) {
         LibraryPageHeader("设置", "简单一点，刚刚好。")
         SettingsGroup {
-            SettingsEntry(Icons.Outlined.Refresh, "应用更新", "检查并管理新版本", onClick = { updatesExpanded = !updatesExpanded })
+            SettingsEntry(Icons.Outlined.Refresh, "应用更新", "检查并管理新版本", onClick = { updatesExpanded = !updatesExpanded }, expanded = updatesExpanded)
             if (updatesExpanded) Box(Modifier.padding(vertical = 8.dp)) { updateContent() }
             HorizontalDivider(color = Line)
             SettingsEntry(Icons.Outlined.Palette, "主题颜色", state.themeColor.label, onClick = { showColors = true }, trailing = {
@@ -443,15 +485,18 @@ private fun SettingsGroup(content: @Composable () -> Unit) {
 
 @Composable
 private fun SettingsEntry(icon: ImageVector, title: String, detail: String, onClick: () -> Unit,
-    enabled: Boolean = true, trailing: (@Composable () -> Unit)? = null) {
-    Row(Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick).heightIn(min = 76.dp).padding(vertical = 14.dp),
+    enabled: Boolean = true, trailing: (@Composable () -> Unit)? = null, expanded: Boolean? = null) {
+    Row(Modifier.fillMaxWidth().semantics { if (expanded != null) stateDescription = if (expanded) "已展开" else "已收起" }
+        .clickable(enabled = enabled, role = Role.Button, onClick = onClick).heightIn(min = 76.dp).padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(icon, null, tint = Accent, modifier = Modifier.size(20.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(title, color = Ink, style = MaterialTheme.typography.titleSmall)
             Text(detail, color = Muted, style = MaterialTheme.typography.bodySmall)
         }
-        if (trailing != null) trailing() else Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Muted, modifier = Modifier.size(16.dp))
+        if (trailing != null) trailing() else Icon(
+            if (expanded == null) Icons.AutoMirrored.Outlined.ArrowForward else if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+            null, tint = Muted, modifier = Modifier.size(16.dp))
     }
 }
 

@@ -13,13 +13,24 @@ import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.LocalSaveableStateRegistry
+import androidx.compose.runtime.saveable.SaveableStateRegistry
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import cn.edu.bucea.library.ui.AccountsScreen
 import cn.edu.bucea.library.ui.LibraryTheme
+import cn.edu.bucea.library.ui.SettingsScreen
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -126,6 +137,88 @@ class WhitespaceUiInstrumentedTest {
         }
     }
 
+    @Test fun restoringAnEditorKeepsItsAccountAndNoteWithoutSavingCredentials() {
+        val callbacks = AccountCallbacks()
+        val state = mutableStateOf(accountState())
+        val restoration = FixtureRestoration()
+        withAccounts("editor-restoration", state, callbacks, restoration = restoration) {
+            openPrimaryEditor()
+            val password = "fixture-password-never-save-903"
+            val passwordField = findWithScroll("The synthetic password input must be reachable") {
+                nodes().firstOrNull { it.isEditable && it.isPassword }
+            }
+            setField(passwordField, password)
+            val note = "恢复后继续编辑的备注"
+            setNote(note)
+            val saved = restoration.saveAndRestore()
+            assertFalse("Saved UI state must not contain a plaintext password", saved.toString().contains(password))
+            assertFalse("Saved UI state must not contain the account username", saved.toString().contains(primaryAccount.username))
+            waitFor("Restoring must keep editing the existing account") { hasText("编辑账号") && !hasText("添加图书馆账号") }
+            waitFor("Only the non-sensitive note draft must be restored") { noteField()?.text?.toString() == note }
+            val restoredPassword = findWithScroll("The restored password field must remain available", backwards = true) {
+                nodes().firstOrNull { it.isEditable && it.isPassword }
+            }
+            assertTrue("Recreated password input must be empty", restoredPassword.text.isNullOrEmpty())
+            click(findWithScroll("The restored editor must offer note-only saving") { findText("保存备注") })
+            waitFor("Saving after restoration must rename the original account") { callbacks.renames.get() == 1 }
+            assertEquals(primaryAccount.id to note, callbacks.lastRename.get())
+            assertEquals("Restoration must not turn a note edit into credential submission", 0, callbacks.saves.get())
+            assertEquals(0, callbacks.selections.get() + callbacks.deletes.get())
+        }
+    }
+
+    @Test fun narrowLargeTextAccountsKeepReadableIdentityAndSeparateTouchTargets() {
+        val callbacks = AccountCallbacks()
+        val state = mutableStateOf(accountState())
+        withAccounts("narrow-large-text", state, callbacks, compact = true) {
+            val edit = findWithScroll("Narrow cards must retain account editing") {
+                findDescription("修改 ${primaryAccount.username}")
+            }
+            val delete = requireNode("Narrow cards must retain account deletion beside editing") {
+                findDescription("删除 ${primaryAccount.username}")
+            }
+            val username = requireNode("The complete account username must be readable") {
+                nodes().firstOrNull { it.text?.toString() == primaryAccount.username }
+            }
+            val label = requireNode("The account note must remain readable") { findText(primaryAccount.label) }
+            val editBounds = bounds(clickableParent(edit) ?: edit)
+            val deleteBounds = bounds(clickableParent(delete) ?: delete)
+            val minimumTouch = (48 * instrumentation.targetContext.resources.displayMetrics.density).toInt()
+            assertTrue("Editing must keep its 48 dp touch height", editBounds.height() >= minimumTouch)
+            assertTrue("Deletion must keep its 48 dp touch height", deleteBounds.height() >= minimumTouch)
+            assertFalse("Editing and deletion touch areas must not overlap", Rect.intersects(editBounds, deleteBounds))
+            assertTrue("Narrow cards must move actions below the account identity", editBounds.top >= bounds(username).bottom)
+            assertTrue("The account label must occupy its own visible line", bounds(label).bottom <= bounds(username).top)
+            click(edit)
+            waitFor("The independent edit control must open the existing account") { hasText("编辑账号") }
+            assertEquals("Editing must not select or delete the account", 0, callbacks.selections.get() + callbacks.deletes.get())
+        }
+    }
+
+    @Test fun updateDisclosureAnnouncesAndRestoresItsExpandedState() {
+        val restoration = FixtureRestoration()
+        withFixture("update-disclosure", restoration = restoration, content = {
+            SettingsScreen(accountState(), Modifier, {}, {}, {}, updateContent = {
+                androidx.compose.material3.Text("合成更新面板")
+            })
+        }) {
+            val update = requireNode("Update disclosure must be present") { findText("应用更新") }
+            if (Build.VERSION.SDK_INT >= 30) assertEquals("已收起", clickableParent(update)?.stateDescription?.toString())
+            click(update)
+            waitFor("Expanding updates must expose its content") { hasText("合成更新面板") }
+            if (Build.VERSION.SDK_INT >= 30) {
+                val expanded = requireNode("Expanded updates must expose a state description") {
+                    findText("应用更新")?.let(::clickableParent)?.takeIf { it.stateDescription?.toString() == "已展开" }
+                }
+                assertEquals("已展开", expanded.stateDescription?.toString())
+            }
+            restoration.saveAndRestore()
+            waitFor("Restoring settings must preserve the open update panel") { hasText("合成更新面板") }
+            click(requireNode("Restored updates must still be collapsible") { findText("应用更新") })
+            waitFor("Collapsing updates must hide their content") { !hasText("合成更新面板") }
+        }
+    }
+
     private fun accountState(busy: Boolean = false) = LibraryUiState(
         accounts = listOf(primaryAccount, secondaryAccount),
         activeAccountId = primaryAccount.id,
@@ -143,7 +236,43 @@ class WhitespaceUiInstrumentedTest {
         val lastRename = AtomicReference<Pair<String, String>?>()
     }
 
-    private fun withAccounts(caseName: String, state: MutableState<LibraryUiState>, callbacks: AccountCallbacks, assertions: () -> Unit) {
+    private class FixtureRestoration {
+        val visible = mutableStateOf(true)
+        val registry = mutableStateOf(SaveableStateRegistry(restoredValues = null, canBeSaved = { true }))
+
+        fun saveAndRestore(): Map<String, List<Any?>> {
+            var saved: Map<String, List<Any?>> = emptyMap()
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                saved = registry.value.performSave()
+                visible.value = false
+            }
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
+                registry.value = SaveableStateRegistry(restoredValues = saved, canBeSaved = { true })
+                visible.value = true
+            }
+            InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+            return saved
+        }
+    }
+
+    private fun withAccounts(caseName: String, state: MutableState<LibraryUiState>, callbacks: AccountCallbacks,
+        restoration: FixtureRestoration? = null, compact: Boolean = false, assertions: () -> Unit) {
+        withFixture(caseName, restoration, compact, content = {
+            AccountsScreen(
+                state = state.value,
+                modifier = Modifier,
+                onSave = { _, _, _ -> callbacks.saves.incrementAndGet() },
+                onSelect = { callbacks.selections.incrementAndGet() },
+                onDelete = { callbacks.deletes.incrementAndGet() },
+                onLogin = {}, onChangePassword = {}, onLogout = {}, onCheckCampus = {},
+                onRename = { id, label -> callbacks.lastRename.set(id to label); callbacks.renames.incrementAndGet() },
+            )
+        }, assertions = assertions)
+    }
+
+    private fun withFixture(caseName: String, restoration: FixtureRestoration? = null, compact: Boolean = false,
+        content: @Composable () -> Unit, assertions: () -> Unit) {
         val previousFlags = automation.serviceInfo.flags
         automation.serviceInfo = automation.serviceInfo.apply {
             flags = flags or AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS
@@ -156,23 +285,23 @@ class WhitespaceUiInstrumentedTest {
             instrumentation.runOnMainSync {
                 activity.setContent {
                     LibraryTheme(AppThemeColor.BUCEA_PURPLE) {
-                        AccountsScreen(
-                            state = state.value,
-                            modifier = Modifier,
-                            onSave = { _, _, _ -> callbacks.saves.incrementAndGet() },
-                            onSelect = { callbacks.selections.incrementAndGet() },
-                            onDelete = { callbacks.deletes.incrementAndGet() },
-                            onLogin = {},
-                            onChangePassword = {},
-                            onLogout = {},
-                            onCheckCampus = {},
-                            onRename = { id, label -> callbacks.lastRename.set(id to label); callbacks.renames.incrementAndGet() },
-                        )
+                        val configuration = android.content.res.Configuration(LocalConfiguration.current).apply {
+                            if (compact) { screenWidthDp = 320; fontScale = 1.6f }
+                        }
+                        val density = LocalDensity.current
+                        CompositionLocalProvider(LocalConfiguration provides configuration,
+                            LocalDensity provides if (compact) Density(density.density, 1.6f) else density) {
+                            Box(if (compact) Modifier.width(320.dp) else Modifier) {
+                                if (restoration == null) content() else if (restoration.visible.value) {
+                                    CompositionLocalProvider(LocalSaveableStateRegistry provides restoration.registry.value) { content() }
+                                }
+                            }
+                        }
                     }
                 }
             }
             instrumentation.waitForIdleSync()
-            waitFor("The synthetic account screen must be in the foreground") { hasText("账号管理") }
+            waitFor("The synthetic screen must be in the foreground") { hasText("账号管理") || hasText("设置") }
             assertions()
         } catch (failure: Throwable) {
             try { captureFailureArtifacts(caseName, failure) }
@@ -195,9 +324,14 @@ class WhitespaceUiInstrumentedTest {
     private fun setNote(value: String) {
         val note = findWithScroll("The note editor must be reachable without entering a password") { noteField() }
         assertFalse("The fixture must edit only a non-password field", note.isPassword)
-        val text = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value) }
-        assertTrue("The native note editor must accept text", note.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, text))
+        setField(note, value)
         waitFor("The edited note must appear in the native field") { noteField()?.text?.toString() == value }
+    }
+
+    private fun setField(field: AccessibilityNodeInfo, value: String) {
+        val text = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, value) }
+        assertTrue("The synthetic editor must accept text", field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, text))
+        instrumentation.waitForIdleSync()
     }
 
     private fun focusNote() {
