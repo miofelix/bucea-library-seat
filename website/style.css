@@ -3064,6 +3064,13 @@ details a {
   color: #77727a;
   font-size: 8px;
 }
+.mini-input .icon,
+.mini-button .icon {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  vertical-align: -2px;
+}
 .mini-filter {
   padding: 9px 0 7px;
   color: var(--brand);
@@ -3103,6 +3110,10 @@ details a {
   margin-top: 27px;
   color: var(--brand);
   font-size: 22px;
+}
+.mini-empty > .icon {
+  width: 24px;
+  height: 24px;
 }
 .mini-empty strong {
   margin-top: 7px;
@@ -3195,6 +3206,12 @@ details a {
   font-size: 12px;
   line-height: 1;
   text-align: center;
+}
+.mini-bottom .icon {
+  width: 13px;
+  height: 13px;
+  margin: 0 auto 2px;
+  stroke-width: 1.8;
 }
 .mini-bottom .active {
   background: #f0eaf3;
@@ -3522,6 +3539,12 @@ details a {
   font-size: 16px;
   line-height: 1;
   text-align: center;
+}
+.mock-bottom-nav .icon {
+  width: 17px;
+  height: 17px;
+  margin: 0 auto 3px;
+  stroke-width: 1.8;
 }
 .mock-bottom-nav span.active {
   background: #f0eaf3;
