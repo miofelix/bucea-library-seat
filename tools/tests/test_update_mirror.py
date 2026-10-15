@@ -36,7 +36,7 @@ class FakeGitHub:
         if variants:
             manifest["apkVariants"] = []
             for abi in ("arm64-v8a", "armeabi-v7a", "x86", "x86_64"):
-                variant_name = f"北建大图书馆选座-v{manifest['versionName']}-{abi}.apk"
+                variant_name = f"{manifest['apk']['name'][:-4]}-{abi}.apk"
                 content = f"APK-{identity}-{abi}".encode()
                 variant_payloads[variant_name] = content
                 manifest["apkVariants"].append({"abi": abi, "name": variant_name, "minSdk": 26,
@@ -138,6 +138,15 @@ class MirrorTest(unittest.TestCase):
         self.assertEqual(source, validate_manifest(latest))
         self.assertEqual(latest, self.mirror.sync())
 
+    def test_canonical_english_attachment_keeps_its_name_and_source_contract(self):
+        name = "BUCEA-Library-Seat-v1.0.0.apk"
+        _, source, assets = self.github.release(14, name=name, version="1.0.0")
+        latest = self.mirror.sync()
+        self.assertEqual(name, latest["apk"]["name"])
+        self.assertNotIn("displayName", latest["apk"])
+        self.assertEqual(source, validate_manifest(latest))
+        self.assertEqual([assets[0]["id"]], self.github.downloads)
+
     def test_multi_abi_release_downloads_and_publishes_only_the_universal_apk(self):
         name = "北建大图书馆选座-v1.0.0.apk"
         _, source, assets = self.github.release(14, name=name, version="1.0.0", variants=True)
@@ -164,6 +173,32 @@ class MirrorTest(unittest.TestCase):
             self.github.content[assets[2]["url"]] = "\n".join(change(
                 self.github.content[assets[2]["url"]].decode("utf-8").splitlines())).encode("utf-8")
             with self.subTest(change=number), self.assertRaises(IntegrityError):
+                self.mirror.candidate(release)
+
+    def test_english_multi_abi_release_downloads_only_the_canonical_universal(self):
+        name = "BUCEA-Library-Seat-v1.0.0.apk"
+        _, source, assets = self.github.release(14, name=name, version="1.0.0", variants=True)
+        latest = self.mirror.sync()
+        self.assertEqual(7, len(assets))
+        self.assertEqual(name, latest["apk"]["name"])
+        self.assertNotIn("displayName", latest["apk"])
+        self.assertNotIn("apkVariants", latest)
+        self.assertEqual(source["apk"]["sha256"], latest["apk"]["sha256"])
+        self.assertEqual([assets[0]["id"]], self.github.downloads)
+        restarted = Mirror(self.root, self.github, clock=lambda: self.now)
+        with patch.object(self.github, "asset_bytes", side_effect=AssertionError("unchanged release must use cache")):
+            self.assertEqual(latest, restarted.sync())
+
+    def test_multi_abi_names_use_the_same_canonical_prefix_as_the_universal(self):
+        for number, (universal, variant) in enumerate((
+                ("BUCEA-Library-Seat-v1.0.0.apk", "北建大图书馆选座-v1.0.0-arm64-v8a.apk"),
+                ("北建大图书馆选座-v1.0.0.apk", "BUCEA-Library-Seat-v1.0.0-arm64-v8a.apk"),
+                ("BUCEA-Library-Seat-v0.9.0.apk", "BUCEA-Library-Seat-v0.9.0-arm64-v8a.apk"),
+                ("app-14.apk", "app-14-arm64-v8a.apk")), 130):
+            release, source, assets = self.github.release(number, name=universal, version="1.0.0", variants=True)
+            source["apkVariants"][0]["name"] = variant
+            self.github.content[assets[1]["url"]] = json.dumps(source, ensure_ascii=False).encode("utf-8")
+            with self.subTest(universal=universal), self.assertRaises(IntegrityError):
                 self.mirror.candidate(release)
 
     def test_multi_abi_release_rejects_incomplete_or_mismatched_variant_metadata(self):

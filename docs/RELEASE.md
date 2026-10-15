@@ -14,11 +14,11 @@ python3 -m unittest discover -s tools/tests -v
 
 正式版产物位于 `app/build/outputs/release/`：
 
-- `北建大图书馆选座-v1.0.0.apk`
-- `北建大图书馆选座-v1.0.0-arm64-v8a.apk`
-- `北建大图书馆选座-v1.0.0-armeabi-v7a.apk`
-- `北建大图书馆选座-v1.0.0-x86.apk`
-- `北建大图书馆选座-v1.0.0-x86_64.apk`
+- `BUCEA-Library-Seat-v1.0.0.apk`
+- `BUCEA-Library-Seat-v1.0.0-arm64-v8a.apk`
+- `BUCEA-Library-Seat-v1.0.0-armeabi-v7a.apk`
+- `BUCEA-Library-Seat-v1.0.0-x86.apk`
+- `BUCEA-Library-Seat-v1.0.0-x86_64.apk`
 - `SHA256SUMS`
 - `update.json`
 
@@ -40,11 +40,13 @@ python3 tools/publish_release.py --directory app/build/outputs/release --tag v1.
 
 正式版使用 `v1.0.0` 标签且不传 `--prerelease`；测试版需使用对应测试标签并传入该参数。发布脚本使用 `gh` 的当前授权。如果上传失败，草稿会保留，检查附件后人工完成或删除草稿重试。不要用 `--clobber` 替换已发布资产。
 
-Release 标题使用 `北建大图书馆选座 v1.0.0`，按正式版发布。从本版起，所有后续发布的 APK 附件统一命名为 `北建大图书馆选座-vx.x.x.apk`，版本来自 APK 的三段 `versionName`；测试版标签的 `-beta.N` 不进入安装包文件名，打包与上传工具会强制校验。历史附件不改名、不替换。中文名称同时写入该 Release 的 `update.json` 和 UTF-8 `SHA256SUMS`。本次 Android 16 / API 36 验收见 [ADB_ACCEPTANCE_1.0.0.md](ADB_ACCEPTANCE_1.0.0.md)，版本递增前的分阶段界面验收见 [ADB_ACCEPTANCE_UI_2026-10-15.md](ADB_ACCEPTANCE_UI_2026-10-15.md)。先前客户端自动重检的修复验收见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)，先前公开更新结果见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)。Android 8 / API 26 设备验证仍未完成，依赖图书馆内部 Wi-Fi 的实际签到与后续使用操作未执行。不能将模拟任务或安装器测试记作公开网络更新成功。
+Release 标题使用 `北建大图书馆选座 v1.0.0`，按正式版发布。从本版起，所有后续发布的 APK 附件统一命名为 `BUCEA-Library-Seat-vx.x.x.apk`，分架构包在版本后追加 `-arm64-v8a`、`-armeabi-v7a`、`-x86` 或 `-x86_64`。版本来自 APK 的三段 `versionName`；测试版标签的 `-beta.N` 不进入安装包文件名，打包与上传工具会强制校验。同一文件名同时写入 `update.json` 和 `SHA256SUMS`。GitHub 上传会清理中文附件名，尝试修改远端名称也未成功；按用户最新要求，英文格式取代此前的中文命名约定，后续统一沿用。历史已发布附件不改名、不替换。
+
+本次 Android 16 / API 36 验收见 [ADB_ACCEPTANCE_1.0.0.md](ADB_ACCEPTANCE_1.0.0.md)，版本递增前的分阶段界面验收见 [ADB_ACCEPTANCE_UI_2026-10-15.md](ADB_ACCEPTANCE_UI_2026-10-15.md)。先前客户端自动重检的修复验收见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)，先前公开更新结果见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)。Android 8 / API 26 设备验证仍未完成，依赖图书馆内部 Wi-Fi 的实际签到与后续使用操作未执行。不能将模拟任务或安装器测试记作公开网络更新成功。
 
 ## 启用
 
-树莓派此前已使用当前用户的 systemd 服务运行镜像同步器和 HTTP 服务，监听 `0.0.0.0:9080`。本次镜像兼容部署与同步按用户要求暂缓，1.0.0 先从 GitHub Release 下载；当前镜像仍为 0.3.7 / code 12。恢复节点访问并部署中文附件名兼容处理后，再等待定时同步或运行 `systemctl --user start bucea-update-mirror.service`，再验证公开清单及 APK 的版本、大小与摘要。公开 HEAD、ETag 和 Range 的抽样检查不计为完整公网下载；安装验证采用的实际路径在对应 ADB 验收中单独记录。已有 0.3.3 用户需手动安装含更新模块的版本，0.3.4 起可在应用内更新。
+树莓派此前已使用当前用户的 systemd 服务运行镜像同步器和 HTTP 服务，监听 `0.0.0.0:9080`。本次镜像部署与同步按用户要求暂缓，1.0.0 先从 GitHub Release 下载；当前镜像仍为 0.3.7 / code 12。恢复节点访问并部署支持当前附件命名与分架构包的同步器后，再等待定时同步或运行 `systemctl --user start bucea-update-mirror.service`，再验证公开清单及 APK 的版本、大小与摘要。公开 HEAD、ETag 和 Range 的抽样检查不计为完整公网下载；安装验证采用的实际路径在对应 ADB 验收中单独记录。已有 0.3.3 用户需手动安装含更新模块的版本，0.3.4 起可在应用内更新。
 
 先前 0.3.6 的公开更新与镜像证据保留在 [ADB_ACCEPTANCE_0.3.6.md](ADB_ACCEPTANCE_0.3.6.md)。公网 Cloudflare 缓存生成的 416 保留 APK 的 immutable 缓存头，origin 的 416 为 no-store；这是已有的转发层差异，本次未修改用户维护的 Cloudflare 配置。
 

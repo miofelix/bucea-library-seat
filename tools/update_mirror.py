@@ -127,8 +127,12 @@ def validate_release_checksums(value, manifest, sums, assets):
         variants = value["apkVariants"]
         if not isinstance(variants, list) or len(variants) != len(SUPPORTED_ABIS):
             raise IntegrityError("invalid ABI variant metadata")
+        universal_name = manifest["apk"]["name"]
+        if universal_name not in (f"BUCEA-Library-Seat-v{manifest['versionName']}.apk",
+                                  f"北建大图书馆选座-v{manifest['versionName']}.apk"):
+            raise IntegrityError("ABI variants require a canonical universal filename")
         for abi, variant in zip(SUPPORTED_ABIS, variants):
-            name = f"北建大图书馆选座-v{manifest['versionName']}-{abi}.apk"
+            name = f"{universal_name[:-4]}-{abi}.apk"
             if (not isinstance(variant, dict) or variant.get("abi") != abi
                     or variant.get("name") != name
                     or type(variant.get("minSdk")) is not int or variant["minSdk"] != manifest["minSdk"]

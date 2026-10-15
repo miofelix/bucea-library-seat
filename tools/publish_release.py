@@ -31,7 +31,7 @@ def release_apks(manifest):
         apks.extend(variants)
     for index, item in enumerate(apks):
         suffix = "" if index == 0 else "-" + SUPPORTED_ABIS[index - 1]
-        if (item.get("name") != f"北建大图书馆选座-v{version}{suffix}.apk"
+        if (item.get("name") != f"BUCEA-Library-Seat-v{version}{suffix}.apk"
                 or not isinstance(item.get("sha256"), str)
                 or not re.fullmatch(r"[0-9a-f]{64}", item["sha256"])
                 or type(item.get("size")) is not int or item["size"] <= 0):

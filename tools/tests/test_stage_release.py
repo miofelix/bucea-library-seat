@@ -33,7 +33,7 @@ class StageTest(unittest.TestCase):
             source = root / "input.apk"
             source.write_bytes(b"signed APK fixture")
             metadata = stage(source, "aapt", "apksigner", root / "release", "v0.3.4-beta.1", "说明")
-            self.assertEqual("北建大图书馆选座-v0.3.4.apk", metadata["apk"]["name"])
+            self.assertEqual("BUCEA-Library-Seat-v0.3.4.apk", metadata["apk"]["name"])
             self.assertEqual(8, metadata["versionCode"])
             self.assertEqual(26, metadata["minSdk"])
             self.assertNotIn("apkVariants", metadata)
@@ -42,11 +42,12 @@ class StageTest(unittest.TestCase):
             self.assertEqual(f"{metadata['apk']['sha256']}  {metadata['apk']['name']}\n",
                              (root / "release/SHA256SUMS").read_text())
 
-    def test_stable_and_beta_tags_share_the_versioned_chinese_filename(self):
-        for tag in ("v0.3.8", "v0.3.8-beta.1", "v0.3.8-beta.2"):
+    def test_stable_and_beta_tags_share_the_versioned_ascii_filename(self):
+        for tag in ("v0.3.8", "v0.3.8-beta.1", "v0.3.8-beta.2", "v1.0.0", "v2.10.12"):
+            version = tag.removeprefix("v").split("-", 1)[0]
             with self.subTest(tag=tag), tempfile.TemporaryDirectory() as tmp, patch(
                     "tools.stage_release.subprocess.run", return_value=VERIFIED), patch(
-                    "tools.stage_release.subprocess.check_output", return_value=BADGING.replace("0.3.4", "0.3.8")):
+                    "tools.stage_release.subprocess.check_output", return_value=BADGING.replace("0.3.4", version)):
                 root = Path(tmp)
                 source = root / "input.apk"
                 source.write_bytes(b"signed APK fixture")
@@ -54,8 +55,9 @@ class StageTest(unittest.TestCase):
                 output.mkdir()
                 (output / "BUCEA-Library-Seat-v0.3.7-beta.1.apk").write_bytes(b"old staged APK")
                 metadata = stage(source, "aapt", "apksigner", output, tag, "说明")
-                self.assertEqual("北建大图书馆选座-v0.3.8.apk", metadata["apk"]["name"])
-                self.assertEqual({"北建大图书馆选座-v0.3.8.apk", "SHA256SUMS", "update.json"},
+                self.assertEqual(f"BUCEA-Library-Seat-v{version}.apk", metadata["apk"]["name"])
+                self.assertTrue(metadata["apk"]["name"].isascii())
+                self.assertEqual({f"BUCEA-Library-Seat-v{version}.apk", "SHA256SUMS", "update.json"},
                                  {item.name for item in output.iterdir()})
                 self.assertEqual(source.read_bytes(), (output / metadata["apk"]["name"]).read_bytes())
 
@@ -90,15 +92,15 @@ class StageTest(unittest.TestCase):
             universal, variants, badges = self.variant_inputs(root)
             output = root / "release"
             output.mkdir()
-            (output / "北建大图书馆选座-v0.3.8.apk").write_bytes(b"obsolete")
+            (output / "BUCEA-Library-Seat-v0.3.8.apk").write_bytes(b"obsolete")
             with patch("tools.stage_release.subprocess.run", return_value=VERIFIED) as verification, patch(
                     "tools.stage_release.subprocess.check_output", side_effect=lambda command, **_: badges[command[-1]]):
                 metadata = stage(universal, "aapt", "apksigner", output, "v1.0.0", "正式版", abi_apks=variants)
             self.assertEqual(5, verification.call_count)
             self.assertEqual(list(SUPPORTED_ABIS), [item["abi"] for item in metadata["apkVariants"]])
             self.assertNotIn("nativeAbis", metadata)
-            expected_names = ["北建大图书馆选座-v1.0.0.apk"] + [
-                f"北建大图书馆选座-v1.0.0-{abi}.apk" for abi in SUPPORTED_ABIS]
+            expected_names = ["BUCEA-Library-Seat-v1.0.0.apk"] + [
+                f"BUCEA-Library-Seat-v1.0.0-{abi}.apk" for abi in SUPPORTED_ABIS]
             assets = [metadata["apk"], *metadata["apkVariants"]]
             self.assertEqual(expected_names, [item["name"] for item in assets])
             for item, source in zip(assets, [universal, *(variants[abi] for abi in SUPPORTED_ABIS)]):

@@ -54,7 +54,7 @@ def stage(apk, aapt, apksigner, output, tag, notes, abi_apks=None):
         raise ValueError("release tag disagrees with APK versionName")
     if len(notes) > 16000 or not notes.strip():
         raise ValueError("provide nonempty release notes (at most 16000 characters)")
-    name = f"北建大图书馆选座-v{metadata['versionName']}.apk"
+    name = f"BUCEA-Library-Seat-v{metadata['versionName']}.apk"
     sources = [(None, Path(apk), name)]
     if variants:
         if set(metadata.pop("nativeAbis")) != set(SUPPORTED_ABIS):
@@ -66,7 +66,7 @@ def stage(apk, aapt, apksigner, output, tag, notes, abi_apks=None):
                 raise ValueError(f"{abi} APK must contain only its declared native ABI")
             if any(variant[key] != metadata[key] for key in ("packageName", "versionName", "versionCode", "minSdk")):
                 raise ValueError(f"{abi} APK package/version/minSdk differs from the universal APK")
-            sources.append((abi, source, f"北建大图书馆选座-v{metadata['versionName']}-{abi}.apk"))
+            sources.append((abi, source, f"BUCEA-Library-Seat-v{metadata['versionName']}-{abi}.apk"))
     for _, source, _ in sources:
         if source.resolve().parent == output.resolve():
             raise ValueError("source APKs must be outside the staged output directory")

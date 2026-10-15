@@ -16,7 +16,7 @@ class PublishTest(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         content = b"verified signed APK fixture"
-        self.apk_name = "北建大图书馆选座-v0.3.8.apk"
+        self.apk_name = "BUCEA-Library-Seat-v0.3.8.apk"
         (self.root / self.apk_name).write_bytes(content)
         self.manifest = {"schemaVersion": 1, "packageName": "cn.edu.bucea.library", "versionName": "0.3.8",
                          "apk": {"name": self.apk_name, "size": len(content), "sha256": hashlib.sha256(content).hexdigest()}}
@@ -36,7 +36,7 @@ class PublishTest(unittest.TestCase):
         self.manifest["apkVariants"] = []
         for abi in ("arm64-v8a", "armeabi-v7a", "x86", "x86_64"):
             content = ("verified " + abi + " signed APK").encode()
-            name = f"北建大图书馆选座-v0.3.8-{abi}.apk"
+            name = f"BUCEA-Library-Seat-v0.3.8-{abi}.apk"
             (self.root / name).write_bytes(content)
             self.manifest["apkVariants"].append({"abi": abi, "name": name, "minSdk": 26,
                                                   "size": len(content), "sha256": hashlib.sha256(content).hexdigest()})
@@ -68,9 +68,10 @@ class PublishTest(unittest.TestCase):
             validate_upload(self.root, "v0.3.8-beta.1", "a" * 40)
 
     def test_only_the_exact_official_versioned_filename_can_be_published(self):
-        for name in ("app.apk", "BUCEA-Library-Seat-v0.3.8-beta.1.apk", "北建大图书馆选座-v0.3.7.apk",
-                     "北建大图书馆选座-v0.3.8-beta.1.apk", "北建大图书馆选座-v0.3.8.apk/../app.apk",
-                     "../北建大图书馆选座-v0.3.8.apk", "北建大图书馆选座-v０.３.８.apk"):
+        for name in ("app.apk", "BUCEA-Library-Seat-v0.3.8-beta.1.apk", "BUCEA-Library-Seat-v0.3.7.apk",
+                     "bucea-library-seat-v0.3.8.apk", "BUCEA-Library-Seat-v0.3.8.apk/../app.apk",
+                     "../BUCEA-Library-Seat-v0.3.8.apk", "BUCEA-Library-Seat-v０.３.８.apk",
+                     "北建大图书馆选座-v0.3.8.apk", "-v0.3.8.apk"):
             with self.subTest(name=name):
                 self.manifest["apk"]["name"] = name
                 self.write_manifest()
@@ -82,7 +83,7 @@ class PublishTest(unittest.TestCase):
         for version in ("0.3", "0.3.8-beta.1", "00.3.8", "0.3.8/other", "../0.3.8"):
             with self.subTest(version=version):
                 self.manifest["versionName"] = version
-                self.manifest["apk"]["name"] = f"北建大图书馆选座-v{version}.apk"
+                self.manifest["apk"]["name"] = f"BUCEA-Library-Seat-v{version}.apk"
                 self.write_manifest()
                 with self.assertRaises(ValueError):
                     validate_upload(self.root, "v0.3.8-beta.1", "a" * 40)
@@ -100,7 +101,7 @@ class PublishTest(unittest.TestCase):
     def test_draft_asset_readback_rejects_renamed_incomplete_or_changed_uploads(self):
         assets = self.remote_assets()
         validate_remote_assets(assets, self.root, self.manifest)
-        for key, value in (("name", "BUCEA-Library-Seat-v0.3.8.apk"), ("size", 1),
+        for key, value in (("name", "北建大图书馆选座-v0.3.8.apk"), ("name", "-v0.3.8.apk"), ("size", 1),
                            ("state", "new"), ("digest", "sha256:" + "0" * 64)):
             changed = [dict(asset) for asset in assets]
             changed[0][key] = value
@@ -136,9 +137,10 @@ class PublishTest(unittest.TestCase):
     def test_variant_filenames_sdk_sizes_and_hashes_are_checked_before_upload(self):
         self.add_variants()
         original = copy.deepcopy(self.manifest)
-        for key, value in (("abi", "arm64"), ("name", "北建大图书馆选座-v0.3.7-arm64-v8a.apk"),
-                           ("name", "../北建大图书馆选座-v0.3.8-arm64-v8a.apk"),
-                           ("name", "北建大图书馆选座-v0.3.8-ARM64.apk"), ("minSdk", 27),
+        for key, value in (("abi", "arm64"), ("name", "BUCEA-Library-Seat-v0.3.7-arm64-v8a.apk"),
+                           ("name", "../BUCEA-Library-Seat-v0.3.8-arm64-v8a.apk"),
+                           ("name", "BUCEA-Library-Seat-v0.3.8-ARM64.apk"),
+                           ("name", "北建大图书馆选座-v0.3.8-arm64-v8a.apk"), ("minSdk", 27),
                            ("minSdk", True), ("size", True), ("size", 0), ("size", 999),
                            ("sha256", "A" * 64), ("sha256", "a" * 63), ("sha256", "0" * 64)):
             with self.subTest(key=key, value=value):
