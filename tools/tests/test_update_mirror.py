@@ -25,16 +25,27 @@ class FakeGitHub:
         self.failure = False
         self.downloads = []
 
-    def release(self, code, prerelease=False, identity=None, data=None, name=None, version=None):
+    def release(self, code, prerelease=False, identity=None, data=None, name=None, version=None, variants=False):
         identity = identity or code
         data = data or f"APK-{identity}".encode()
         manifest = {"schemaVersion": 1, "packageName": "cn.edu.bucea.library", "versionCode": code,
                     "versionName": version if version is not None else f"0.{code}", "minSdk": 26, "notes": "更新说明",
                     "apk": {"name": name if name is not None else f"app-{identity}.apk",
                             "size": len(data), "sha256": digest(data)}}
+        variant_payloads = {}
+        if variants:
+            manifest["apkVariants"] = []
+            for abi in ("arm64-v8a", "armeabi-v7a", "x86", "x86_64"):
+                variant_name = f"北建大图书馆选座-v{manifest['versionName']}-{abi}.apk"
+                content = f"APK-{identity}-{abi}".encode()
+                variant_payloads[variant_name] = content
+                manifest["apkVariants"].append({"abi": abi, "name": variant_name, "minSdk": 26,
+                                                  "size": len(content), "sha256": digest(content)})
         assets = []
         payloads = {manifest["apk"]["name"]: data, "update.json": json.dumps(manifest, ensure_ascii=False).encode("utf-8"),
-                    "SHA256SUMS": f"{digest(data)}  {manifest['apk']['name']}\n".encode("utf-8")}
+                    "SHA256SUMS": "".join(f"{apk['sha256']}  {apk['name']}\n"
+                        for apk in [manifest["apk"]] + manifest.get("apkVariants", [])).encode("utf-8"),
+                    **variant_payloads}
         for number, (name, payload) in enumerate(payloads.items(), 1):
             asset_id = identity * 10 + number
             url = f"https://api.github.com/repos/miofelix/bucea-library-seat/releases/assets/{asset_id}"
@@ -126,6 +137,50 @@ class MirrorTest(unittest.TestCase):
         self.assertNotIn("displayName", latest["apk"])
         self.assertEqual(source, validate_manifest(latest))
         self.assertEqual(latest, self.mirror.sync())
+
+    def test_multi_abi_release_downloads_and_publishes_only_the_universal_apk(self):
+        name = "北建大图书馆选座-v1.0.0.apk"
+        _, source, assets = self.github.release(14, name=name, version="1.0.0", variants=True)
+        self.assertEqual(7, len(assets))
+        latest = self.mirror.sync()
+        self.assertEqual(name, latest["apk"]["displayName"])
+        self.assertEqual("BUCEA-Library-Seat-v1.0.0.apk", latest["apk"]["name"])
+        self.assertEqual(source["apk"]["sha256"], latest["apk"]["sha256"])
+        self.assertEqual(assets[0]["id"], latest["apk"]["assetId"])
+        self.assertEqual([assets[0]["id"]], self.github.downloads)
+        self.assertNotIn("apkVariants", latest)
+        self.assertEqual({f"{assets[0]['id']}.apk"}, {path.name for path in self.mirror.apks.glob("*.apk")})
+        restarted = Mirror(self.root, self.github, clock=lambda: self.now)
+        with patch.object(self.github, "asset_bytes", side_effect=AssertionError("unchanged release must use cache")):
+            self.assertEqual(latest, restarted.sync())
+        self.assertEqual([assets[0]["id"]], self.github.downloads)
+
+    def test_multi_abi_checksums_must_include_every_declared_attachment_once(self):
+        for number, change in enumerate((lambda lines: lines[:-1], lambda lines: lines + [lines[0]],
+                                        lambda lines: list(reversed(lines)),
+                                        lambda lines: [lines[0].replace(lines[0][:64], "0" * 64)] + lines[1:]), 100):
+            release, _, assets = self.github.release(number, name="北建大图书馆选座-v1.0.0.apk",
+                                                     version="1.0.0", variants=True)
+            self.github.content[assets[2]["url"]] = "\n".join(change(
+                self.github.content[assets[2]["url"]].decode("utf-8").splitlines())).encode("utf-8")
+            with self.subTest(change=number), self.assertRaises(IntegrityError):
+                self.mirror.candidate(release)
+
+    def test_multi_abi_release_rejects_incomplete_or_mismatched_variant_metadata(self):
+        mutations = (("abi", "arm64"), ("name", "北建大图书馆选座-v0.9.0-arm64-v8a.apk"),
+                     ("minSdk", 27), ("minSdk", True), ("sha256", "0" * 64), ("size", 999))
+        for number, (key, value) in enumerate(mutations, 110):
+            release, source, assets = self.github.release(number, name="北建大图书馆选座-v1.0.0.apk",
+                                                          version="1.0.0", variants=True)
+            source["apkVariants"][0][key] = value
+            self.github.content[assets[1]["url"]] = json.dumps(source, ensure_ascii=False).encode("utf-8")
+            with self.subTest(key=key), self.assertRaises(IntegrityError):
+                self.mirror.candidate(release)
+        release, _, assets = self.github.release(120, name="北建大图书馆选座-v1.0.0.apk",
+                                                 version="1.0.0", variants=True)
+        assets.pop()
+        with self.assertRaises(IntegrityError):
+            self.mirror.candidate(release)
 
     def test_future_official_filename_matches_its_version(self):
         self.github.release(1234, name="北建大图书馆选座-v12.34.56.apk", version="12.34.56")

@@ -1,6 +1,6 @@
 # Android 发布
 
-所有构建、签名与发布在保存原签名密钥的 MacBook 上执行。树莓派只缓存成品。版本在 `app/build.gradle.kts` 中维护，本次准备版本为 **0.3.8 / versionCode 13**，每次后续更新递增 `versionCode`。本版构建、设备验收与发布状态以 [ADB_ACCEPTANCE_0.3.8.md](ADB_ACCEPTANCE_0.3.8.md) 为准。
+所有构建、签名与发布在保存原签名密钥的 MacBook 上执行。树莓派只缓存成品。版本在 `app/build.gradle.kts` 中维护，本次正式版本为 **1.0.0 / versionCode 14**，每次后续更新递增 `versionCode`。本版构建、设备验收与发布状态以 [ADB_ACCEPTANCE_1.0.0.md](ADB_ACCEPTANCE_1.0.0.md) 为准。
 
 ## 构建
 
@@ -8,16 +8,23 @@
 
 ```sh
 python3 -m unittest discover -s tools/tests -v
-./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lint :app:lintRelease :app:stageBetaApk
+./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lint :app:lintRelease
+./gradlew -PreleaseDistributions=true :app:stageReleaseApk
 ```
 
-测试版产物位于 `app/build/outputs/beta-release/`：
+正式版产物位于 `app/build/outputs/release/`：
 
-- `北建大图书馆选座-v0.3.8.apk`
+- `北建大图书馆选座-v1.0.0.apk`
+- `北建大图书馆选座-v1.0.0-arm64-v8a.apk`
+- `北建大图书馆选座-v1.0.0-armeabi-v7a.apk`
+- `北建大图书馆选座-v1.0.0-x86.apk`
+- `北建大图书馆选座-v1.0.0-x86_64.apk`
 - `SHA256SUMS`
 - `update.json`
 
-正式版使用 `:app:stageReleaseApk`，输出目录为 `app/build/outputs/release/`。可用 `-PreleaseTag=v0.3.8-beta.2` 和 `-PreleaseNotesFile=docs/releases/0.3.8.md` 指定标签和说明。同一版本的补发也需要先增加 `versionCode`，已发布的资产禁止覆盖替换。
+正式版使用 `-PreleaseDistributions=true :app:stageReleaseApk`，同时产生通用包与四种完整独立 APK；分架构包无需安装其他 split 文件。可用 `-PreleaseTag=v1.0.0` 和 `-PreleaseNotesFile=docs/releases/1.0.0.md` 指定标签和说明；测试版另用 `:app:stageBetaApk`，输出到 `app/build/outputs/beta-release/`。不传 `releaseDistributions` 时可暂存单通用包。`update.json` 保留通用包字段，增加 `apkVariants` 列表；`SHA256SUMS` 列出五个 APK。暂存工具验证五包的实际 ABI、相同版本、签名和非调试状态。同一版本的补发也需要先增加 `versionCode`，已发布的资产禁止覆盖替换。
+
+默认压缩原生库，由 Android 在安装时一次性解压当前架构，保留原始 ONNX 推理引擎和离线模型；可用 `-PcompressNativeLibraries=false` 构建未压缩原生库的对照包。体积、安装占用取舍和后续优化评估见 [APK_SIZE.md](APK_SIZE.md)。
 
 两个任务均使用 `assembleRelease`，关闭调试、压缩资源，并保留本机已有 Android Debug 证书，以兼容先前分发的 APK。**不要删除或重新生成 `~/.android/debug.keystore`，不要把密钥复制到树莓派或 Git。** 证书迁移不包含在本次功能中。
 
@@ -25,22 +32,22 @@ python3 -m unittest discover -s tools/tests -v
 
 ## 上传
 
-先审查并推送将要发布的提交，再使用已经验证的三个附件。`tools/publish_release.py` 在草稿中上传全部附件，完成后才发布；它拒绝已有标签，并在任何远端写入前重新验证大小和摘要：
+先审查并推送将要发布的提交，再使用已经验证的七个附件。`tools/publish_release.py` 在草稿中上传五个 APK 和两份元数据，逐项核对远端文件名、大小和摘要后才发布；它拒绝已有标签，并在任何远端写入前重新验证本地大小和摘要：
 
 ```sh
-python3 tools/publish_release.py --directory app/build/outputs/beta-release --tag v0.3.8-beta.1 --target <已审查并推送的40位提交SHA> --notes docs/releases/0.3.8.md --prerelease
+python3 tools/publish_release.py --directory app/build/outputs/release --tag v1.0.0 --target <已审查并推送的40位提交SHA> --notes docs/releases/1.0.0.md
 ```
 
-正式版移除 `--prerelease` 并使用正式产物/标签。发布脚本使用 `gh` 的当前授权。如果上传失败，草稿会保留，检查附件后人工完成或删除草稿重试。不要用 `--clobber` 替换已发布资产。
+正式版使用 `v1.0.0` 标签且不传 `--prerelease`；测试版需使用对应测试标签并传入该参数。发布脚本使用 `gh` 的当前授权。如果上传失败，草稿会保留，检查附件后人工完成或删除草稿重试。不要用 `--clobber` 替换已发布资产。
 
-Release 标题使用 `北建大图书馆选座 v0.3.8 测试版`。从本版起，所有后续发布的 APK 附件统一命名为 `北建大图书馆选座-vx.x.x.apk`，版本来自 APK 的三段 `versionName`；测试版标签的 `-beta.N` 不进入安装包文件名，打包与上传工具会强制校验。历史附件不改名、不替换。中文名称同时写入该 Release 的 `update.json` 和 UTF-8 `SHA256SUMS`。本次 Android 16 / API 36 验收见 [ADB_ACCEPTANCE_0.3.8.md](ADB_ACCEPTANCE_0.3.8.md)，版本递增前的分阶段界面验收见 [ADB_ACCEPTANCE_UI_2026-10-15.md](ADB_ACCEPTANCE_UI_2026-10-15.md)。先前客户端自动重检的修复验收见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)，先前公开更新结果见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)。Android 8 / API 26 设备验证仍未完成，依赖图书馆内部 Wi-Fi 的实际签到与后续使用操作未执行。不能将模拟任务或安装器测试记作公开网络更新成功。
+Release 标题使用 `北建大图书馆选座 v1.0.0`，按正式版发布。从本版起，所有后续发布的 APK 附件统一命名为 `北建大图书馆选座-vx.x.x.apk`，版本来自 APK 的三段 `versionName`；测试版标签的 `-beta.N` 不进入安装包文件名，打包与上传工具会强制校验。历史附件不改名、不替换。中文名称同时写入该 Release 的 `update.json` 和 UTF-8 `SHA256SUMS`。本次 Android 16 / API 36 验收见 [ADB_ACCEPTANCE_1.0.0.md](ADB_ACCEPTANCE_1.0.0.md)，版本递增前的分阶段界面验收见 [ADB_ACCEPTANCE_UI_2026-10-15.md](ADB_ACCEPTANCE_UI_2026-10-15.md)。先前客户端自动重检的修复验收见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)，先前公开更新结果见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)。Android 8 / API 26 设备验证仍未完成，依赖图书馆内部 Wi-Fi 的实际签到与后续使用操作未执行。不能将模拟任务或安装器测试记作公开网络更新成功。
 
 ## 启用
 
-树莓派已使用当前用户的 systemd 服务运行镜像同步器和 HTTP 服务，监听 `0.0.0.0:9080`，公开域名可达。每次发布后等待定时同步或运行 `systemctl --user start bucea-update-mirror.service`，再验证公开清单及 APK 的版本、大小与摘要。公开 HEAD、ETag 和 Range 的抽样检查不计为完整公网下载；安装验证采用的实际路径在对应 ADB 验收中单独记录。已有 0.3.3 用户需手动安装含更新模块的版本，0.3.4 起可在应用内更新。
+树莓派此前已使用当前用户的 systemd 服务运行镜像同步器和 HTTP 服务，监听 `0.0.0.0:9080`。本次镜像兼容部署与同步按用户要求暂缓，1.0.0 先从 GitHub Release 下载；当前镜像仍为 0.3.7 / code 12。恢复节点访问并部署中文附件名兼容处理后，再等待定时同步或运行 `systemctl --user start bucea-update-mirror.service`，再验证公开清单及 APK 的版本、大小与摘要。公开 HEAD、ETag 和 Range 的抽样检查不计为完整公网下载；安装验证采用的实际路径在对应 ADB 验收中单独记录。已有 0.3.3 用户需手动安装含更新模块的版本，0.3.4 起可在应用内更新。
 
 先前 0.3.6 的公开更新与镜像证据保留在 [ADB_ACCEPTANCE_0.3.6.md](ADB_ACCEPTANCE_0.3.6.md)。公网 Cloudflare 缓存生成的 416 保留 APK 的 immutable 缓存头，origin 的 416 为 no-store；这是已有的转发层差异，本次未修改用户维护的 Cloudflare 配置。
 
 详细协议见 [UPDATES.md](UPDATES.md)，交接见 [RASPBERRY_PI_HANDOFF.md](RASPBERRY_PI_HANDOFF.md)，测试与待验项目见 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md)。
 
-先前 `v0.3.7-beta.1 / code 12` 的三个附件已发布并同步。该版最终安装字节、公开清单和 Range/ETag 检查，以及手机“已是最新版本”结果见 [ADB_ACCEPTANCE_0.3.7.md](ADB_ACCEPTANCE_0.3.7.md)；该版使用 ADB 覆盖安装验收，没有声称新的完整公网安装器升级事务。上述历史结果不代表本次 0.3.8 的验证结果。
+先前 `v0.3.7-beta.1 / code 12` 的三个附件已发布并同步。该版最终安装字节、公开清单和 Range/ETag 检查，以及手机“已是最新版本”结果见 [ADB_ACCEPTANCE_0.3.7.md](ADB_ACCEPTANCE_0.3.7.md)；该版使用 ADB 覆盖安装验收，没有声称新的完整公网安装器升级事务。上述历史结果不代表本次 1.0.0 的验证结果。

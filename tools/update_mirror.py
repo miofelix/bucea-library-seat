@@ -33,6 +33,7 @@ RETENTION = 7 * 24 * 3600
 ASCII_APK_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,180}\.apk")
 RELEASE_VERSION = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
 RELEASE_APK_NAME = re.compile(rf"北建大图书馆选座-v({RELEASE_VERSION})\.apk")
+SUPPORTED_ABIS = ("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
 
 
 class UpstreamError(Exception):
@@ -117,6 +118,29 @@ def validate_manifest(value):
     return {key: value[key] for key in
             ("schemaVersion", "packageName", "versionCode", "versionName", "minSdk", "notes")} | {
                 "apk": {key: apk[key] for key in ("name", "size", "sha256")}}
+
+
+def validate_release_checksums(value, manifest, sums, assets):
+    """Verify optional split packages while selecting only the universal APK."""
+    apks = [manifest["apk"]]
+    if "apkVariants" in value:
+        variants = value["apkVariants"]
+        if not isinstance(variants, list) or len(variants) != len(SUPPORTED_ABIS):
+            raise IntegrityError("invalid ABI variant metadata")
+        for abi, variant in zip(SUPPORTED_ABIS, variants):
+            name = f"北建大图书馆选座-v{manifest['versionName']}-{abi}.apk"
+            if (not isinstance(variant, dict) or variant.get("abi") != abi
+                    or variant.get("name") != name
+                    or type(variant.get("minSdk")) is not int or variant["minSdk"] != manifest["minSdk"]
+                    or not positive_int(variant.get("size"), MAX_APK)
+                    or not isinstance(variant.get("sha256"), str)
+                    or not re.fullmatch(r"[0-9a-f]{64}", variant["sha256"])
+                    or name not in assets or assets[name]["size"] != variant["size"]):
+                raise IntegrityError("invalid or incomplete ABI attachment")
+            apks.append(variant)
+    expected = [f"{apk['sha256']}  {apk['name']}" for apk in apks]
+    if sums.strip().splitlines() != expected:
+        raise IntegrityError("SHA256SUMS disagrees with update.json")
 
 
 class GitHubRedirects(HTTPRedirectHandler):
@@ -323,13 +347,12 @@ class Mirror:
             source_manifest = validate_manifest(cached["manifest"])
         else:
             try:
-                source_manifest = validate_manifest(json.loads(self.github.asset_bytes(metadata)))
+                source_value = json.loads(self.github.asset_bytes(metadata))
+                source_manifest = validate_manifest(source_value)
                 sums = self.github.asset_bytes(checksums).decode("utf-8")
             except (ValueError, UnicodeError) as error:
                 raise IntegrityError("invalid release metadata") from error
-            expected = f"{source_manifest['apk']['sha256']}  {source_manifest['apk']['name']}"
-            if sums.strip().splitlines() != [expected]:
-                raise IntegrityError("SHA256SUMS disagrees with update.json")
+            validate_release_checksums(source_value, source_manifest, sums, by_name)
             atomic_json(cache_path, {"fingerprint": fingerprint, "manifest": source_manifest})
         asset = by_name.get(source_manifest["apk"]["name"])
         if asset is None or asset["size"] != source_manifest["apk"]["size"]:

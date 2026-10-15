@@ -4,6 +4,11 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val releaseDistributions = providers.gradleProperty("releaseDistributions").map(String::toBoolean).orElse(false)
+// Compress native libraries to reduce direct APK downloads. Android extracts the
+// device's ABI once at installation; models remain bundled for offline use.
+val compressNativeLibraries = providers.gradleProperty("compressNativeLibraries").map(String::toBoolean).orElse(true)
+
 android {
     namespace = "cn.edu.bucea.library"
     compileSdk = 35
@@ -12,8 +17,8 @@ android {
         applicationId = "cn.edu.bucea.library"
         minSdk = 26
         targetSdk = 35
-        versionCode = 13
-        versionName = "0.3.8"
+        versionCode = 14
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -38,6 +43,17 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        jniLibs.useLegacyPackaging = compressNativeLibraries.get()
+    }
+    splits {
+        abi {
+            isEnable = releaseDistributions.get()
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+            isUniversalApk = true
+        }
+    }
 }
 
 fun registerDistributionTask(taskName: String, beta: Boolean) {
@@ -49,7 +65,8 @@ fun registerDistributionTask(taskName: String, beta: Boolean) {
             "v${android.defaultConfig.versionName}" + if (beta) "-beta.1" else "")
         val notes = rootProject.file(providers.gradleProperty("releaseNotesFile")
             .getOrElse("docs/releases/${android.defaultConfig.versionName}.md"))
-        val apk = layout.buildDirectory.file("outputs/apk/release/app-release.apk")
+        val apkName = if (releaseDistributions.get()) "app-universal-release.apk" else "app-release.apk"
+        val apk = layout.buildDirectory.file("outputs/apk/release/$apkName")
         val output = layout.buildDirectory.dir("outputs/" + if (beta) "beta-release" else "release")
         inputs.file(apk)
         inputs.file(notes)
@@ -57,10 +74,19 @@ fun registerDistributionTask(taskName: String, beta: Boolean) {
         inputs.property("releaseTag", tag)
         outputs.dir(output)
         val sdkTools = android.sdkDirectory.resolve("build-tools/${android.buildToolsVersion}")
-        commandLine("python3", rootProject.file("tools/stage_release.py"),
+        val stageCommand = mutableListOf<Any>("python3", rootProject.file("tools/stage_release.py"),
             "--apk", apk.get().asFile, "--aapt", sdkTools.resolve("aapt"),
             "--apksigner", sdkTools.resolve("apksigner"), "--output", output.get().asFile,
             "--tag", tag, "--notes", notes)
+        if (releaseDistributions.get()) {
+            listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64").forEach { abi ->
+                val variant = layout.buildDirectory.file("outputs/apk/release/app-$abi-release.apk")
+                inputs.file(variant)
+                stageCommand.addAll(listOf("--abi-apk", "$abi=${variant.get().asFile}"))
+            }
+        }
+        inputs.property("releaseDistributions", releaseDistributions.get())
+        commandLine(stageCommand)
     }
 }
 registerDistributionTask("stageBetaApk", beta = true)
