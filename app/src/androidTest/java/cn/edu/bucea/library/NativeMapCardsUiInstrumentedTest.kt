@@ -50,7 +50,7 @@ class NativeMapCardsUiInstrumentedTest {
     private val automation get() = instrumentation.uiAutomation
     private val appPackage get() = instrumentation.targetContext.packageName
 
-    @Test fun wholePageScrollingKeepsTabsStableAndRestoresModePositionsInNarrowAndLargeTextLayouts() {
+    @Test fun wholePageScrollsTabsAwayAndKeepsModeSwitchAnchorsInNarrowAndLargeTextLayouts() {
         val cells = (0 until 100).map { index ->
             NativeMapCell(index / 4, index % 4, kind = NativeMapCellKind.SEAT,
                 seat = LibrarySeat("seat-$index", "S${index.toString().padStart(3, '0')}", "测试阅览区", "座位空闲", true))
@@ -100,46 +100,43 @@ class NativeMapCardsUiInstrumentedTest {
                 waitFor("Switching back to the map must retain the shared header anchor") { !screen.value.listMode }
                 assertSharedBounds(header, tabs, fontScale)
 
-                repeat(3) {
-                    if (textNode("布局选座") != null) swipePageForward()
+                repeat(4) {
+                    if (textNode("布局选座") != null || tabBarNode() != null) swipePageForward()
                 }
-                waitFor("A page swipe must scroll the common controls out of view") {
-                    textNode("布局选座") == null && canvasNode() != null
+                waitFor("Page swipes must scroll both the controls and mode tabs out of view") {
+                    textNode("布局选座") == null && tabBarNode() == null && canvasNode() != null
                 }
-                val pinnedTabs = stableTabBounds()
-                assertTrue("The compact tabs pin to the page viewport after the controls scroll away",
-                    pinnedTabs.top <= boundsOf(requireNotNull(pageScroll())).top + 2)
                 val mapPosition = stableCanvasBounds()
 
-                click(requireNotNull(textNode("列表")))
-                waitFor("Cards begin at their own position beneath the pinned tabs") { seatTile("S000") != null }
-                assertEquals("Switching to cards keeps the tab bar pinned", pinnedTabs, stableTabBounds())
-                repeat(3) {
-                    if (seatTile("S000") != null) swipePageForward()
+                // External view restoration can change mode while its tabs are
+                // offscreen; it must retain the independent browsing positions.
+                instrumentation.runOnMainSync { screen.value = screen.value.copy(listMode = true) }
+                waitFor("Restoring the card view must show its own page") { visibleSeatNames().isNotEmpty() || tabBarNode() != null }
+                repeat(4) {
+                    if (seatTile("S000") != null || tabBarNode() != null) swipePageForward()
                 }
-                waitFor("Whole-page downward scrolling reaches later seat cards") {
-                    seatTile("S000") == null && visibleSeatNames().any { it != "座位 S000" }
+                waitFor("Whole-page downward scrolling reaches later cards and scrolls the tabs away") {
+                    seatTile("S000") == null && tabBarNode() == null && visibleSeatNames().any { it != "座位 S000" }
                 }
                 val listPosition = stableSeatNames()
-                assertEquals("Scrolling cards keeps the tab bar pinned", pinnedTabs, stableTabBounds())
 
-                click(requireNotNull(textNode("地图")))
-                waitFor("Returning to the map restores its own position") { canvasNode() != null }
+                instrumentation.runOnMainSync { screen.value = screen.value.copy(listMode = false) }
+                waitFor("Restoring the map keeps its own position") { canvasNode() != null }
                 assertEquals("Card scrolling must not alter the map position", mapPosition, stableCanvasBounds())
-                assertEquals("Returning to the map keeps the tabs pinned", pinnedTabs, stableTabBounds())
-                click(requireNotNull(textNode("列表")))
-                waitFor("Returning to cards restores their own position") { visibleSeatNames().isNotEmpty() }
+                assertTrue("The map's tabs remain scrolled out of view", tabBarNode() == null)
+                instrumentation.runOnMainSync { screen.value = screen.value.copy(listMode = true) }
+                waitFor("Restoring cards keeps their own position") { visibleSeatNames().isNotEmpty() }
                 assertEquals("Map scrolling must not alter the card-list position", listPosition, stableSeatNames())
-                assertEquals("Returning to cards keeps the tabs pinned", pinnedTabs, stableTabBounds())
+                assertTrue("The list's tabs remain scrolled out of view", tabBarNode() == null)
 
                 repeat(6) {
-                    if (textNode("布局选座") == null) {
+                    if (textNode("布局选座") == null || tabBarNode() == null) {
                         assertTrue("The full page must also scroll back to its controls",
                             requireNotNull(pageScroll()).performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD))
                         SystemClock.sleep(350)
                     }
                 }
-                waitFor("The original shared controls remain reachable after browsing seats") { textNode("布局选座") != null }
+                waitFor("The original controls and tabs remain reachable after browsing seats") { textNode("布局选座") != null && tabBarNode() != null }
                 val restoredHeader = boundsOf(requireNotNull(textNode("布局选座")))
                 val restoredTabs = stableTabBounds()
                 click(requireNotNull(textNode("地图")))
@@ -209,8 +206,9 @@ class NativeMapCardsUiInstrumentedTest {
 
             click(local)
             waitFor("Local-only details must remain inspectable") { hasText("该座位仅支持现场预约") }
+            val closeDetails = awaitDialogAction("关闭", "The seat detail sheet must expose its close action after entering")
             assertFalse("Local-only detail must not offer online time selection", hasText("选择使用时间"))
-            click(requireNotNull(textNode("关闭")))
+            click(closeDetails)
             waitFor("Closing details returns to the card list") { seatTile("C303") != null }
             captureIfRequested()
 
@@ -224,8 +222,8 @@ class NativeMapCardsUiInstrumentedTest {
             }
             assertTrue("Filter semantics must report only-available mode", filterSwitch()?.isChecked == true)
             click(requireNotNull(seatTile("D404")))
-            waitFor("A currently occupied but bookable seat can inspect available times") { hasText("选择使用时间") }
-            click(requireNotNull(textNode("选择使用时间")))
+            val chooseTime = awaitDialogAction("选择使用时间", "A currently occupied but bookable seat must expose its available-time action")
+            click(chooseTime)
             waitFor("Only the explicit time-selection action passes the original seat and date") { selected.get() == "future:2026-10-16" }
             assertEquals("Selection does not change favorites", 1, favorites.get())
         } catch (failure: Throwable) {
@@ -336,6 +334,12 @@ class NativeMapCardsUiInstrumentedTest {
     }
 
     private fun assertSharedBounds(header: Rect, tabs: Rect, fontScale: Float) {
+        // State callbacks precede the new lazy layout and its accessibility tree.
+        // Wait for that tree before reading the restored shared anchor.
+        instrumentation.waitForIdleSync()
+        waitFor("The shared controls must settle at the same anchor at font scale $fontScale") {
+            textNode("布局选座")?.let(::boundsOf) == header && tabBarNode()?.let(::boundsOf) == tabs
+        }
         assertEquals("Body changes must not move the header at font scale $fontScale", header,
             boundsOf(requireNotNull(textNode("布局选座"))))
         assertEquals("Switching modes must not move or resize tabs at font scale $fontScale", tabs, stableTabBounds())
@@ -371,6 +375,24 @@ class NativeMapCardsUiInstrumentedTest {
         assertEquals("Only synthetic content receives actions", appPackage, action.packageName?.toString())
         assertTrue("The fixture action must be enabled", action.isEnabled)
         assertTrue("The fixture action must be delivered", action.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+    }
+
+    private fun awaitDialogAction(label: String, message: String): AccessibilityNodeInfo {
+        var ready: AccessibilityNodeInfo? = null
+        var previousBounds: Rect? = null
+        waitFor(message) {
+            // The sheet body may enter the accessibility tree before its
+            // footer. Its close icon uses a description instead of text.
+            val action = nodes().firstOrNull {
+                it.text?.toString() == label || it.contentDescription?.toString() == label
+            }?.let(::clickableParent)?.takeIf { it.isEnabled && it.isClickable && it.isVisibleToUser }
+            val bounds = action?.let(::boundsOf)
+            val settled = bounds != null && !bounds.isEmpty && bounds == previousBounds
+            previousBounds = bounds
+            ready = action.takeIf { settled }
+            ready != null
+        }
+        return requireNotNull(ready)
     }
 
     private fun waitFor(message: String, predicate: () -> Boolean) {

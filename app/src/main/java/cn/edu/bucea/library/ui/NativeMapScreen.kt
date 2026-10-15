@@ -3,7 +3,6 @@ package cn.edu.bucea.library.ui
 import android.graphics.Paint
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -72,7 +71,7 @@ internal fun nativeMapSeatStyle(status: String, available: Boolean, localOnly: B
 private fun cellStyle(cell: NativeMapCell): MapSeatStyle =
     nativeMapSeatStyle(cell.seat?.status.orEmpty(), cell.seat?.available == true, cell.localOnly)
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NativeMapScreen(
     state: NativeMapState,
@@ -111,7 +110,7 @@ fun NativeMapScreen(
     BoxWithConstraints(modifier.fillMaxSize().background(Paper)) {
         val seatColumns = compactSeatColumns(maxWidth - LibrarySpacing.pageHorizontal * 2)
         val seatRows = remember(visibleCells, seatColumns) { visibleCells.chunked(seatColumns) }
-        val minimumBodyHeight = (maxHeight - 44.dp - 20.dp).coerceAtLeast(0.dp)
+        val minimumBodyHeight = (maxHeight - 20.dp).coerceAtLeast(0.dp)
         val mapScroll = rememberLazyListState()
         val listScroll = rememberLazyListState()
         val activeScroll = if (state.listMode) listScroll else mapScroll
@@ -121,10 +120,8 @@ fun NativeMapScreen(
                 val destination = if (listMode) listScroll else mapScroll
                 // Keep partially visible shared controls at the same offset.
                 // Once they are gone, retain each mode's own body position.
-                if (activeScroll.firstVisibleItemIndex == 0) {
-                    destination.requestScrollToItem(0, activeScroll.firstVisibleItemScrollOffset)
-                } else if (destination.firstVisibleItemIndex == 0) {
-                    destination.requestScrollToItem(1)
+                if (activeScroll.firstVisibleItemIndex <= 1) {
+                    destination.requestScrollToItem(activeScroll.firstVisibleItemIndex, activeScroll.firstVisibleItemScrollOffset)
                 }
                 onListMode(listMode)
             }
@@ -205,7 +202,7 @@ fun NativeMapScreen(
                         }
                     }
                 }
-                if (state.layout != null) stickyHeader(key = "map-mode-tabs") {
+                if (state.layout != null) item(key = "map-mode-tabs") {
                     // Keep padding outside the selectable bar's semantics.
                     Box(Modifier.fillMaxWidth().background(Paper).padding(horizontal = LibrarySpacing.pageHorizontal)
                         .semantics { contentDescription = "座位视图切换" }) {
@@ -216,7 +213,7 @@ fun NativeMapScreen(
                 state.layout?.let { layout ->
                     if (state.listMode) {
                         // A short result set still fills the body viewport, so
-                        // switching modes cannot pull the sticky tabs down.
+                        // switching modes cannot shift the shared tab bar.
                         if (seatRows.isEmpty() || 70.dp * seatRows.size + 40.dp < minimumBodyHeight) {
                             item(key = "seat-list-short") {
                                 Column(Modifier.fillMaxWidth().heightIn(min = minimumBodyHeight)
