@@ -30,6 +30,7 @@
     <link rel="icon" type="image/svg+xml" href="./assets/icon.svg" />
     <link rel="apple-touch-icon" href="./assets/icon.png" />
     <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./preview.css" />
     <script src="./script.js" defer></script>
     <title>北建大图书馆选座 · 把时间，留给专注。</title>
   </head>
@@ -112,6 +113,50 @@
           d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2Zm0 16H5V10h14v10Zm0-12H5V6h14v2ZM7 12h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2zM7 16h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"
         />
       </symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24">
+        <path d="M20 7v5h-5M20 12a8 8 0 1 0-2.4 5.7M20 7l-3-3" />
+      </symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24">
+        <path d="M12 5v14M5 12h14" />
+      </symbol>
+      <symbol id="i-edit" viewBox="0 0 24 24">
+        <path d="m15 4 5 5M4 20l1-6L16 3l5 5-11 11-6 1Z" />
+      </symbol>
+      <symbol id="i-delete" viewBox="0 0 24 24">
+        <path d="M3 6h18M9 6V3h6v3M6 6l1 15h10l1-15M10 10v7M14 10v7" />
+      </symbol>
+      <symbol id="i-palette" viewBox="0 0 24 24">
+        <path
+          d="M12 3a9 9 0 1 0 0 18h1.2a2 2 0 0 0 1.5-3.3 1.3 1.3 0 0 1 1-2.2H18a3 3 0 0 0 3-3A9.5 9.5 0 0 0 12 3Z"
+        />
+        <path d="M7 10h.01M10 6.5h.01M15 7h.01M18 11h.01" stroke-width="3" />
+      </symbol>
+      <symbol id="i-info" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 11v6M12 7h.01" />
+      </symbol>
+      <symbol id="i-globe" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M3 12h18M12 3c-5 5-5 13 0 18 5-5 5-13 0-18Z" />
+      </symbol>
+      <symbol id="i-logout" viewBox="0 0 24 24">
+        <path d="M9 4H4v16h5M10 12h11m-4-4 4 4-4 4" />
+      </symbol>
+      <symbol id="i-password" viewBox="0 0 24 24">
+        <path d="M3 20h18M5 5v8M2 7l6 4M2 11l6-4M17 5v8M14 7l6 4M14 11l6-4" />
+      </symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24">
+        <path d="m9 5 7 7-7 7" />
+      </symbol>
+      <symbol id="i-group" viewBox="0 0 24 24">
+        <circle cx="9" cy="8" r="3" />
+        <path
+          d="M2 21v-2a7 7 0 0 1 14 0v2M16 5a3 3 0 0 1 0 6M18 15a5 5 0 0 1 4 5v1"
+        />
+      </symbol>
+      <symbol id="i-spark" viewBox="0 0 32 32">
+        <path d="M16 3v26M3 16h26M7 7l18 18M7 25 25 7" />
+      </symbol>
     </svg>
 
     <header class="site-header">
@@ -176,97 +221,418 @@
           <span class="visual-label">A LITTLE SPACE FOR FOCUS</span>
           <div class="orbit orbit-one" aria-hidden="true"></div>
           <div class="orbit orbit-two" aria-hidden="true"></div>
-          <div class="phone illustrative-phone" data-screen="search">
+          <div
+            class="phone illustrative-phone"
+            data-screen="search"
+            id="hero-preview-panel"
+            role="tabpanel"
+            aria-labelledby="hero-tab-search"
+          >
             <div class="mock-status" aria-hidden="true">
               <span>9:41</span><span>⌁ 100%</span>
             </div>
             <div class="mock-screen">
-              <div class="mock-heading">
-                <span>BUCEA / LIBRARY</span><span class="mock-refresh">↻</span>
-              </div>
-              <h2 id="mock-page-title">选座</h2>
-              <p class="mock-subtitle" id="mock-page-subtitle">
-                为专注，找一个喜欢的位置。
-              </p>
-              <div class="mock-segment" id="mock-seat-segment">
-                <span id="mock-search-segment" class="selected">自选座位</span
-                ><span id="mock-layout-segment">布局选座</span>
-              </div>
-              <div class="mock-panel mock-search-panel">
-                <div class="mock-dates">
-                  <span class="selected"
-                    ><svg class="icon date-icon" aria-hidden="true">
-                      <use href="#i-calendar" /></svg
-                    ><span>2026-10-15</span></span
-                  ><span
-                    ><svg class="icon date-icon" aria-hidden="true">
-                      <use href="#i-calendar" /></svg
-                    ><span>2026-10-16</span></span
-                  >
+              <div
+                class="mock-scroll"
+                role="region"
+                tabindex="0"
+                aria-label="界面示意，可上下滚动"
+              >
+                <div class="mock-heading">
+                  <span>BUCEA / LIBRARY</span
+                  ><span class="mock-refresh"
+                    ><svg class="icon" aria-hidden="true">
+                      <use href="#i-refresh" /></svg
+                  ></span>
                 </div>
-                <div class="mock-fields">
-                  <div>
-                    <small>场馆</small><strong>不限场馆</strong><b>⌄</b>
-                  </div>
-                  <div>
-                    <small>阅览区域</small><strong>不限房间</strong><b>⌄</b>
-                  </div>
-                </div>
-                <div class="mock-input">
-                  <svg class="icon" aria-hidden="true">
-                    <use href="#i-search" />
-                  </svg>
-                  <span>座位号（可选）</span>
-                </div>
-                <div class="mock-filter">时间、电源与靠窗 <b>⌄</b></div>
-                <div class="mock-search-button">
-                  <svg class="icon" aria-hidden="true">
-                    <use href="#i-search" />
-                  </svg>
-                  <span>查找可用座位</span>
-                </div>
-                <p class="mock-hint">可用日期与条件已更新，请查询座位</p>
-                <h3>座位结果</h3>
-                <div class="mock-switch-row">
-                  <span>仅看可用<small>只筛选本页已加载座位</small></span
-                  ><i></i>
-                </div>
-              </div>
-              <div class="mock-panel mock-layout-panel" hidden>
-                <div class="mock-dates">
-                  <span class="selected">今天 10/15</span
-                  ><span>明天 10/16</span>
-                </div>
-                <div class="mock-fields">
-                  <div><small>场馆</small><strong>图书馆</strong><b>⌄</b></div>
-                  <div>
-                    <small>楼层</small><strong>图书馆2层</strong><b>⌄</b>
-                  </div>
-                </div>
-                <small class="mock-browse-label">阅览区域</small>
-                <div class="mock-regions">
-                  <span>二层内环区</span><span>二层西区</span>
-                </div>
-                <div class="mock-empty-icon">
-                  <svg class="icon"><use href="#i-grid" /></svg>
-                </div>
-                <h3 class="mock-empty-title">找到你喜欢的位置</h3>
-                <p class="mock-empty-copy">选择上方阅览区域，加载座位布局</p>
-              </div>
-              <div class="mock-panel mock-library-panel" hidden>
-                <div class="mock-library-tabs">
-                  <span class="selected">我的预约</span><span>收藏座位</span
-                  ><span>常用座位</span><span>违约记录</span>
-                </div>
-                <div class="mock-reservation">
-                  <small>▣ &nbsp; 当前预约</small
-                  ><strong>暂无进行中的预约</strong>
-                  <p>当前没有可签到的预约，已预约座位请查看预约记录</p>
-                </div>
-                <h3 class="mock-timeline-title">预约时间线</h3>
-                <p class="mock-timeline-copy">
-                  已加载的预约按时间排列，加载更多可查看其余记录。
+                <h2 id="mock-page-title" class="mock-page-title">选座</h2>
+                <p class="mock-subtitle" id="mock-page-subtitle">
+                  为专注，找一个喜欢的位置。
                 </p>
+                <div class="mock-segment" id="mock-seat-segment">
+                  <span id="mock-search-segment" class="selected">自选座位</span
+                  ><span id="mock-layout-segment">布局选座</span>
+                </div>
+
+                <div
+                  class="mock-panel mock-home-panel"
+                  data-screen-panel="home"
+                  hidden
+                >
+                  <div class="mock-home-header">
+                    <small>10 月 16 日 · 星期五</small>
+                    <strong>下午好，同学</strong>
+                    <p>北建大图书馆 · 今天也给专注留一点时间。</p>
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#i-person" />
+                    </svg>
+                  </div>
+                  <div class="mock-overview mock-card">
+                    <div class="mock-card-heading">
+                      <svg class="icon" aria-hidden="true">
+                        <use href="#i-book" /></svg
+                      ><strong>当前馆内概况</strong
+                      ><svg class="icon" aria-hidden="true">
+                        <use href="#i-refresh" />
+                      </svg>
+                    </div>
+                    <p class="mock-sync"><i></i>最新同步</p>
+                    <div class="mock-metrics">
+                      <div><strong>286</strong><span>空闲座位</span></div>
+                      <div><strong>910</strong><span>正在使用</span></div>
+                      <div><strong>84</strong><span>等待签到</span></div>
+                    </div>
+                    <div class="mock-distribution" aria-hidden="true">
+                      <i style="flex: 286"></i><i style="flex: 910"></i
+                      ><i style="flex: 84"></i>
+                    </div>
+                    <p>馆内状态一眼可见，选一个适合的位置。</p>
+                  </div>
+                  <div class="mock-shortcut">
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#i-book" /></svg
+                    ><span
+                      ><strong>预约记录</strong><small>随时查看</small></span
+                    >
+                  </div>
+                  <div class="mock-region-section">
+                    <div class="mock-section-heading">
+                      <span
+                        ><h3>各区域座位</h3>
+                        <small>今天 · 10 月 16 日</small></span
+                      ><svg class="icon" aria-hidden="true">
+                        <use href="#i-refresh" /></svg
+                      ><b>收起</b>
+                    </div>
+                    <p class="mock-sync">区域数据已同步 · 14:20 更新</p>
+                    <div class="mock-region-grid">
+                      <div class="mock-region-card">
+                        <strong>二层内环区</strong><small>图书馆 · 二层</small>
+                        <p class="mock-region-count">
+                          <b>空闲 72</b><i> / 总 120</i>
+                        </p>
+                        <small>占用 48</small>
+                        <div class="mock-distribution" aria-hidden="true">
+                          <i style="flex: 72"></i><i style="flex: 36"></i
+                          ><i style="flex: 10"></i><i style="flex: 2"></i>
+                        </div>
+                        <small>使用36 · 预约10 · 暂离2</small
+                        ><small>今天 · 14:20 更新</small>
+                      </div>
+                      <div class="mock-region-card">
+                        <strong>二层西区</strong><small>图书馆 · 二层</small>
+                        <p class="mock-region-count">
+                          <b>空闲 56</b><i> / 总 100</i>
+                        </p>
+                        <small>占用 44</small>
+                        <div class="mock-distribution" aria-hidden="true">
+                          <i style="flex: 56"></i><i style="flex: 32"></i
+                          ><i style="flex: 10"></i><i style="flex: 2"></i>
+                        </div>
+                        <small>使用32 · 预约10 · 暂离2</small
+                        ><small>今天 · 14:20 更新</small>
+                      </div>
+                      <div class="mock-region-card">
+                        <strong>三层东区</strong><small>图书馆 · 三层</small>
+                        <p class="mock-region-count">
+                          <b>空闲 48</b><i> / 总 160</i>
+                        </p>
+                        <small>占用 112</small>
+                        <div class="mock-distribution" aria-hidden="true">
+                          <i style="flex: 48"></i><i style="flex: 90"></i
+                          ><i style="flex: 20"></i><i style="flex: 2"></i>
+                        </div>
+                        <small>使用90 · 预约20 · 暂离2</small
+                        ><small>今天 · 14:20 更新</small>
+                      </div>
+                      <div class="mock-region-card">
+                        <strong>三层西区</strong><small>图书馆 · 三层</small>
+                        <p class="mock-region-count">
+                          <b>空闲 30</b><i> / 总 140</i>
+                        </p>
+                        <small>占用 110</small>
+                        <div class="mock-distribution" aria-hidden="true">
+                          <i style="flex: 30"></i><i style="flex: 80"></i
+                          ><i style="flex: 20"></i><i style="flex: 10"></i>
+                        </div>
+                        <small>使用80 · 预约20 · 暂离10</small
+                        ><small>今天 · 14:20 更新</small>
+                      </div>
+                      <div class="mock-region-card">
+                        <strong>四层东区</strong><small>图书馆 · 四层</small>
+                        <p class="mock-region-count">
+                          <b>空闲 42</b><i> / 总 120</i>
+                        </p>
+                        <small>占用 78</small>
+                        <div class="mock-distribution" aria-hidden="true">
+                          <i style="flex: 42"></i><i style="flex: 60"></i
+                          ><i style="flex: 16"></i><i style="flex: 2"></i>
+                        </div>
+                        <small>使用60 · 预约16 · 暂离2</small
+                        ><small>今天 · 14:20 更新</small>
+                      </div>
+                      <div class="mock-region-card">
+                        <strong>四层西区</strong><small>图书馆 · 四层</small>
+                        <p class="mock-region-count">
+                          <b>空闲 15</b><i> / 总 100</i>
+                        </p>
+                        <small>占用 85</small>
+                        <div class="mock-distribution" aria-hidden="true">
+                          <i style="flex: 15"></i><i style="flex: 65"></i
+                          ><i style="flex: 14"></i><i style="flex: 6"></i>
+                        </div>
+                        <small>使用65 · 预约14 · 暂离6</small
+                        ><small>今天 · 14:20 更新</small>
+                      </div>
+                    </div>
+                  </div>
+                  <p class="mock-privacy">
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#i-wifi" /></svg
+                    ><span>校园网络已连接</span>
+                  </p>
+                  <p class="mock-privacy">
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#i-info" /></svg
+                    ><span>到馆后请连接图书馆内部 Wi-Fi 签到。</span>
+                  </p>
+                </div>
+                <div
+                  class="mock-panel mock-search-panel"
+                  data-screen-panel="search"
+                >
+                  <div class="mock-dates">
+                    <span class="selected"
+                      ><svg class="icon date-icon" aria-hidden="true">
+                        <use href="#i-calendar" /></svg
+                      ><span>2026-10-16</span></span
+                    ><span
+                      ><svg class="icon date-icon" aria-hidden="true">
+                        <use href="#i-calendar" /></svg
+                      ><span>2026-10-17</span></span
+                    >
+                  </div>
+                  <div class="mock-fields">
+                    <div>
+                      <small>场馆</small><strong>不限场馆</strong><b>⌄</b>
+                    </div>
+                    <div>
+                      <small>阅览区域</small><strong>不限房间</strong><b>⌄</b>
+                    </div>
+                  </div>
+                  <div class="mock-input">
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#i-search" />
+                    </svg>
+                    <span>座位号（可选）</span>
+                  </div>
+                  <div class="mock-filter">时间、电源与靠窗 <b>⌄</b></div>
+                  <div class="mock-search-button">
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#i-search" />
+                    </svg>
+                    <span>查找可用座位</span>
+                  </div>
+                  <p class="mock-hint">可用日期与条件已更新，请查询座位</p>
+                  <h3>座位结果</h3>
+                  <div class="mock-switch-row">
+                    <span>仅看可用<small>只筛选本页已加载座位</small></span
+                    ><i></i>
+                  </div>
+                </div>
+                <div
+                  class="mock-panel mock-layout-panel"
+                  data-screen-panel="layout"
+                  hidden
+                >
+                  <div class="mock-dates">
+                    <span class="selected">今天 10/16</span
+                    ><span>明天 10/17</span>
+                  </div>
+                  <div class="mock-fields">
+                    <div>
+                      <small>场馆</small><strong>图书馆</strong><b>⌄</b>
+                    </div>
+                    <div>
+                      <small>楼层</small><strong>图书馆2层</strong><b>⌄</b>
+                    </div>
+                  </div>
+                  <small class="mock-browse-label">阅览区域</small>
+                  <div class="mock-regions">
+                    <span>二层内环区</span><span>二层西区</span>
+                  </div>
+                  <div class="mock-empty-icon">
+                    <svg class="icon"><use href="#i-grid" /></svg>
+                  </div>
+                  <h3 class="mock-empty-title">找到你喜欢的位置</h3>
+                  <p class="mock-empty-copy">选择上方阅览区域，加载座位布局</p>
+                </div>
+                <div
+                  class="mock-panel mock-library-panel"
+                  data-screen-panel="library"
+                  hidden
+                >
+                  <div class="mock-library-tabs">
+                    <span class="selected">我的预约</span><span>收藏座位</span
+                    ><span>常用座位</span><span>违约记录</span>
+                  </div>
+                  <div class="mock-reservation">
+                    <small>▣ &nbsp; 当前预约</small
+                    ><strong>暂无进行中的预约</strong>
+                    <p>当前没有可签到的预约，已预约座位请查看预约记录</p>
+                  </div>
+                  <h3 class="mock-timeline-title">预约时间线</h3>
+                  <p class="mock-timeline-copy">
+                    已加载的预约按时间排列，加载更多可查看其余记录。
+                  </p>
+                </div>
+
+                <div
+                  class="mock-panel mock-accounts-panel"
+                  data-screen-panel="accounts"
+                  hidden
+                >
+                  <div class="mock-account-summary">
+                    <div class="mock-avatar">演</div>
+                    <span
+                      ><strong>演示同学</strong
+                      ><small>当前使用 · 209999999001 · 已登录</small></span
+                    >
+                  </div>
+                  <div class="mock-section-heading">
+                    <h3>已保存的账号</h3>
+                    <b>添加</b>
+                  </div>
+                  <div class="mock-account-card mock-card">
+                    <div class="mock-avatar">演</div>
+                    <span
+                      ><strong>演示同学</strong
+                      ><small>209999999001</small></span
+                    ><svg class="icon" aria-hidden="true">
+                      <use href="#i-edit" /></svg
+                    ><svg class="icon" aria-hidden="true">
+                      <use href="#i-delete" />
+                    </svg>
+                  </div>
+                  <div class="mock-add-account">
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#i-plus" /></svg
+                    ><span>添加账号</span>
+                  </div>
+                  <div class="mock-settings-group mock-card">
+                    <div class="mock-setting-row">
+                      <svg class="icon" aria-hidden="true">
+                        <use href="#i-password" /></svg
+                      ><span
+                        ><strong>修改图书馆密码</strong
+                        ><small>当前版本暂不支持</small></span
+                      ><svg class="icon" aria-hidden="true">
+                        <use href="#i-chevron" />
+                      </svg>
+                    </div>
+                    <div class="mock-setting-row">
+                      <svg class="icon" aria-hidden="true">
+                        <use href="#i-logout" /></svg
+                      ><span
+                        ><strong>退出登录</strong
+                        ><small>账号仍会保存在本机</small></span
+                      ><svg class="icon" aria-hidden="true">
+                        <use href="#i-chevron" />
+                      </svg>
+                    </div>
+                  </div>
+                  <p class="mock-privacy">
+                    <svg class="icon" aria-hidden="true">
+                      <use href="#i-shield" /></svg
+                    ><span>账号与密码加密保存在本机，验证码在设备上识别。</span>
+                  </p>
+                </div>
+
+                <div
+                  class="mock-panel mock-settings-panel"
+                  data-screen-panel="settings"
+                  hidden
+                >
+                  <div class="mock-settings-group mock-card">
+                    <div class="mock-setting-row">
+                      <svg class="icon" aria-hidden="true">
+                        <use href="#i-refresh" /></svg
+                      ><span
+                        ><strong>应用更新</strong
+                        ><small>检查并管理新版本</small></span
+                      ><svg class="icon mock-expand" aria-hidden="true">
+                        <use href="#i-chevron" />
+                      </svg>
+                    </div>
+                    <div class="mock-setting-row">
+                      <svg class="icon" aria-hidden="true">
+                        <use href="#i-palette" /></svg
+                      ><span
+                        ><strong>主题颜色</strong><small>建大紫</small></span
+                      ><i class="mock-color-dot"></i>
+                    </div>
+                  </div>
+                  <h3 class="mock-settings-label">登录偏好</h3>
+                  <div class="mock-settings-group mock-card">
+                    <div class="mock-setting-row">
+                      <span
+                        ><strong>自动恢复登录</strong
+                        ><small>下次打开时恢复会话</small></span
+                      ><i class="mock-toggle on"></i>
+                    </div>
+                    <div class="mock-setting-row">
+                      <span
+                        ><strong>失败时自动切换账号</strong
+                        ><small>使用下一个已保存账号</small></span
+                      ><i class="mock-toggle"></i>
+                    </div>
+                  </div>
+                  <div class="mock-settings-group mock-card">
+                    <div class="mock-setting-row">
+                      <svg class="icon" aria-hidden="true">
+                        <use href="#i-globe" /></svg
+                      ><span
+                        ><strong>官方网站</strong
+                        ><small>北京建筑大学图书馆</small></span
+                      ><svg class="icon" aria-hidden="true">
+                        <use href="#i-chevron" />
+                      </svg>
+                    </div>
+                    <div class="mock-setting-row">
+                      <svg class="icon" aria-hidden="true">
+                        <use href="#i-info" /></svg
+                      ><span
+                        ><strong>关于这个客户端</strong
+                        ><small>北建大图书馆选座</small></span
+                      ><svg class="icon" aria-hidden="true">
+                        <use href="#i-chevron" />
+                      </svg>
+                    </div>
+                    <div class="mock-setting-row">
+                      <svg class="icon" aria-hidden="true">
+                        <use href="#i-edit" /></svg
+                      ><span
+                        ><strong>问题与建议</strong
+                        ><small>分享你的使用体验</small></span
+                      ><svg class="icon" aria-hidden="true">
+                        <use href="#i-chevron" />
+                      </svg>
+                    </div>
+                    <div class="mock-setting-row">
+                      <svg class="icon" aria-hidden="true">
+                        <use href="#i-group" /></svg
+                      ><span
+                        ><strong>QQ 交流群</strong
+                        ><small>点击打开 QQ · 长按复制</small></span
+                      ><svg class="icon" aria-hidden="true">
+                        <use href="#i-chevron" />
+                      </svg>
+                    </div>
+                  </div>
+                  <p class="mock-app-credit">
+                    BUCEA-LIBRARY-SEAT · 非官方客户端
+                  </p>
+                </div>
               </div>
               <nav class="mock-bottom-nav" aria-label="示意底部导航">
                 <span data-nav="home"
@@ -278,10 +644,10 @@
                 ><span data-nav="library"
                   ><svg class="icon"><use href="#i-book" /></svg
                   ><small>我的</small></span
-                ><span
+                ><span data-nav="accounts"
                   ><svg class="icon"><use href="#i-person" /></svg
                   ><small>账号</small></span
-                ><span
+                ><span data-nav="settings"
                   ><svg class="icon"><use href="#i-settings" /></svg
                   ><small>设置</small></span
                 >
@@ -294,37 +660,89 @@
             aria-label="查看示意界面"
           >
             <button
+              id="hero-tab-home"
+              type="button"
+              role="tab"
+              aria-controls="hero-preview-panel"
+              aria-selected="false"
+              tabindex="-1"
+              data-screen="home"
+            >
+              <svg class="icon" aria-hidden="true"><use href="#i-home" /></svg
+              ><span>馆内概况</span>
+            </button>
+            <button
+              id="hero-tab-regions"
+              type="button"
+              role="tab"
+              aria-controls="hero-preview-panel"
+              aria-selected="false"
+              tabindex="-1"
+              data-screen="regions"
+            >
+              <svg class="icon" aria-hidden="true"><use href="#i-grid" /></svg
+              ><span>区域座位</span>
+            </button>
+            <button
               id="hero-tab-search"
               type="button"
               role="tab"
+              aria-controls="hero-preview-panel"
               aria-selected="true"
               tabindex="0"
               data-screen="search"
             >
-              <svg class="icon"><use href="#i-grid" /></svg
+              <svg class="icon" aria-hidden="true"><use href="#i-search" /></svg
               ><span>自选座位</span>
             </button>
             <button
               id="hero-tab-layout"
               type="button"
               role="tab"
+              aria-controls="hero-preview-panel"
               aria-selected="false"
               tabindex="-1"
               data-screen="layout"
             >
-              <svg class="icon"><use href="#i-grid" /></svg
+              <svg class="icon" aria-hidden="true"><use href="#i-grid" /></svg
               ><span>布局选座</span>
             </button>
             <button
               id="hero-tab-library"
               type="button"
               role="tab"
+              aria-controls="hero-preview-panel"
               aria-selected="false"
               tabindex="-1"
               data-screen="library"
             >
-              <svg class="icon"><use href="#i-book" /></svg
+              <svg class="icon" aria-hidden="true"><use href="#i-book" /></svg
               ><span>我的图书馆</span>
+            </button>
+            <button
+              id="hero-tab-accounts"
+              type="button"
+              role="tab"
+              aria-controls="hero-preview-panel"
+              aria-selected="false"
+              tabindex="-1"
+              data-screen="accounts"
+            >
+              <svg class="icon" aria-hidden="true"><use href="#i-person" /></svg
+              ><span>账号管理</span>
+            </button>
+            <button
+              id="hero-tab-settings"
+              type="button"
+              role="tab"
+              aria-controls="hero-preview-panel"
+              aria-selected="false"
+              tabindex="-1"
+              data-screen="settings"
+            >
+              <svg class="icon" aria-hidden="true">
+                <use href="#i-settings" /></svg
+              ><span>设置</span>
             </button>
           </div>
           <p class="preview-caption"><span></span> UI 示意 · 结构按当前 App</p>
@@ -582,163 +1000,97 @@
             不含真实账号或实时数据。
           </p>
         </div>
-        <div class="screenshots">
-          <article class="screenshot-card">
-            <span class="screenshot-label"
-              ><b>01</b> 自选座位 · 按条件查找 <span>↗</span></span
+        <div class="screenshots-toolbar">
+          <p>7 个典型界面</p>
+          <div>
+            <button
+              type="button"
+              data-gallery-prev
+              aria-label="查看前面的示意界面"
+              aria-controls="screen-gallery"
+              disabled
             >
-            <div class="screenshot-device illustration-device">
-              <div class="mini-status">9:41 <span>⌁ 100%</span></div>
-              <div class="mini-heading">BUCEA / LIBRARY <span>↻</span></div>
-              <h3>选座</h3>
-              <p>为专注，找一个喜欢的位置。</p>
-              <div class="mini-segment">
-                <span class="selected">自选座位</span><span>布局选座</span>
-              </div>
-              <div class="mini-date-row">
-                <span class="selected"
-                  ><svg class="icon date-icon" aria-hidden="true">
-                    <use href="#i-calendar" /></svg
-                  ><span>2026-10-15</span></span
-                ><span
-                  ><svg class="icon date-icon" aria-hidden="true">
-                    <use href="#i-calendar" /></svg
-                  ><span>2026-10-16</span></span
-                >
-              </div>
-              <div class="mini-field-row">
-                <span>场馆<strong>不限场馆</strong></span
-                ><span>阅览区域<strong>不限房间</strong></span>
-              </div>
-              <div class="mini-input">
-                <svg class="icon" aria-hidden="true">
-                  <use href="#i-search" />
-                </svg>
-                <span>座位号（可选）</span>
-              </div>
-              <div class="mini-filter">时间、电源与靠窗⌄</div>
-              <div class="mini-button">
-                <svg class="icon" aria-hidden="true">
-                  <use href="#i-search" />
-                </svg>
-                <span>查找可用座位</span>
-              </div>
-              <div class="mini-bottom">
-                <span
-                  ><svg class="icon"><use href="#i-home" /></svg
-                  ><small>首页</small></span
-                ><span class="active"
-                  ><svg class="icon"><use href="#i-grid" /></svg
-                  ><small>选座</small></span
-                ><span
-                  ><svg class="icon"><use href="#i-book" /></svg
-                  ><small>我的</small></span
-                ><span
-                  ><svg class="icon"><use href="#i-person" /></svg
-                  ><small>账号</small></span
-                ><span
-                  ><svg class="icon"><use href="#i-settings" /></svg
-                  ><small>设置</small></span
-                >
-              </div>
-            </div>
+              <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>
+            </button>
+            <button
+              type="button"
+              data-gallery-next
+              aria-label="查看后面的示意界面"
+              aria-controls="screen-gallery"
+            >
+              <svg class="icon" aria-hidden="true"><use href="#i-arrow" /></svg>
+            </button>
+          </div>
+        </div>
+        <div
+          class="screenshots"
+          id="screen-gallery"
+          tabindex="0"
+          role="region"
+          aria-label="七个典型界面的示意，可左右滚动"
+        >
+          <article class="screenshot-card">
+            <span class="screenshot-label"><b>01</b>首页 · 当前馆内概况</span>
+            <div
+              class="screenshot-device illustration-device"
+              data-preview="home"
+              role="group"
+              aria-label="首页 · 当前馆内概况示意"
+            ></div>
           </article>
           <article class="screenshot-card">
-            <span class="screenshot-label"
-              ><b>02</b> 布局选座 · 先选区域 <span>↗</span></span
-            >
-            <div class="screenshot-device illustration-device">
-              <div class="mini-status">9:41 <span>⌁ 100%</span></div>
-              <div class="mini-heading">BUCEA / LIBRARY <span>↻</span></div>
-              <h3>选座</h3>
-              <p>为专注，找一个喜欢的位置。</p>
-              <div class="mini-segment">
-                <span>自选座位</span><span class="selected">布局选座</span>
-              </div>
-              <div class="mini-date-row">
-                <span class="selected">今天 10/15</span><span>明天 10/16</span>
-              </div>
-              <div class="mini-field-row">
-                <span>场馆<strong>图书馆</strong></span
-                ><span>楼层<strong>图书馆2层</strong></span>
-              </div>
-              <small class="mini-label">阅览区域</small>
-              <div class="mini-regions">
-                <span>二层内环区</span><span>二层西区</span>
-              </div>
-              <div class="mini-empty">
-                <svg class="icon"><use href="#i-grid" /></svg
-                ><strong>找到你喜欢的位置</strong
-                ><small>选择上方阅览区域，加载座位布局</small>
-              </div>
-              <div class="mini-bottom">
-                <span
-                  ><svg class="icon"><use href="#i-home" /></svg
-                  ><small>首页</small></span
-                ><span class="active"
-                  ><svg class="icon"><use href="#i-grid" /></svg
-                  ><small>选座</small></span
-                ><span
-                  ><svg class="icon"><use href="#i-book" /></svg
-                  ><small>我的</small></span
-                ><span
-                  ><svg class="icon"><use href="#i-person" /></svg
-                  ><small>账号</small></span
-                ><span
-                  ><svg class="icon"><use href="#i-settings" /></svg
-                  ><small>设置</small></span
-                >
-              </div>
-            </div>
+            <span class="screenshot-label"><b>02</b>首页 · 各区域座位</span>
+            <div
+              class="screenshot-device illustration-device"
+              data-preview="regions"
+              role="group"
+              aria-label="首页 · 各区域座位示意"
+            ></div>
           </article>
           <article class="screenshot-card">
-            <span class="screenshot-label"
-              ><b>03</b> 设置 · 更新与主题偏好 <span>↗</span></span
-            >
-            <div class="screenshot-device illustration-device">
-              <div class="mini-status">9:41 <span>⌁ 100%</span></div>
-              <div class="mini-heading">BUCEA / LIBRARY <span>⌁</span></div>
-              <h3>设置</h3>
-              <p>简单一点，刚刚好。</p>
-              <div class="mini-settings-card">
-                <div>
-                  <strong>应用更新</strong><small>检查并管理新版本</small
-                  ><b>⌄</b>
-                </div>
-                <div>
-                  <strong>主题颜色</strong><small>建大紫 <i></i></small>
-                </div>
-              </div>
-              <h4>登录偏好</h4>
-              <div class="mini-settings-card mini-toggles">
-                <div>
-                  <strong>自动恢复登录</strong><small>下次打开时恢复会话</small
-                  ><i class="on"></i>
-                </div>
-                <div>
-                  <strong>失败时自动切换账号</strong
-                  ><small>使用下一个已保存账号</small><i></i>
-                </div>
-              </div>
-              <div class="mini-bottom">
-                <span
-                  ><svg class="icon"><use href="#i-home" /></svg
-                  ><small>首页</small></span
-                ><span
-                  ><svg class="icon"><use href="#i-grid" /></svg
-                  ><small>选座</small></span
-                ><span
-                  ><svg class="icon"><use href="#i-book" /></svg
-                  ><small>我的</small></span
-                ><span
-                  ><svg class="icon"><use href="#i-person" /></svg
-                  ><small>账号</small></span
-                ><span class="active"
-                  ><svg class="icon"><use href="#i-settings" /></svg
-                  ><small>设置</small></span
-                >
-              </div>
-            </div>
+            <span class="screenshot-label"><b>03</b>自选座位 · 按条件查找</span>
+            <div
+              class="screenshot-device illustration-device"
+              data-preview="search"
+              role="group"
+              aria-label="自选座位 · 按条件查找示意"
+            ></div>
+          </article>
+          <article class="screenshot-card">
+            <span class="screenshot-label"><b>04</b>布局选座 · 先选区域</span>
+            <div
+              class="screenshot-device illustration-device"
+              data-preview="layout"
+              role="group"
+              aria-label="布局选座 · 先选区域示意"
+            ></div>
+          </article>
+          <article class="screenshot-card">
+            <span class="screenshot-label"><b>05</b>我的图书馆 · 预约记录</span>
+            <div
+              class="screenshot-device illustration-device"
+              data-preview="library"
+              role="group"
+              aria-label="我的图书馆 · 预约记录示意"
+            ></div>
+          </article>
+          <article class="screenshot-card">
+            <span class="screenshot-label"><b>06</b>账号管理 · 本机保存</span>
+            <div
+              class="screenshot-device illustration-device"
+              data-preview="accounts"
+              role="group"
+              aria-label="账号管理 · 本机保存示意"
+            ></div>
+          </article>
+          <article class="screenshot-card">
+            <span class="screenshot-label"><b>07</b>设置 · 更新与主题偏好</span>
+            <div
+              class="screenshot-device illustration-device"
+              data-preview="settings"
+              role="group"
+              aria-label="设置 · 更新与主题偏好示意"
+            ></div>
           </article>
         </div>
       </section>
@@ -924,7 +1276,9 @@
       </section>
 
       <aside class="community container">
-        <span class="community-mark" aria-hidden="true">✳</span>
+        <svg class="community-mark icon" aria-hidden="true">
+          <use href="#i-spark" />
+        </svg>
         <div>
           <h2>一个人的小工具，一群人的好主意。</h2>
           <p>欢迎反馈、分享，也欢迎安利给身边的同学。</p>

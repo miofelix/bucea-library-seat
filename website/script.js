@@ -1,48 +1,106 @@
 "use strict";
 
-// This mockup follows the current Android screens while keeping the page
-// self-contained and free of account-specific screenshots.
+// Both preview areas use the same illustrated Android screens.
 const heroPhone = document.querySelector(".illustrative-phone");
 const heroTabs = [...document.querySelectorAll(".actual-ui-tabs [role=tab]")];
-const heroPanels = {
-  search: document.querySelector(".mock-search-panel"),
-  layout: document.querySelector(".mock-layout-panel"),
-  library: document.querySelector(".mock-library-panel"),
+const screenDefinitions = {
+  home: {
+    title: "首页",
+    subtitle: "",
+    panel: "home",
+    nav: "home",
+    header: false,
+  },
+  regions: {
+    title: "各区域座位",
+    subtitle: "",
+    panel: "home",
+    nav: "home",
+    header: false,
+  },
+  search: {
+    title: "选座",
+    subtitle: "为专注，找一个喜欢的位置。",
+    panel: "search",
+    nav: "search",
+    refresh: true,
+  },
+  layout: {
+    title: "选座",
+    subtitle: "为专注，找一个喜欢的位置。",
+    panel: "layout",
+    nav: "search",
+    refresh: true,
+  },
+  library: {
+    title: "我的图书馆",
+    subtitle: "按时间，安排下一次到馆。",
+    panel: "library",
+    nav: "library",
+    refresh: true,
+  },
+  accounts: {
+    title: "账号管理",
+    subtitle: "你的登录信息，仅保存在本机。",
+    panel: "accounts",
+    nav: "accounts",
+  },
+  settings: {
+    title: "设置",
+    subtitle: "简单一点，刚刚好。",
+    panel: "settings",
+    nav: "settings",
+  },
 };
-const pageTitle = document.getElementById("mock-page-title");
-const pageSubtitle = document.getElementById("mock-page-subtitle");
-const seatSegment = document.getElementById("mock-seat-segment");
-const searchSegment = document.getElementById("mock-search-segment");
-const layoutSegment = document.getElementById("mock-layout-segment");
-const bottomNavItems = [
-  ...document.querySelectorAll(".mock-bottom-nav [data-nav]"),
-];
+
+function showIllustration(device, screen) {
+  const definition = screenDefinitions[screen];
+  device.dataset.screen = screen;
+  device.querySelectorAll("[data-screen-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.screenPanel !== definition.panel;
+  });
+  const title = device.querySelector(".mock-page-title");
+  const subtitle = device.querySelector(".mock-subtitle");
+  const heading = device.querySelector(".mock-heading");
+  title.textContent = definition.title;
+  subtitle.textContent = definition.subtitle;
+  [heading, title, subtitle].forEach((element) => {
+    element.hidden = definition.header === false;
+  });
+  device.querySelector(".mock-refresh").hidden = !definition.refresh;
+  const segment = device.querySelector(".mock-segment");
+  segment.hidden = definition.nav !== "search";
+  [...segment.children].forEach((item, index) => {
+    item.classList.toggle(
+      "selected",
+      screen === (index === 0 ? "search" : "layout"),
+    );
+  });
+  device.querySelectorAll("[data-nav]").forEach((item) => {
+    item.classList.toggle("active", item.dataset.nav === definition.nav);
+  });
+  const scroller = device.querySelector(".mock-scroll");
+  scroller.setAttribute(
+    "aria-label",
+    `${definition.title}界面示意，可上下滚动`,
+  );
+  scroller.scrollTop = 0;
+  if (screen === "regions") {
+    const regions = device.querySelector(".mock-region-section");
+    scroller.scrollTop = regions.offsetTop - scroller.offsetTop - 12;
+  }
+}
+
 function selectHeroScreenshot(tab) {
   heroTabs.forEach((item) => {
     const selected = item === tab;
     item.setAttribute("aria-selected", String(selected));
     item.tabIndex = selected ? 0 : -1;
   });
-  heroPhone.dataset.screen = tab.dataset.screen;
-  Object.entries(heroPanels).forEach(([name, panel]) => {
-    panel.hidden = name !== tab.dataset.screen;
-  });
-  const screen = tab.dataset.screen;
-  const isLibrary = screen === "library";
-  pageTitle.textContent = isLibrary ? "我的图书馆" : "选座";
-  pageSubtitle.textContent = isLibrary
-    ? "按时间，安排下一次到馆。"
-    : "为专注，找一个喜欢的位置。";
-  seatSegment.hidden = isLibrary;
-  searchSegment.classList.toggle("selected", screen === "search");
-  layoutSegment.classList.toggle("selected", screen === "layout");
-  bottomNavItems.forEach((item) => {
-    item.classList.toggle(
-      "active",
-      item.dataset.nav === (screen === "layout" ? "search" : screen),
-    );
-  });
+  showIllustration(heroPhone, tab.dataset.screen);
+  heroPhone.setAttribute("aria-labelledby", tab.id);
 }
+
 heroTabs.forEach((tab, index) => {
   tab.addEventListener("click", () => selectHeroScreenshot(tab));
   tab.addEventListener("keydown", (event) => {
@@ -58,6 +116,73 @@ heroTabs.forEach((tab, index) => {
     heroTabs[next].focus();
   });
 });
+selectHeroScreenshot(
+  heroTabs.find((tab) => tab.getAttribute("aria-selected") === "true"),
+);
+
+// Scale the same device markup for the gallery instead of drawing it twice.
+document.querySelectorAll("[data-preview]").forEach((preview) => {
+  const screen = preview.dataset.preview;
+  const device = heroPhone.cloneNode(true);
+  device.className = "mini-app";
+  device.removeAttribute("id");
+  device.removeAttribute("role");
+  device.removeAttribute("aria-labelledby");
+  device
+    .querySelectorAll("[id]")
+    .forEach((element) => element.removeAttribute("id"));
+  device.querySelectorAll("[data-screen-panel]").forEach((panel) => {
+    if (panel.dataset.screenPanel !== screenDefinitions[screen].panel)
+      panel.remove();
+  });
+  device
+    .querySelector(".mock-bottom-nav")
+    .setAttribute(
+      "aria-label",
+      `${screenDefinitions[screen].title}示意底部导航`,
+    );
+  preview.append(device);
+  showIllustration(device, screen);
+});
+
+const gallery = document.getElementById("screen-gallery");
+const galleryPrevious = document.querySelector("[data-gallery-prev]");
+const galleryNext = document.querySelector("[data-gallery-next]");
+function updateGalleryControls() {
+  galleryPrevious.disabled = gallery.scrollLeft <= 1;
+  galleryNext.disabled =
+    gallery.scrollLeft + gallery.clientWidth >= gallery.scrollWidth - 1;
+}
+function moveGallery(direction) {
+  const gap = parseFloat(getComputedStyle(gallery).gap) || 0;
+  const step =
+    gallery.querySelector(".screenshot-card").getBoundingClientRect().width +
+    gap;
+  gallery.scrollBy({
+    left: direction * step,
+    behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "instant"
+      : "smooth",
+  });
+}
+galleryPrevious.addEventListener("click", () => moveGallery(-1));
+galleryNext.addEventListener("click", () => moveGallery(1));
+gallery.addEventListener("scroll", updateGalleryControls, { passive: true });
+window.addEventListener("resize", updateGalleryControls);
+gallery.addEventListener("keydown", (event) => {
+  if (event.target !== gallery) return;
+  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    event.preventDefault();
+    moveGallery(event.key === "ArrowLeft" ? -1 : 1);
+  } else if (event.key === "Home" || event.key === "End") {
+    event.preventDefault();
+    gallery.scrollTo({
+      left: event.key === "Home" ? 0 : gallery.scrollWidth,
+      behavior: "instant",
+    });
+  }
+});
+updateGalleryControls();
 
 document.querySelectorAll(".theme-picker button").forEach((button) => {
   button.addEventListener("click", () => {
