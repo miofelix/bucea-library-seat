@@ -1,8 +1,8 @@
 # Cloudflare 更新分发
 
-Android APK 在保存原签名密钥的开发机上构建、验证并发布到 GitHub Releases。GitHub Actions 从完整 Release 读取成品，通过 `tools/publish_cloudflare.py` 校验并上传 Cloudflare R2；官网由 Cloudflare Pages 托管。服务器同步器、独立 HTTP 服务和 systemd 配置已从仓库移除，当前分发流程无需树莓派。
+Android APK 在保存原签名密钥的开发机上构建、验证并发布到 GitHub Releases。GitHub Actions 从完整 Release 读取成品，通过 `tools/publish_cloudflare.py` 校验并上传 Cloudflare R2；官网由 Cloudflare Pages 托管，并同步部署 GitHub Pages 镜像。服务器同步器、独立 HTTP 服务和 systemd 配置已从仓库移除，当前分发流程无需树莓派。
 
-官网使用 <https://library.miofelix.com/>。APK、应用更新与官网元数据均由共享 R2 bucket 的 `download.miofelix.com` 自定义域名提供，本项目统一使用 `bucea-library-seat/` 前缀：
+官网使用 <https://library.miofelix.com/>，GitHub Pages 镜像为 <https://miofelix.github.io/bucea-library-seat/>。APK、应用更新与官网元数据均由共享 R2 bucket 的 `download.miofelix.com` 自定义域名提供，本项目统一使用 `bucea-library-seat/` 前缀：
 
 | 用途                    | 地址                                                                          |
 | ----------------------- | ----------------------------------------------------------------------------- |
@@ -10,7 +10,7 @@ Android APK 在保存原签名密钥的开发机上构建、验证并发布到 G
 | 官网与 Android APK 下载 | `https://download.miofelix.com/bucea-library-seat/releases/<tag>/<APK文件名>` |
 | 官网最新下载元数据      | `https://download.miofelix.com/bucea-library-seat/releases/latest.json`       |
 
-清单和 APK 直接返回内容，不经过官网跳转；正常 GET 返回 200，Range 请求返回 206。Cloudflare Pages 仅托管网页，APK 留在 R2。
+清单和 APK 直接返回内容，不经过官网跳转；正常 GET 返回 200，Range 请求返回 206。Cloudflare Pages 与 GitHub Pages 仅托管同一份网页产物，两站的 APK 均留在 R2。
 
 R2 和官网已于 2026-10-16 启用。bucket 为 `miofelix-software-releases`，`download.miofelix.com` 自定义域名绑定处于活动状态。官网使用 Direct Upload Pages 项目 `bucea-library-seat-website`，生产分支为 `main`，不连接 Git 仓库；`library.miofelix.com` 已活动且启用 SSL。三项仓库 variables 和三项 secrets 已配置，首次上传、完整下载与官网上线结果见下文验证记录。官网源码保留 GitHub Release 备用下载入口；正式构建由 R2 元数据生成下载链接。此前服务的验收保留在 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md)，其中旧服务器与端口记录均属历史。
 
@@ -48,9 +48,9 @@ R2 和官网已于 2026-10-16 启用。bucket 为 `miofelix-software-releases`�
 
 1. 全部 APK 写入 `bucea-library-seat/releases/<tag>/<name>`，官网与 Android 更新共用这些下载 URL。
 2. 完成 APK 上传与校验后，最后写入 `bucea-library-seat/updates/latest.json`。公开清单保留 Android 协议字段，补充 Release 标识及 R2 下的通用 APK URL。
-3. 官网最新元数据写入 `bucea-library-seat/releases/latest.json`，本地同时输出 `<website-output>/release.json`。官网使用已选中发布的版本、大小和下载地址，部署流程见 [WEBSITE.md](WEBSITE.md)。
+3. 官网最新元数据写入 `bucea-library-seat/releases/latest.json`，本地同时输出 `<website-output>/release.json`。两站使用已选中发布的版本、大小和下载地址，部署流程见 [WEBSITE.md](WEBSITE.md)。
 
-`versionCode` 只递增，正式版与测试版共用同一更新流。重复同步相同发布应保持对象内容一致，不能覆盖成不同字节。较旧发布不能将 `latest.json` 降级，上传中断时保留上一份成功清单。相同 tag 的同步串行执行，不同 tag 可并行上传；R2 使用 ETag 条件写入（CAS）防止并发发布降低清单版本。官网部署任务另用共享的 `cloudflare-production` 队列串行执行，获得部署位置后重新读取最新元数据，避免排队期间的新发布被旧页面覆盖。历史版本 APK 保持不可变。
+`versionCode` 只递增，正式版与测试版共用同一更新流。重复同步相同发布应保持对象内容一致，不能覆盖成不同字节。较旧发布不能将 `latest.json` 降级，上传中断时保留上一份成功清单。相同 tag 的同步串行执行，不同 tag 可并行上传；R2 使用 ETag 条件写入（CAS）防止并发发布降低清单版本。网页部署任务另用共享的 `cloudflare-production` 队列串行执行，获得部署位置后重新读取最新元数据，构建并验证一次 `dist/website` 后将同一产物部署到 Cloudflare Pages 和 GitHub Pages，避免排队期间的新发布被旧页面覆盖。`main` 源码更新与手动网页部署也使用该队列和双站流程。历史版本 APK 保持不可变。
 
 APK 使用 `public, max-age=31536000, immutable`，清单和可变下载元数据使用 `no-store, max-age=0`。R2 原生提供 HEAD、ETag、条件请求和 Range；APK 内容的可信依据是发布元数据中的 SHA-256，不把 R2 ETag 当作 SHA-256。Android 安装前仍执行摘要和签名验证。
 
@@ -100,16 +100,16 @@ R2 S3 API endpoint 为 `https://<CLOUDFLARE_ACCOUNT_ID>.r2.cloudflarestorage.com
 
 工作流将上述仓库配置映射到 Wrangler 所需的 `CLOUDFLARE_API_TOKEN` 和 R2 S3 客户端所需的 `AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`。这些是工具内部使用的环境变量，无需另建同名 GitHub secrets。
 
-GitHub 的 `GITHUB_TOKEN` 由 Actions 提供，用于读取 Release，无需手动创建；Android 签名密钥不上传到 Actions 或 Cloudflare。
+GitHub 的 `GITHUB_TOKEN` 由 Actions 提供，用于读取 Release 和部署 GitHub Pages，无需手动创建。仓库 **Settings → Pages** 的构建来源选择 **GitHub Actions**，网页部署 job 授予 `contents: read`、`pages: write`、`id-token: write` 权限，并使用 `github-pages` environment；该环境允许 `main` 分支和 `v*` 标签部署，以支持 Release 事件的标签 OIDC 引用。GitHub Pages 不配置自定义域名或 `CNAME`，官网域名与 canonical 继续使用 Cloudflare 主站。Android 签名密钥不上传到 Actions 或 Cloudflare。
 
 ### 5. 首次同步并部署官网
 
-R2 下载域名和证书应已生效，三项 variables 与三项 secrets 均已配置。Pages 使用不连接 Git 仓库的 Direct Upload 项目，由 Actions 统一部署，详见 [WEBSITE.md](WEBSITE.md)。
+R2 下载域名和证书应已生效，三项 variables 与三项 secrets 均已配置。Cloudflare Pages 使用不连接 Git 仓库的 Direct Upload 项目，两站由 Actions 统一部署，详见 [WEBSITE.md](WEBSITE.md)。
 
-1. 打开仓库 **Actions → Publish release to Cloudflare → Run workflow**，选择 `main`，填写已发布的 tag（例如 `v1.0.0`），同步已有 Release。
+1. 打开仓库 **Actions → Publish release and deploy websites → Run workflow**，选择 `main`，填写已发布的 tag（例如 `v1.0.0`），同步已有 Release。
 2. 检查 `publish` job 的附件校验、R2 上传和公开地址检查。对象全部位于 `bucea-library-seat/` 下，包括 `releases/<tag>/<name>`、`updates/latest.json` 和 `releases/latest.json`；公开检查失败会阻止后续官网部署。
-3. `publish` 成功后，`website` job 自动读取最新 R2 元数据，构建、检查下载地址并部署到 `bucea-library-seat-website`。首次部署后绑定官网自定义域名，后续发布直接更新该项目。
-4. 打开 <https://library.miofelix.com/>，核对版本、大小与下载链接，完整下载 APK 并核对摘要；R2 URL 直接返回内容，不重定向到 `r2.dev`、S3 endpoint 或官网。
+3. `publish` 成功后，`website` job 自动读取最新 R2 元数据，构建并检查下载地址，再将同一产物部署到 `bucea-library-seat-website` 和 GitHub Pages。首次 Cloudflare 部署后绑定官网自定义域名，后续发布直接同步两站。
+4. 打开 <https://library.miofelix.com/> 和 <https://miofelix.github.io/bucea-library-seat/>，核对两站版本、大小、五种下载链接及开源许可页面，完整下载 APK 并核对摘要；R2 URL 直接返回内容，不重定向到 `r2.dev`、S3 endpoint 或官网。
 5. 对包含新地址的 `1.0.1` 构建执行真实 Android 更新检查与下载验收。首次同步 `v1.0.0` 只验证分发，不能证明该旧 APK 已切换更新地址。
 
 Cloudflare 的缓存、重写、Access 和挑战规则应允许原生 Android 客户端直接读取清单及 APK。

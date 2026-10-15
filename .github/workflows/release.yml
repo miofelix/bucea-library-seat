@@ -1,4 +1,4 @@
-name: Publish release to Cloudflare
+name: Publish release and deploy websites
 
 on:
   release:
@@ -89,6 +89,13 @@ jobs:
   website:
     needs: publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.github-pages-deployment.outputs.page_url }}
     concurrency:
       group: cloudflare-production
       cancel-in-progress: false
@@ -106,6 +113,8 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: "22"
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
       # Read the newest metadata after acquiring the website deployment slot;
       # another Release may have finished while this deployment was queued.
       - name: Build latest release website
@@ -115,10 +124,17 @@ jobs:
           --output dist/website
       - name: Verify selected public downloads
         run: python3 .github/scripts/verify_downloads.py --metadata dist/website/release.json
+      - name: Upload GitHub Pages website
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/website
       - name: Deploy Cloudflare Pages
         run: >-
           npx --yes wrangler@4 pages deploy dist/website
           --project-name "$CLOUDFLARE_PAGES_PROJECT_NAME" --branch main
+      - name: Deploy GitHub Pages
+        id: github-pages-deployment
+        uses: actions/deploy-pages@v4
       - name: Report publication
         run: |
-          echo 'Release synchronized to R2 and website deployed to https://library.miofelix.com/.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Release synchronized to R2; website deployed to https://library.miofelix.com/ and https://miofelix.github.io/bucea-library-seat/.' >> "$GITHUB_STEP_SUMMARY"

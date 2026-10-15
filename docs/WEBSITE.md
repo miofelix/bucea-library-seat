@@ -1,6 +1,6 @@
 # 宣传网页
 
-正式官网：<https://library.miofelix.com/>，已于 2026-10-16 启用 R2 下载，生产部署使用 Cloudflare Pages 项目 `bucea-library-seat-website`。GitHub Actions 用于构建并部署官网，Cloudflare R2 提供 APK 与更新清单分发；签名发布成品仍保存在 GitHub Releases。首次上线和五种 APK 完整下载验收见 [UPDATES.md](UPDATES.md)。
+正式官网：<https://library.miofelix.com/>，已于 2026-10-16 启用 R2 下载，生产部署使用 Cloudflare Pages 项目 `bucea-library-seat-website`。GitHub Pages 镜像地址为 <https://miofelix.github.io/bucea-library-seat/>。GitHub Actions 从同一份构建产物同步部署两站，Cloudflare R2 提供 APK 与更新清单分发；签名发布成品仍保存在 GitHub Releases。首次上线和五种 APK 完整下载验收见 [UPDATES.md](UPDATES.md)。
 
 网页源码和公开资源位于 [`website/`](../website/)，使用原生 HTML、CSS 和 JavaScript。发布构建读取已验证的下载元数据并生成页面，不编译 Android 或复制 APK 到 Pages。
 
@@ -52,15 +52,21 @@ Actions 使用 Wrangler 上传 `dist/website` 到 `bucea-library-seat-website` �
 
 GitHub variable `CLOUDFLARE_PAGES_PROJECT_NAME` 填写 `bucea-library-seat-website`，不能填写官网域名。Account ID 填入 `CLOUDFLARE_ACCOUNT_ID`，独立的账户级 **Pages → Write** token 填入 secret `CLOUDFLARE_PAGES_DEPLOY_API_TOKEN`。R2 S3 Access Key 不能用作 Pages token。创建 token 与逐项填写步骤见 [UPDATES.md](UPDATES.md)。
 
+## GitHub Pages 镜像设置
+
+仓库 **Settings → Pages → Build and deployment → Source** 使用 **GitHub Actions**。镜像保留 GitHub 默认项目路径 `https://miofelix.github.io/bucea-library-seat/`，不配置自定义域名，也不生成 `CNAME` 文件；官网域名 `library.miofelix.com` 继续由 Cloudflare Pages 托管，页面 canonical 仍指向官网。资源和许可页面使用相对路径，兼容 GitHub Pages 项目路径。
+
+部署 job 使用 `github-pages` environment，所需权限为 `contents: read`、`pages: write`、`id-token: write`。该 environment 的部署规则允许 `main` 分支与 `v*` 标签，覆盖源码更新、已发布 Release 事件和手动 tag 同步；Release 事件的 OIDC 引用来自对应标签。无需单独创建或发布新 Release 来更新网页。
+
 ## GitHub Actions 部署
 
-[`pages.yml`](../.github/workflows/pages.yml) 的 **Build and deploy website** 工作流负责 `main` 分支源码更新与手动官网部署；[`release.yml`](../.github/workflows/release.yml) 的 **Publish release to Cloudflare** 工作流处理已发布 Release 和手动 tag 同步，先完成 R2 上传与公开检查，再使用最新下载元数据自动更新官网。
+[`pages.yml`](../.github/workflows/pages.yml) 的 **Build and deploy websites** 工作流负责 `main` 分支源码更新与手动网页部署；[`release.yml`](../.github/workflows/release.yml) 的 **Publish release and deploy websites** 工作流处理已发布 Release 和手动 tag 同步，先完成 R2 上传与公开检查，再使用最新下载元数据自动更新 Cloudflare 官网与 GitHub Pages 镜像。
 
-Pages 发布依赖正确的账户 ID、项目名称与 API token。`pages.yml` 检测这些设置缺失时只构建 GitHub 下载备用页面并上传供审查的 artifact，跳过 Cloudflare 部署；设置齐全时读取 R2 最新元数据、验证公开下载地址并部署。`release.yml` 则要求 R2 与 Pages 的全部配置齐全，先完成 R2 同步及公开检查，随后由独立的 `website` job 自动部署官网，无需首次同步后另行启用。
+Pages 发布依赖正确的账户 ID、项目名称与 API token。`pages.yml` 检测这些设置缺失时构建使用 GitHub Release 下载链接的备用页面并部署到 GitHub Pages，跳过 Cloudflare 部署；设置齐全时读取 R2 最新元数据、验证公开下载地址并同步部署两站。`release.yml` 则要求 R2 与 Pages 的全部配置齐全，先完成 R2 同步及公开检查，随后由独立的 `website` job 自动同步两站，无需首次同步后另行启用。
 
-两份工作流的官网部署共享 `cloudflare-production` 队列，串行执行；Release 官网 job 等待获得部署位置后才重新读取 R2 最新元数据，减少并发发布覆盖新版本的可能。Direct Upload 项目不配置额外的 Git 自动生产部署。
+两份工作流的网页部署共享 `cloudflare-production` 队列，串行执行。获得部署位置后，job 读取 R2 最新元数据，只构建并验证一次 `dist/website`，再用 Wrangler 部署到 Cloudflare，并通过 `actions/upload-pages-artifact@v3` 与 `actions/deploy-pages@v4` 将同一产物部署到 GitHub Pages；两个站点的版本和五种 R2 下载链接保持一致。Release 网页 job 等待获得部署位置后才重新读取元数据，减少并发发布覆盖新版本的可能。Direct Upload 项目不配置额外的 Git 自动生产部署。
 
-工作流不再使用 GitHub Pages artifact 或 `github-pages` 环境。[首次生产部署](https://github.com/miofelix/bucea-library-seat/actions/runs/38788641625) 展示 `v1.0.0` 并提供五种 R2 APK 下载。1.0.1 及后续版本由发布工作流读取最新 R2 元数据更新官网，每次发布仍需核对 Actions 结果、页面版本和下载链接；本版结果见 [RELEASE_VALIDATION_1.0.1.md](RELEASE_VALIDATION_1.0.1.md)。
+[首次生产部署](https://github.com/miofelix/bucea-library-seat/actions/runs/38788641625) 展示 `v1.0.0` 并提供五种 R2 APK 下载。1.0.1 及后续版本由发布工作流读取最新 R2 元数据更新网页，每次同步仍需核对 Actions 结果、两站页面版本和下载链接；本版结果见 [RELEASE_VALIDATION_1.0.1.md](RELEASE_VALIDATION_1.0.1.md)。
 
 ## 内容维护
 
@@ -73,6 +79,6 @@ Pages 发布依赖正确的账户 ID、项目名称与 API token。`pages.yml` �
 - 所有示意 UI 默认静态展示，`.mock-screen` 的 `data-preview-static` 属性禁用内部鼠标、触摸和键盘滚动，保留滚动容器与预设展示位置；不影响网页正常滚动、首屏外部页面切换或图库横向浏览。恢复内部滚动时移除该属性，并由 `showIllustration` 重新设置对应页面的焦点与说明。
 - 装饰标记使用 SVG，不使用可能被 iOS 等系统显示为彩色 emoji 的文字符号。
 - 布局选座示意按 App 直接进入区域的页面绘制，保留固定的选座标题和模式栏，依次展示区域名称、日期与馆层信息、地图/列表切换、地图及其下方的状态图例。地图资源 `assets/seat-layout-inner-ring.svg` 按二层内环区实际布局重新绘制第 9–14 行、第 3–9 列（从 0 开始）的 36 个座位，保留真实编号、相对坐标和过道；仅展示局部，放大座椅到约 30px 宽。椅子比例、编号、状态文字与配色遵循 `NativeRoomCanvas`；六种座位状态为合成示例，不代表实时可用情况。不添加实际布局中没有的桌子、窗、墙、入口等设施或标注，不展示未知状态、点选详情或真实截图。
-- 页面资源引用使用相对路径，兼容官网根路径和本地预览。发布前在桌面和手机宽度检查布局，并验证示意 UI 与当前 App 结构、下载链接、发行页和反馈链接。
+- 页面资源引用使用相对路径，兼容官网根路径、GitHub Pages 项目路径和本地预览。发布前在桌面和手机宽度检查布局，并验证示意 UI 与当前 App 结构、下载链接、发行页和反馈链接。
 
-GitHub Releases 保存签名发布成品，Cloudflare R2 提供官网 APK 下载及 Android 更新清单；Pages 部署产物只包含网页与公开下载元数据，不包含 APK、凭据或签名密钥。
+GitHub Releases 保存签名发布成品，Cloudflare R2 提供两站 APK 下载及 Android 更新清单；Cloudflare Pages 与 GitHub Pages 使用同一份部署产物，只包含网页与公开下载元数据，不包含 APK、凭据或签名密钥。
