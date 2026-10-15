@@ -2,7 +2,7 @@
 
 北京建筑大学图书馆的非官方 Android 客户端，让登录、选座和预约更方便。全部界面采用原生「留白」设计，以简洁、清爽和易用为优先。
 
-[下载正式版 v1.0.0](https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.0)
+[查看宣传主页](https://miofelix.github.io/bucea-library-seat/) · [下载正式版 v1.0.0](https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.0)
 
 多数现代手机选择 `arm64-v8a` 包（约 33.8 MB）；不确定架构时选择无后缀的通用包（约 55.5 MB）。同时提供 `armeabi-v7a`、`x86` 和 `x86_64`，各包均可独立安装。体积优化与取舍见 [APK 大小分析](docs/APK_SIZE.md)。
 

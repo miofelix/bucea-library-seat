@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#6c397f" />
+    <meta
+      name="description"
+      content="北建大图书馆选座，为北京建筑大学同学打造的非官方 Android 客户端。查看馆内空位、按布局选座、收藏常坐的位置，把时间留给专注。"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content="北建大图书馆选座 · 把时间，留给专注。" />
+    <meta
+      property="og:description"
+      content="馆内概况一眼看清，喜欢的位置随手收藏。简洁、顺手的非官方 Android 选座客户端。"
+    />
+    <meta
+      property="og:url"
+      content="https://miofelix.github.io/bucea-library-seat/"
+    />
+    <meta
+      property="og:image"
+      content="https://miofelix.github.io/bucea-library-seat/assets/icon.png"
+    />
+    <link
+      rel="canonical"
+      href="https://miofelix.github.io/bucea-library-seat/"
+    />
+    <link rel="icon" type="image/svg+xml" href="./assets/icon.svg" />
+    <link rel="apple-touch-icon" href="./assets/icon.png" />
+    <link rel="stylesheet" href="./style.css" />
+    <script src="./script.js" defer></script>
+    <title>北建大图书馆选座 · 把时间，留给专注。</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+    <svg
+      class="icon-definitions"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <symbol id="i-arrow" viewBox="0 0 24 24">
+        <path d="M5 12h14m-6-6 6 6-6 6" />
+      </symbol>
+      <symbol id="i-download" viewBox="0 0 24 24">
+        <path d="M12 3v12m-5-5 5 5 5-5M5 16v4h14v-4" />
+      </symbol>
+      <symbol id="i-book" viewBox="0 0 24 24">
+        <path
+          d="M12 5c-3-2-6-2-9-1v15c3-1 6-1 9 1 3-2 6-2 9-1V4c-3-1-6-1-9 1Zm0 0v15"
+        />
+      </symbol>
+      <symbol id="i-grid" viewBox="0 0 24 24">
+        <path d="M3 3h7v7H3zm11 0h7v7h-7zM3 14h7v7H3zm11 0h7v7h-7z" />
+      </symbol>
+      <symbol id="i-star" viewBox="0 0 24 24">
+        <path
+          d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9Z"
+        />
+      </symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24">
+        <path d="m12 3 8 3v6c0 4-4 7-8 9-4-2-8-5-8-9V6Zm-4 9 3 3 5-6" />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24">
+        <path d="m5 12 4 4L19 6" />
+      </symbol>
+      <symbol id="i-wifi" viewBox="0 0 24 24">
+        <path
+          d="M2 8a16 16 0 0 1 20 0M5 12a11 11 0 0 1 14 0m-10 4a5 5 0 0 1 6 0m-3 4h.01"
+        />
+      </symbol>
+      <symbol id="i-clock" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </symbol>
+      <symbol id="i-github" viewBox="0 0 24 24">
+        <path
+          d="M9 19c-4 1-4-2-6-2m12 4v-3.5c0-1 .1-1.6-.5-2.2 3-.3 6-1.4 6-6.2a4.7 4.7 0 0 0-1.3-3.3A4.3 4.3 0 0 0 19 2s-1.2-.4-4 1.4a14 14 0 0 0-7 0C5.2 1.6 4 2 4 2a4.3 4.3 0 0 0-.2 3.8 4.7 4.7 0 0 0-1.3 3.3c0 4.8 3 5.9 6 6.2-.6.6-.6 1.4-.5 2.2V21"
+        />
+      </symbol>
+      <symbol id="i-sun" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="4" />
+        <path
+          d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"
+        />
+      </symbol>
+      <symbol id="i-close" viewBox="0 0 24 24">
+        <path d="m6 6 12 12M6 18 18 6" />
+      </symbol>
+    </svg>
+
+    <header class="site-header">
+      <div class="nav-wrap container">
+        <a class="brand" href="#" aria-label="北建大图书馆选座，回到顶部">
+          <img src="./assets/icon.svg" alt="" width="38" height="38" />
+          <span>北建大图书馆选座<small>BUCEA LIBRARY SEAT</small></span>
+        </a>
+        <nav class="desktop-nav" aria-label="主导航">
+          <a href="#features">功能一览</a><a href="#guide">使用指南</a
+          ><a href="#faq">常见问题</a>
+        </nav>
+        <a class="nav-download" href="#download"
+          >下载 App <svg class="icon"><use href="#i-download" /></svg
+        ></a>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero container" aria-labelledby="hero-title">
+        <div class="hero-copy">
+          <a
+            class="release-badge"
+            href="https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.0"
+            ><span class="status-dot"></span> v1.0.0 现已发布
+            <span class="badge-arrow">↗</span></a
+          >
+          <p class="eyebrow">一张书桌，一段属于自己的时间</p>
+          <h1 id="hero-title">
+            把时间，<br />留给<span class="serif-word">专注</span
+            ><span class="title-dot">。</span>
+          </h1>
+          <p class="hero-description">
+            找一个喜欢的位置，开始今天的计划。<br />从查看空位到确认预约，<br
+              class="mobile-break"
+            />让图书馆选座变得简单、顺手。
+          </p>
+          <div class="hero-actions">
+            <a class="button button-primary" href="#download"
+              ><svg class="icon"><use href="#i-download" /></svg> 免费下载
+              Android 版</a
+            >
+            <a class="text-link" href="#features"
+              >认识一下 <svg class="icon"><use href="#i-arrow" /></svg
+            ></a>
+          </div>
+          <p class="compatibility">
+            <span>Android 8.0+</span><span>校园网络使用</span
+            ><span>非官方客户端</span>
+          </p>
+          <div class="hero-footnote">
+            <span class="short-rule"></span>
+            <p>
+              少一点操作，多一点专注。<br /><span
+                >为北京建筑大学同学打造。</span
+              >
+            </p>
+          </div>
+        </div>
+
+        <div class="hero-visual">
+          <span class="visual-label">A LITTLE SPACE FOR FOCUS</span>
+          <div class="orbit orbit-one" aria-hidden="true"></div>
+          <div class="orbit orbit-two" aria-hidden="true"></div>
+          <div class="phone" data-theme="purple">
+            <div class="phone-status" aria-hidden="true">
+              <span>9:41</span><span class="camera"></span
+              ><span>▰ <span class="battery"></span></span>
+            </div>
+            <div
+              class="phone-tabs"
+              role="tablist"
+              aria-label="App 功能交互预览"
+            >
+              <button
+                id="tab-overview"
+                type="button"
+                role="tab"
+                aria-selected="true"
+                aria-controls="preview-overview"
+                tabindex="0"
+                data-panel="overview"
+              >
+                <svg class="icon"><use href="#i-book" /></svg>馆览</button
+              ><button
+                id="tab-map"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="preview-map"
+                tabindex="-1"
+                data-panel="map"
+              >
+                <svg class="icon"><use href="#i-grid" /></svg>选座</button
+              ><button
+                id="tab-favorites"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="preview-favorites"
+                tabindex="-1"
+                data-panel="favorites"
+              >
+                <svg class="icon"><use href="#i-star" /></svg>收藏
+              </button>
+            </div>
+            <div class="phone-screen">
+              <div class="app-heading">
+                <span>BUCEA / LIBRARY</span
+                ><svg class="icon"><use href="#i-sun" /></svg>
+              </div>
+              <h2 class="app-title" id="preview-title">
+                今天，也给专注<br />留一点时间。
+              </h2>
+              <p class="app-subtitle" id="preview-subtitle">
+                去图书馆，找回自己的节奏。
+              </p>
+              <div
+                id="preview-overview"
+                class="preview-panel"
+                role="tabpanel"
+                tabindex="0"
+                aria-labelledby="tab-overview"
+              >
+                <div class="overview-card">
+                  <div class="card-label">
+                    <svg class="icon"><use href="#i-book" /></svg> 当前馆内概况
+                    <span class="sync-dot"></span>
+                  </div>
+                  <div class="overview-stats">
+                    <div><strong>172</strong><span>空闲座位</span></div>
+                    <div><strong>1,475</strong><span>正在使用</span></div>
+                    <div><strong>9</strong><span>等待签到</span></div>
+                  </div>
+                  <div class="usage-bar">
+                    <span></span><span></span><span></span>
+                  </div>
+                  <p class="card-note">馆内状态一目了然，选一个适合的位置。</p>
+                </div>
+                <div class="region-heading">
+                  <strong>各区域座位</strong
+                  ><span>今天 <span class="tiny-arrow">↗</span></span>
+                </div>
+                <div class="region-grid">
+                  <div class="region-card">
+                    <span>二层内环区</span><small>图书馆 · 2 层</small>
+                    <p><b>34</b> 空闲 <span>/ 292</span></p>
+                    <div class="mini-bar"><span></span></div>
+                  </div>
+                  <div class="region-card">
+                    <span>二层西区</span><small>图书馆 · 2 层</small>
+                    <p><b>17</b> 空闲 <span>/ 128</span></p>
+                    <div class="mini-bar short"><span></span></div>
+                  </div>
+                </div>
+                <div class="app-tip">
+                  <svg class="icon"><use href="#i-star" /></svg
+                  ><span>常坐的位置，收藏起来。</span><span>↗</span>
+                </div>
+              </div>
+              <div
+                id="preview-map"
+                class="preview-panel"
+                role="tabpanel"
+                aria-labelledby="tab-map"
+                hidden
+              >
+                <div class="map-heading">
+                  <strong>二层内环区</strong><span>图书馆 · 2 层</span>
+                </div>
+                <div class="map-legend">
+                  <span><i></i>空闲</span><span><i></i>使用中</span
+                  ><span><i></i>已选择</span>
+                </div>
+                <div
+                  class="seat-map"
+                  id="seat-map"
+                  aria-label="座位布局示意，点击空闲座位体验"
+                ></div>
+                <p class="seat-feedback" id="seat-feedback" aria-live="polite">
+                  点一个绿色座位，看看你喜欢的位置。
+                </p>
+                <a class="preview-download" href="#download"
+                  >在 App 中选座预约 <span>↗</span></a
+                >
+              </div>
+              <div
+                id="preview-favorites"
+                class="preview-panel"
+                role="tabpanel"
+                tabindex="0"
+                aria-labelledby="tab-favorites"
+                hidden
+              >
+                <div class="favorite-heading">
+                  <svg class="icon"><use href="#i-star" /></svg
+                  ><span>喜欢的位置，下次还来。</span>
+                </div>
+                <div class="favorite-card">
+                  <span class="seat-number">037</span>
+                  <div>
+                    <strong>二层内环区</strong><span>图书馆 · 2 层</span>
+                  </div>
+                  <svg class="icon"><use href="#i-star" /></svg>
+                </div>
+                <div class="favorite-card">
+                  <span class="seat-number">128</span>
+                  <div><strong>三层东区</strong><span>图书馆 · 3 层</span></div>
+                  <svg class="icon"><use href="#i-star" /></svg>
+                </div>
+                <div class="favorite-note">
+                  <svg class="icon"><use href="#i-book" /></svg>
+                  <p>长按座位卡片收藏，<br />把熟悉的位置留在手边。</p>
+                </div>
+              </div>
+            </div>
+            <div class="home-indicator" aria-hidden="true"></div>
+          </div>
+          <div class="floating-note">
+            <span class="note-icon"
+              ><svg class="icon"><use href="#i-check" /></svg></span
+            ><span>喜欢的位置，<br /><strong>刚好有空。</strong></span
+            ><span class="note-spark" aria-hidden="true">✳</span>
+          </div>
+          <p class="preview-caption">
+            <span></span> 可切换下方标签体验 · 界面示意，数据为示例
+          </p>
+        </div>
+      </section>
+
+      <div class="intro-strip">
+        <div class="container">
+          <p>为熟悉的图书馆，<span>做一个更顺手的入口。</span></p>
+          <div>
+            <span
+              ><svg class="icon"><use href="#i-check" /></svg> 原生
+              Android</span
+            ><span
+              ><svg class="icon"><use href="#i-shield" /></svg>
+              凭据本机加密</span
+            ><a href="https://github.com/miofelix/bucea-library-seat"
+              ><svg class="icon"><use href="#i-github" /></svg> 代码公开
+              <span>↗</span></a
+            >
+          </div>
+        </div>
+      </div>
+
+      <section
+        id="features"
+        class="section container"
+        aria-labelledby="features-title"
+      >
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">为日常学习，减一点繁琐</p>
+            <h2 id="features-title">
+              从找座，到坐下。<br /><span>每一步都更从容。</span>
+            </h2>
+          </div>
+          <p>
+            少一点来回查找，少一点重复输入。<br />把常用的功能，放在刚刚好的地方。
+          </p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature-card feature-overview">
+            <span class="feature-index">01 / 一眼看清</span>
+            <h3>出发之前，心里有数。</h3>
+            <p>馆内概况、各区域空闲与占用情况，<br />连同更新时间一起呈现。</p>
+            <div class="feature-chart" aria-label="区域概况示意，非实时数据">
+              <div>
+                <span>二层内环区</span><b>34 <small>空闲</small></b>
+              </div>
+              <div class="chart-track"><i style="--value: 32%"></i></div>
+              <div>
+                <span>二层西区</span><b>17 <small>空闲</small></b>
+              </div>
+              <div class="chart-track"><i style="--value: 18%"></i></div>
+              <div>
+                <span>三层东区</span><b>48 <small>空闲</small></b>
+              </div>
+              <div class="chart-track"><i style="--value: 54%"></i></div>
+              <span class="illustration-label">区域概况示意</span>
+            </div>
+          </article>
+          <article class="feature-card feature-search">
+            <span class="feature-index">02 / 两种方式选座</span>
+            <h3>你在意的，都能筛选。</h3>
+            <p>
+              按日期、区域和时段查找，<br />也能直接在可拖动、缩放的布局中选座。
+            </p>
+            <div class="filter-illustration">
+              <span
+                ><svg class="icon"><use href="#i-clock" /></svg>
+                合适的时段</span
+              ><span><span class="filter-symbol">↯</span> 需要电源</span
+              ><span
+                ><svg class="icon"><use href="#i-sun" /></svg> 喜欢靠窗</span
+              ><span
+                ><svg class="icon"><use href="#i-grid" /></svg> 看布局选座</span
+              >
+            </div>
+          </article>
+          <article class="feature-card feature-favorite">
+            <span class="feature-index">03 / 下次不用重新找</span>
+            <h3>那个位置，替你记着。</h3>
+            <p>
+              长按座位卡片收藏。下次从「我的」出发，<br />选择日期与时段，确认后预约。
+            </p>
+            <div class="favorite-illustration">
+              <div class="favorite-tile">
+                <svg class="icon"><use href="#i-star" /></svg
+                ><strong>037</strong><span>二层内环区</span>
+              </div>
+              <div class="favorite-tile">
+                <svg class="icon"><use href="#i-star" /></svg
+                ><strong>128</strong><span>三层东区</span>
+              </div>
+              <span class="handwritten">熟悉的位置，熟悉的安心。</span>
+            </div>
+          </article>
+        </div>
+        <div class="small-features">
+          <div>
+            <span class="small-feature-icon"
+              ><svg class="icon"><use href="#i-book" /></svg
+            ></span>
+            <h3>预约记录，集中管理</h3>
+            <p>查看预约和违约记录，<br />按需确认取消，到馆后签到。</p>
+          </div>
+          <div>
+            <span class="small-feature-icon"
+              ><svg class="icon"><use href="#i-shield" /></svg
+            ></span>
+            <h3>登录信息，留在本机</h3>
+            <p>账号凭据在设备上加密保存，<br />验证码同样在本机识别。</p>
+          </div>
+          <div>
+            <span class="small-feature-icon"
+              ><svg class="icon"><use href="#i-download" /></svg
+            ></span>
+            <h3>后续更新，也很方便</h3>
+            <p>在设置中手动检查更新，<br />确认下载后由 Android 系统安装。</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="theme-section" aria-labelledby="theme-title">
+        <div class="container theme-layout">
+          <div>
+            <p class="eyebrow">留白之间，也有你的颜色</p>
+            <h2 id="theme-title">选一种颜色，<br />带上今天的好心情。</h2>
+            <p class="section-description">
+              六种主题，随心切换。<br />从应用界面到桌面图标，都是你喜欢的样子。
+            </p>
+            <div
+              class="theme-picker"
+              role="group"
+              aria-label="体验 App 的六种主题色"
+            >
+              <button
+                type="button"
+                data-theme="purple"
+                style="--swatch: #6c397f"
+                aria-label="建大紫"
+                aria-pressed="true"
+              >
+                <svg class="icon"><use href="#i-check" /></svg></button
+              ><button
+                type="button"
+                data-theme="blue"
+                style="--swatch: #315da8"
+                aria-label="湖蓝"
+                aria-pressed="false"
+              >
+                <svg class="icon"><use href="#i-check" /></svg></button
+              ><button
+                type="button"
+                data-theme="teal"
+                style="--swatch: #28766c"
+                aria-label="青绿"
+                aria-pressed="false"
+              >
+                <svg class="icon"><use href="#i-check" /></svg></button
+              ><button
+                type="button"
+                data-theme="orange"
+                style="--swatch: #a85a20"
+                aria-label="暖橙"
+                aria-pressed="false"
+              >
+                <svg class="icon"><use href="#i-check" /></svg></button
+              ><button
+                type="button"
+                data-theme="rose"
+                style="--swatch: #ac4567"
+                aria-label="玫瑰"
+                aria-pressed="false"
+              >
+                <svg class="icon"><use href="#i-check" /></svg></button
+              ><button
+                type="button"
+                data-theme="yellow"
+                style="--swatch: #ffce32"
+                aria-label="奶龙黄"
+                aria-pressed="false"
+              >
+                <svg class="icon"><use href="#i-check" /></svg>
+              </button>
+            </div>
+            <p class="theme-name" aria-live="polite">
+              <span id="theme-name">建大紫</span
+              ><span>点击色块，试试你的颜色 ↗</span>
+            </p>
+          </div>
+          <div class="theme-preview" data-theme="purple">
+            <div class="theme-preview-top">
+              <span>你的专注，有自己的底色。</span
+              ><svg class="icon"><use href="#i-sun" /></svg>
+            </div>
+            <div class="theme-icon-wrap">
+              <svg
+                class="themed-app-icon"
+                viewBox="0 0 256 256"
+                role="img"
+                aria-label="随主题切换的书页折椅图标"
+              >
+                <rect width="256" height="256" rx="56" />
+                <g class="icon-fold">
+                  <path
+                    d="M164 158L178 156L174 189C173.7 192.4 171.6 194 168.7 193.1L163 191Z"
+                  />
+                  <path
+                    d="M133 87C148 75 164 69 182 72L179 120L175 147L160 151L163 126C152 130 142 135 131 143Z"
+                  />
+                </g>
+                <g class="icon-page">
+                  <path
+                    d="M89 163L104 161L100.7 192C100.4 195.5 97.9 197.4 94.8 196.4L89 194.4Z"
+                  />
+                  <path
+                    d="M77 77C94 70 109 73 124 85L122 136C108 128 94 124 81 127L81 141C81 148 86 153 97 154L101 165C81 165 72 153 74 134Z"
+                  />
+                  <path
+                    d="M91 148L163 137C173 135.5 179 138 183 144L187 150L159 158L102 165C91 166.4 85 163 81 159C79 153.5 83 149.4 91 148Z"
+                  />
+                </g>
+              </svg>
+              <div class="theme-mini-card">
+                <span
+                  ><svg class="icon"><use href="#i-star" /></svg> 收藏座位</span
+                ><strong>037</strong>
+                <p>二层内环区 · 图书馆 2 层</p>
+                <span class="theme-mini-button"
+                  >选择喜欢的位置 <span>↗</span></span
+                >
+              </div>
+            </div>
+            <span class="theme-preview-bottom"
+              >BUCEA LIBRARY SEAT <span>留白 · 随心</span></span
+            >
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="section container screenshots-section"
+        aria-labelledby="screenshots-title"
+      >
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">少即是多，顺手就好</p>
+            <h2 id="screenshots-title">
+              真实界面，<span>简单如你所见。</span>
+            </h2>
+          </div>
+          <p>
+            原生 Android 体验，清爽的留白设计。<br />点击图片，可以放大看看。
+          </p>
+        </div>
+        <div class="screenshots">
+          <button
+            class="screenshot-card"
+            type="button"
+            data-image="./assets/seats.webp"
+            data-caption="自选座位 · 查看座位状态，按条件查找"
+          >
+            <span class="screenshot-label"
+              ><b>01</b> 按条件，找到合适的位置 <span>↗</span></span
+            ><span class="screenshot-device"
+              ><img
+                src="./assets/seats.webp"
+                width="432"
+                height="938"
+                loading="lazy"
+                alt="App 自选座位页面，包含日期和区域筛选"
+            /></span></button
+          ><button
+            class="screenshot-card"
+            type="button"
+            data-image="./assets/map.webp"
+            data-caption="布局选座 · 拖动和缩放，查看真实座位布局"
+          >
+            <span class="screenshot-label"
+              ><b>02</b> 看布局，选一个喜欢的角落 <span>↗</span></span
+            ><span class="screenshot-device"
+              ><img
+                src="./assets/map.webp"
+                width="432"
+                height="938"
+                loading="lazy"
+                alt="App 座位地图页面，显示区域内的座位分布"
+            /></span></button
+          ><button
+            class="screenshot-card"
+            type="button"
+            data-image="./assets/settings.webp"
+            data-caption="应用设置 · 主题、更新和登录偏好"
+          >
+            <span class="screenshot-label"
+              ><b>03</b> 小细节，也合你的习惯 <span>↗</span></span
+            ><span class="screenshot-device"
+              ><img
+                src="./assets/settings.webp"
+                width="432"
+                height="938"
+                loading="lazy"
+                alt="App 设置页面，提供主题色、应用更新和登录偏好选项"
+            /></span>
+          </button>
+        </div>
+      </section>
+
+      <section
+        id="guide"
+        class="guide-section container"
+        aria-labelledby="guide-title"
+      >
+        <div>
+          <p class="eyebrow">第一次见面，很快就熟悉</p>
+          <h2 id="guide-title">三步，<br />开始你的专注时间。</h2>
+          <p class="guide-wifi">
+            <svg class="icon"><use href="#i-wifi" /></svg
+            ><span
+              >使用前请连接可访问图书馆的校园网络。<br />到馆签到需连接图书馆内部
+              Wi-Fi。</span
+            >
+          </p>
+        </div>
+        <ol class="steps">
+          <li>
+            <span class="step-number">01</span>
+            <div>
+              <h3>下载，安装。</h3>
+              <p>
+                选择适合手机的 Android 安装包。多数现代手机选择 ARM64
+                版，不确定时可以选择通用版。
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="step-number">02</span>
+            <div>
+              <h3>连上校园网，添加账号。</h3>
+              <p>使用图书馆账号登录。可以保存多个账号，下次使用更方便。</p>
+            </div>
+          </li>
+          <li>
+            <span class="step-number">03</span>
+            <div>
+              <h3>找到座位，确认预约。</h3>
+              <p>
+                按条件搜索，或在座位布局中挑选。核对日期与时段，预约成功后，就可以安心出发。
+              </p>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <section
+        id="download"
+        class="download-section container"
+        aria-labelledby="download-title"
+      >
+        <div class="download-card">
+          <div class="download-copy">
+            <img
+              src="./assets/icon.svg"
+              width="64"
+              height="64"
+              alt=""
+              loading="lazy"
+            />
+            <p class="eyebrow">下一个专注的小时，从这里开始</p>
+            <h2 id="download-title">位置选好了，<br />就安心做自己的事。</h2>
+            <p>
+              北建大图书馆选座 <span class="download-version">v1.0.0</span
+              ><br /><span>免费使用 · Android 8.0 及以上</span>
+            </p>
+          </div>
+          <div class="download-options">
+            <a
+              class="download-option recommended"
+              href="https://github.com/miofelix/bucea-library-seat/releases/download/v1.0.0/BUCEA-Library-Seat-v1.0.0-arm64-v8a.apk"
+              ><span class="download-option-icon"
+                ><svg class="icon"><use href="#i-download" /></svg></span
+              ><span
+                ><strong>下载 Android 版 <em>推荐</em></strong
+                ><small>ARM64 · 约 33.8 MB · 适合多数现代手机</small></span
+              ><span class="download-arrow">↗</span></a
+            ><a
+              class="download-option"
+              href="https://github.com/miofelix/bucea-library-seat/releases/download/v1.0.0/BUCEA-Library-Seat-v1.0.0.apk"
+              ><span class="download-option-icon"
+                ><svg class="icon"><use href="#i-download" /></svg></span
+              ><span
+                ><strong>下载通用版</strong
+                ><small>约 55.5 MB · 不确定手机架构时选择</small></span
+              ><span class="download-arrow">↗</span></a
+            >
+            <p class="download-extra">
+              <a
+                href="https://github.com/miofelix/bucea-library-seat/releases/latest"
+                >其他架构与更新日志 <span>↗</span></a
+              ><span>安装包托管于 GitHub Releases</span>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="faq"
+        class="section container faq-section"
+        aria-labelledby="faq-title"
+      >
+        <div>
+          <p class="eyebrow">你可能还想知道</p>
+          <h2 id="faq-title">常见问题<span>。</span></h2>
+          <p class="section-description">
+            还有其他想法？<br />欢迎来和我们聊聊。
+          </p>
+          <a
+            class="text-link"
+            href="https://github.com/miofelix/bucea-library-seat/issues"
+            >反馈问题与建议 <svg class="icon"><use href="#i-arrow" /></svg
+          ></a>
+        </div>
+        <div class="faq-list">
+          <details open>
+            <summary>这是学校官方应用吗？<span>+</span></summary>
+            <p>
+              这是为北京建筑大学同学独立开发的非官方 Android
+              客户端。座位预约与使用遵循图书馆现有规则，应用不代表学校或图书馆。
+            </p>
+          </details>
+          <details>
+            <summary>需要校园网吗？为什么有时连不上？<span>+</span></summary>
+            <p>
+              图书馆功能需要连接可访问图书馆服务器的校园网络，签到需要连接图书馆内部
+              Wi-Fi。从 Wi-Fi
+              设置返回应用后，会在空闲时重新检测。校园链路或图书馆服务器暂时不可用时，也会影响访问。
+            </p>
+          </details>
+          <details>
+            <summary>支持 iPhone 吗？安装包该怎么选？<span>+</span></summary>
+            <p>
+              目前提供 Android 版本，支持 Android 8.0 及以上。多数现代手机选择
+              ARM64 版；不确定架构时选择通用版。其他架构的独立安装包可以在
+              <a
+                href="https://github.com/miofelix/bucea-library-seat/releases/latest"
+                >GitHub Releases</a
+              >
+              下载。
+            </p>
+          </details>
+          <details>
+            <summary>账号和密码会如何保存？<span>+</span></summary>
+            <p>
+              账号密码与登录信息加密保存在本机，验证码在设备上识别。登录、查询与预约仍需与图书馆服务器通信。可以在账号管理中删除本机保存的账号。
+            </p>
+          </details>
+          <details>
+            <summary>以后怎么更新？<span>+</span></summary>
+            <p>
+              打开「设置 → 应用更新 → 手动检查更新」，确认后下载并交给 Android
+              系统安装。检查更新无需校园网，也可以从 GitHub Releases
+              下载新版覆盖安装。
+            </p>
+          </details>
+          <details>
+            <summary>如何反馈问题或加入交流群？<span>+</span></summary>
+            <p>
+              欢迎在
+              <a href="https://github.com/miofelix/bucea-library-seat/issues"
+                >GitHub Issues</a
+              >
+              留下问题与建议，也可以加入 QQ 交流群
+              <button type="button" class="inline-copy" data-copy-group>
+                1109482748 <span>复制群号</span></button
+              >，和同学们分享使用体验。
+            </p>
+          </details>
+        </div>
+      </section>
+
+      <aside class="community container">
+        <span class="community-mark" aria-hidden="true">✳</span>
+        <div>
+          <h2>一个人的小工具，一群人的好主意。</h2>
+          <p>欢迎反馈、分享，也欢迎安利给身边的同学。</p>
+        </div>
+        <button type="button" class="button button-secondary" data-copy-group>
+          QQ 交流群 <span>1109482748</span>
+          <svg class="icon"><use href="#i-arrow" /></svg>
+        </button>
+      </aside>
+    </main>
+
+    <footer class="site-footer container">
+      <a class="brand" href="#"
+        ><img src="./assets/icon.svg" alt="" width="32" height="32" /><span
+          >北建大图书馆选座<small>把时间，留给专注。</small></span
+        ></a
+      >
+      <p>由 樊彧 开发 <span>·</span> 非官方客户端</p>
+      <div>
+        <a href="https://github.com/miofelix/bucea-library-seat"
+          >GitHub <span>↗</span></a
+        ><a href="https://lib.bucea.edu.cn/">图书馆官网 <span>↗</span></a>
+      </div>
+    </footer>
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    <dialog
+      class="image-dialog"
+      id="image-dialog"
+      aria-labelledby="image-caption"
+    >
+      <button type="button" class="dialog-close" aria-label="关闭界面预览">
+        <svg class="icon"><use href="#i-close" /></svg></button
+      ><img id="enlarged-image" alt="" />
+      <p id="image-caption"></p>
+    </dialog>
+  </body>
+</html>
