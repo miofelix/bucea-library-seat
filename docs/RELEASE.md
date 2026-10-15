@@ -12,6 +12,8 @@ python3 -m unittest discover -s tools/tests -v
 ./gradlew -PreleaseDistributions=true -PreleaseTag=v1.0.1 -PreleaseNotesFile=docs/releases/1.0.1.md :app:stageReleaseApk
 ```
 
+有日常数据的真机不要使用会在测试结束时卸载目标 App 的 `connectedDebugAndroidTest`；应通过 `adb install -r` 显式覆盖安装已构建的 APK，再调用 `am instrument` 运行测试，避免自动卸载清理本机数据。
+
 正式版产物位于 `app/build/outputs/release/`：
 
 - `BUCEA-Library-Seat-v1.0.1.apk`
@@ -57,6 +59,8 @@ Android 更新清单为 `https://download.miofelix.com/bucea-library-seat/update
 `1.0.1 / versionCode 15` 构建包含新的 R2 清单与下载地址。此前同步到 R2 的 `v1.0.0` 只改变分发位置，APK 字节和内置旧地址未改变；使用该旧地址的版本需手动安装新版本。本次不提供旧地址兼容。
 
 R2 bucket 使用 `miofelix-software-releases`，下载域名为 `download.miofelix.com`。Pages 项目为 `bucea-library-seat-website`，采用 Direct Upload，由 Actions 统一部署；部署凭据使用账户级 **Pages → Write** token。2026-10-16 已成功同步 `v1.0.0` 并部署官网，`library.miofelix.com` 已活动且启用 SSL，五个 APK 的公开完整下载与 SHA-256 校验通过。实际配置和上线结果见 [UPDATES.md](UPDATES.md)。
+
+同日正式发布 `v1.0.1`，[自动发布工作流](https://github.com/miofelix/bucea-library-seat/actions/runs/38794715008) 完成 R2 同步与官网部署，五个 APK 的公开完整下载和 SHA-256 均通过。最终成品、设备测试及实际验证范围见 [RELEASE_VALIDATION_1.0.1.md](RELEASE_VALIDATION_1.0.1.md)。
 
 每次发布检查 Actions 结果，并从固定公网地址核对清单版本、所有 APK 的大小与摘要。HEAD、ETag 和抽样 Range 不计为完整下载；GitHub 附件读回或 ADB 安装不计为新 R2 来源的真实 Android 更新事务。
 
