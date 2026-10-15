@@ -101,11 +101,16 @@ function showIllustration(device, screen) {
   device.querySelectorAll("[data-nav]").forEach((item) => {
     item.classList.toggle("active", item.dataset.nav === definition.nav);
   });
+  const staticPreview = device
+    .querySelector(".mock-screen")
+    .hasAttribute("data-preview-static");
   const scroller = device.querySelector(".mock-scroll");
-  scroller.tabIndex = screen === "layout" ? -1 : 0;
+  scroller.tabIndex = staticPreview || screen === "layout" ? -1 : 0;
   scroller.setAttribute(
     "aria-label",
-    `${definition.title}界面示意，可上下滚动`,
+    staticPreview
+      ? `${definition.title}静态界面示意`
+      : `${definition.title}界面示意，可上下滚动`,
   );
   scroller.scrollTop = 0;
   if (screen === "regions") {
@@ -114,6 +119,13 @@ function showIllustration(device, screen) {
   }
   if (screen === "layout") {
     const layout = device.querySelector(".mock-layout-panel");
+    layout.tabIndex = staticPreview ? -1 : 0;
+    layout.setAttribute(
+      "aria-label",
+      staticPreview
+        ? "布局选座静态界面示意"
+        : "布局选座示意，可上下滚动查看区域信息、座位地图和状态图例",
+    );
     layout.scrollTop = 0;
   }
 }

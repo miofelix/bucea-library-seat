@@ -1093,3 +1093,14 @@
     height: 225px;
   }
 }
+
+/* Keep scroll containers and preset offsets; freeze all illustrated screens. */
+.mock-screen[data-preview-static] {
+  pointer-events: none;
+}
+
+.mock-screen[data-preview-static] .mock-scroll,
+.mock-screen[data-preview-static] .mock-layout-panel {
+  overflow: hidden;
+  overscroll-behavior: auto;
+}
