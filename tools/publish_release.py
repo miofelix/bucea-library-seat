@@ -108,7 +108,7 @@ def main():
     parser.add_argument("--prerelease", action="store_true")
     args = parser.parse_args()
     manifest = validate_upload(args.directory, args.tag, args.target)
-    # Refuse overwriting a released asset: the mirror's asset-ID URLs are immutable.
+    # Refuse replacing an existing release: published APK URLs are immutable.
     existing = subprocess.run(["gh", "release", "view", args.tag, "--repo", "miofelix/bucea-library-seat"], capture_output=True)
     if existing.returncode == 0:
         raise SystemExit("Release already exists; use a new versionCode/tag instead of replacing assets.")

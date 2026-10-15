@@ -1,5 +1,7 @@
 # Unpublished candidate acceptance — 0.3.8, 2026-10-15
 
+> Historical deployment record: Raspberry Pi, systemd, Tunnel, mirror status and server-test results below describe the service at the date of this record. The server implementation is retired; current Cloudflare Pages/R2 setup and activation checks are in [UPDATES.md](UPDATES.md). These results do not establish acceptance of the R2 deployment.
+
 This **0.3.8 / versionCode 13** candidate was tested but **never published**. The user then chose to publish **1.0.0 / versionCode 14** as an official release; its final results belong in [ADB_ACCEPTANCE_1.0.0.md](ADB_ACCEPTANCE_1.0.0.md). This checkpoint includes compact four-column seat cards, automatic loading of all seat results, filtered layout cards, inline Favorites booking, shared section tabs, separate notices, the official-library link, navigation state retention, and targeted search/map retries developed since the published 0.3.7 beta.
 
 ## Fresh version 13 verification

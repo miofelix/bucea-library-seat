@@ -15,18 +15,12 @@
       property="og:description"
       content="馆内概况一眼看清，喜欢的位置随手收藏。简洁、顺手的非官方 Android 选座客户端。"
     />
-    <meta
-      property="og:url"
-      content="https://miofelix.github.io/bucea-library-seat/"
-    />
+    <meta property="og:url" content="https://library.miofelix.com/" />
     <meta
       property="og:image"
-      content="https://miofelix.github.io/bucea-library-seat/assets/icon.png"
+      content="https://library.miofelix.com/assets/icon.png"
     />
-    <link
-      rel="canonical"
-      href="https://miofelix.github.io/bucea-library-seat/"
-    />
+    <link rel="canonical" href="https://library.miofelix.com/" />
     <link rel="icon" type="image/svg+xml" href="./assets/icon.svg" />
     <link rel="apple-touch-icon" href="./assets/icon.png" />
     <link rel="stylesheet" href="./style.css" />
@@ -180,8 +174,10 @@
         <div class="hero-copy">
           <a
             class="release-badge"
+            data-release-link
             href="https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.0"
-            ><span class="status-dot"></span> v1.0.0 现已发布
+            ><span class="status-dot"></span>
+            <span data-release-badge>v1.0.0 现已发布</span>
             <span class="badge-arrow">↗</span></a
           >
           <p class="eyebrow">一张书桌，一段属于自己的时间</p>
@@ -204,8 +200,8 @@
             ></a>
           </div>
           <p class="compatibility">
-            <span>Android 8.0+</span><span>校园网络使用</span
-            ><span>非官方客户端</span>
+            <span data-min-sdk="short">Android 8.0+</span
+            ><span>校园网络使用</span><span>非官方客户端</span>
           </p>
           <div class="hero-footnote">
             <span class="short-rule"></span>
@@ -1166,35 +1162,64 @@
             <p class="eyebrow">下一个专注的小时，从这里开始</p>
             <h2 id="download-title">位置选好了，<br />就安心做自己的事。</h2>
             <p>
-              北建大图书馆选座 <span class="download-version">v1.0.0</span
-              ><br /><span>免费使用 · Android 8.0 及以上</span>
+              北建大图书馆选座
+              <span class="download-version" data-release-version>v1.0.0</span
+              ><br /><span data-min-sdk="long"
+                >免费使用 · Android 8.0 及以上</span
+              >
             </p>
           </div>
           <div class="download-options">
             <a
               class="download-option recommended"
+              data-download-url="recommended"
               href="https://github.com/miofelix/bucea-library-seat/releases/download/v1.0.0/BUCEA-Library-Seat-v1.0.0-arm64-v8a.apk"
               ><span class="download-option-icon"
                 ><svg class="icon"><use href="#i-download" /></svg></span
               ><span
-                ><strong>下载 Android 版 <em>推荐</em></strong
-                ><small>ARM64 · 约 33.8 MB · 适合多数现代手机</small></span
+                ><strong data-download-title="recommended"
+                  >下载 Android 版 <em>推荐</em></strong
+                ><small data-download-size="recommended"
+                  >ARM64 · 约 33.8 MB · 适合多数现代手机</small
+                ></span
               ><span class="download-arrow">↗</span></a
             ><a
               class="download-option"
+              data-download-url="universal"
               href="https://github.com/miofelix/bucea-library-seat/releases/download/v1.0.0/BUCEA-Library-Seat-v1.0.0.apk"
               ><span class="download-option-icon"
                 ><svg class="icon"><use href="#i-download" /></svg></span
               ><span
                 ><strong>下载通用版</strong
-                ><small>约 55.5 MB · 不确定手机架构时选择</small></span
+                ><small data-download-size="universal"
+                  >约 55.5 MB · 不确定手机架构时选择</small
+                ></span
               ><span class="download-arrow">↗</span></a
             >
+            <p class="download-architectures" data-download-architectures>
+              <span>其他架构：</span>
+              <a
+                data-download-variant="armeabi-v7a"
+                href="https://github.com/miofelix/bucea-library-seat/releases/download/v1.0.0/BUCEA-Library-Seat-v1.0.0-armeabi-v7a.apk"
+                >ARM32</a
+              >
+              <a
+                data-download-variant="x86"
+                href="https://github.com/miofelix/bucea-library-seat/releases/download/v1.0.0/BUCEA-Library-Seat-v1.0.0-x86.apk"
+                >x86</a
+              >
+              <a
+                data-download-variant="x86_64"
+                href="https://github.com/miofelix/bucea-library-seat/releases/download/v1.0.0/BUCEA-Library-Seat-v1.0.0-x86_64.apk"
+                >x86_64</a
+              >
+            </p>
             <p class="download-extra">
               <a
-                href="https://github.com/miofelix/bucea-library-seat/releases/latest"
-                >其他架构与更新日志 <span>↗</span></a
-              ><span>安装包托管于 GitHub Releases</span>
+                data-release-link
+                href="https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.0"
+                >GitHub 备用下载与更新日志 <span>↗</span></a
+              ><span data-download-hosting>安装包托管于 GitHub Releases</span>
             </p>
           </div>
         </div>
@@ -1238,19 +1263,16 @@
               支持 iPhone 或鸿蒙系统吗？安装包该怎么选？<span>+</span>
             </summary>
             <p>
-              目前提供 Android APK，支持 Android 8.0
+              目前提供 Android APK，支持
+              <span data-min-sdk="inline">Android 8.0</span>
               及以上。iPhone（iOS）暂不支持；仍兼容 Android APK
               的鸿蒙设备可尝试安装，具体以设备兼容情况为准。HarmonyOS NEXT
               等不支持 Android APK 的系统暂不适用，目前暂无鸿蒙原生版。
             </p>
             <p>
-              多数 Android 手机选择 ARM64
-              版；不确定架构时选择通用版。其他架构的独立安装包可以在
-              <a
-                href="https://github.com/miofelix/bucea-library-seat/releases/latest"
-                >GitHub Releases</a
-              >
-              下载。
+              多数 Android 手机选择 ARM64 版；不确定架构时选择通用版。ARM32、x86
+              和 x86_64 等其他架构也可以在<a href="#download">本页下载区</a
+              >选择。
             </p>
           </details>
           <details>
@@ -1263,8 +1285,9 @@
             <summary>以后怎么更新？<span>+</span></summary>
             <p>
               打开「设置 → 应用更新 → 手动检查更新」，确认后下载并交给 Android
-              系统安装。检查更新无需校园网，也可以从 GitHub Releases
-              下载新版覆盖安装。
+              系统安装。检查更新无需校园网，也可以从<a href="#download"
+                >本页下载新版</a
+              >覆盖安装。
             </p>
           </details>
           <details>

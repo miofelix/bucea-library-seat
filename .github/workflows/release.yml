@@ -1,0 +1,118 @@
+name: Publish release to Cloudflare
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Published GitHub Release tag to sync to R2
+        required: true
+        default: v1.0.0
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-release-${{ inputs.tag || github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      REQUESTED_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Validate release and required settings
+        shell: python
+        run: |
+          import os
+          import re
+          names = ("CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_PAGES_PROJECT", "R2_BUCKET",
+                   "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "CLOUDFLARE_API_TOKEN")
+          missing = [name for name in names if not os.environ.get(name)]
+          if missing:
+              raise SystemExit("Configure GitHub Actions settings first: " + ", ".join(missing) + ". See docs/UPDATES.md.")
+          if not re.fullmatch(r"v[0-9][A-Za-z0-9._-]*", os.environ.get("REQUESTED_TAG", "")):
+              raise SystemExit("Use a published portable version tag beginning with v.")
+      - name: Check publishing tools
+        run: |
+          python3 -m unittest discover -s tools/tests -v
+          python3 -m unittest discover -s .github/scripts -p 'test_*.py' -v
+      - name: Install R2 client
+        run: python3 -m pip install -r tools/requirements-publish.txt
+      - name: Download complete GitHub Release
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$REQUESTED_TAG" > "$RUNNER_TEMP/github-release.json"
+          gh release download "$REQUESTED_TAG" --repo "$GITHUB_REPOSITORY" --dir "$RUNNER_TEMP/release-assets"
+      - name: Verify and publish release to R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: >-
+          python3 tools/publish_cloudflare.py
+          --directory "$RUNNER_TEMP/release-assets"
+          --release-json "$RUNNER_TEMP/github-release.json"
+          --bucket "$R2_BUCKET"
+          --endpoint-url "https://$CLOUDFLARE_ACCOUNT_ID.r2.cloudflarestorage.com"
+          --download-origin https://download.miofelix.com
+          --prefix bucea-library-seat
+          --website-output "$RUNNER_TEMP/release-site"
+      - name: Verify public download and update endpoints
+        run: >-
+          python3 .github/scripts/verify_downloads.py
+          --metadata "$RUNNER_TEMP/release-site/release.json"
+      - name: Report R2 publication
+        run: |
+          echo 'Verified release synchronized to Cloudflare R2.' >> "$GITHUB_STEP_SUMMARY"
+
+  website:
+    needs: publish
+    runs-on: ubuntu-latest
+    concurrency:
+      group: cloudflare-production
+      cancel-in-progress: false
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_PAGES_PROJECT: ${{ vars.CLOUDFLARE_PAGES_PROJECT }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: main
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+      # Read the newest metadata after acquiring the website deployment slot;
+      # another Release may have finished while this deployment was queued.
+      - name: Build latest release website
+        run: >-
+          python3 .github/scripts/build_website.py
+          --metadata-url https://download.miofelix.com/bucea-library-seat/releases/latest.json
+          --output dist/website
+      - name: Verify selected public downloads
+        run: python3 .github/scripts/verify_downloads.py --metadata dist/website/release.json
+      - name: Deploy Cloudflare Pages
+        run: >-
+          npx --yes wrangler@4 pages deploy dist/website
+          --project-name "$CLOUDFLARE_PAGES_PROJECT" --branch main
+      - name: Report publication
+        run: |
+          echo 'Release synchronized to R2 and website deployed to https://library.miofelix.com/.' >> "$GITHUB_STEP_SUMMARY"

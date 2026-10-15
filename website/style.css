@@ -1428,6 +1428,28 @@ button {
 .recommended .download-arrow {
   color: #e3d3eb;
 }
+.download-architectures {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  padding-left: 3px;
+  color: #8d709c;
+  font-size: 11px;
+  line-height: 1.8;
+}
+.download-architectures a {
+  text-decoration: underline;
+  text-decoration-color: #cbb8d4;
+  text-underline-offset: 3px;
+}
+.download-architectures a:hover {
+  color: var(--brand);
+}
+.download-architectures[hidden],
+.download-architectures a[hidden] {
+  display: none;
+}
 .download-extra {
   font-size: 9px;
   line-height: 2;

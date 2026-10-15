@@ -1,5 +1,7 @@
 # 更新功能验证 — 2026-10-15
 
+> 历史部署记录：下文树莓派、systemd、Tunnel、镜像状态与服务测试均保留记录当日的事实。旧服务器实现现已退役，当前 Cloudflare Pages/R2 配置与启用检查见 [UPDATES.md](UPDATES.md)；不能用这些结果证明 R2 已上线或验收通过。
+
 已发布正式版 [**v1.0.0 / versionCode 14**](https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.0)，包含紧凑座位卡片、全部结果连续展示、布局列表筛选与收藏页直接预约，并提供压缩后的通用包和四种架构包；本版重新执行的构建、安装、发布工具和七个公开附件的验证状态见 [ADB_ACCEPTANCE_1.0.0.md](ADB_ACCEPTANCE_1.0.0.md)。此前 code 13 的实现验收保留在 [ADB_ACCEPTANCE_0.3.8.md](ADB_ACCEPTANCE_0.3.8.md)，code 12 的分阶段界面验收保留在 [ADB_ACCEPTANCE_UI_2026-10-15.md](ADB_ACCEPTANCE_UI_2026-10-15.md)，不计作 code 14 重新执行的结果。本次镜像部署与同步按用户要求暂缓；GitHub 发布及 ADB 覆盖安装不计作真实公网更新事务。先前已发布的 0.3.7 附件与镜像检查见 [ADB_ACCEPTANCE_0.3.7.md](ADB_ACCEPTANCE_0.3.7.md)；校园访问故障与修复见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)。真实公网更新结果见 [ADB_ACCEPTANCE_0.3.6.md](ADB_ACCEPTANCE_0.3.6.md) 和 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)，引导版本设备测试见 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md)。以下旧版本记录保留各自实际测试结果。
 
 ## 0.3.6 公开更新源验收
@@ -60,7 +62,7 @@ Android 8 / API 26 设备或模拟器不可用，API 36 结果不能代替 API 2
 
 最终 APK 的字节数和摘要以 `app/build/outputs/beta-release/update.json` 与 `SHA256SUMS` 为准。交接包包含可审查的源码补丁与基础提交，不含 APK 或签名密钥。
 
-## 可复现命令
+## 当时执行的命令（历史，旧服务工具已移除）
 
 ```sh
 python3 -m unittest discover -s tools/tests -v
@@ -69,11 +71,11 @@ python3 tools/update_server.py --root /var/lib/bucea-updates/public --listen 0.0
 python3 tools/make_update_handoff.py
 ```
 
-HTTP 测试直接启动 Python 服务，不依赖额外软件，MacBook 和树莓派均运行全部测试。服务运行命令会前台监听端口，使用 Ctrl+C 停止；部署后由 systemd 管理。
+当时的 HTTP 测试直接启动 Python 服务，MacBook 和树莓派均运行全部测试；服务由 systemd 管理。这些命令仅保留历史证据，旧服务与交接工具已移除，当前部署不执行此段。
 
 ## 初始树莓派待验清单（历史）
 
-HTTP 服务与同步器的 systemd 运行、独立服务账号读取权限、服务器重启和实际监听端口，须在树莓派执行。部署完成后报告 HTTP 地址和端口，用户负责配置域名及 CF Tunnel，再请求公开 HTTPS 入口验证。首个完整 Release 发布后验证真实 APK 下载、摘要与 Range。步骤与接续提示词见 [RASPBERRY_PI_HANDOFF.md](RASPBERRY_PI_HANDOFF.md)。
+HTTP 服务与同步器的 systemd 运行、独立服务账号读取权限、服务器重启和实际监听端口，须在树莓派执行。部署完成后报告 HTTP 地址和端口，用户负责配置域名及 CF Tunnel，再请求公开 HTTPS 入口验证。首个完整 Release 发布后验证真实 APK 下载、摘要与 Range。旧接续手册已移除；当前迁移与部署步骤见 [UPDATES.md](UPDATES.md)。
 
 ## 初始 Android 8 / 16 待验清单（历史）
 

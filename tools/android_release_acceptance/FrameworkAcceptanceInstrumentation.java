@@ -144,7 +144,7 @@ public final class FrameworkAcceptanceInstrumentation extends Instrumentation {
         HttpURLConnection connection = null;
         transportTelemetry.putInt("http_status", -1);
         try {
-            connection = (HttpURLConnection) new URL("https://bucea-library-seat.miofelix.com/updates/latest.json").openConnection();
+            connection = (HttpURLConnection) new URL("https://download.miofelix.com/bucea-library-seat/updates/latest.json").openConnection();
             connection.setRequestMethod("GET");
             connection.setConnectTimeout(10000);
             connection.setReadTimeout(10000);

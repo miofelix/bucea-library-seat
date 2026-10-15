@@ -11,8 +11,8 @@ class UpdateManifestTest {
     private fun valid() = JSONObject("""{
         "schemaVersion":1,"packageName":"$packageName","versionCode":9,"versionName":"0.3.5",
         "minSdk":26,"notes":"新功能","prerelease":true,"releaseTag":"v0.3.5-beta.1",
-        "apk":{"assetId":123,"name":"app.apk","size":1000,"sha256":"${"a".repeat(64)}",
-        "url":"$UpdateOrigin/updates/apks/123.apk"}}
+        "apk":{"assetId":123,"name":"BUCEA-Library-Seat-v0.3.5.apk","size":1000,"sha256":"${"a".repeat(64)}",
+        "url":"$UpdateBaseUrl/releases/v0.3.5-beta.1/BUCEA-Library-Seat-v0.3.5.apk"}}
     """)
     private fun rejects(json: JSONObject) {
         assertThrows(Exception::class.java) { UpdateManifest.parse(json, packageName) }
@@ -24,25 +24,36 @@ class UpdateManifestTest {
         assertEquals(parsed, UpdateManifest.parse(parsed.toJson(), packageName))
     }
 
-    @Test fun chineseReleaseDisplayNamePreservesTheLegacyDownloadContract() {
-        val json = valid().put("versionName", "0.3.8").put("releaseTag", "v0.3.8-beta.1")
-        json.getJSONObject("apk").put("name", "BUCEA-Library-Seat-v0.3.8.apk")
-            .put("displayName", "北建大图书馆选座-v0.3.8.apk")
+    @Test fun releaseUrlUsesTheExactTagAndFilename() {
+        val json = valid().put("versionName", "1.0.0").put("releaseTag", "v1.0.0")
+        val filename = "BUCEA-Library-Seat-v1.0.0.apk"
+        json.getJSONObject("apk").put("name", filename)
+            .put("url", updateApkUrl("v1.0.0", filename))
         val parsed = UpdateManifest.parse(json, packageName)
-        assertEquals("BUCEA-Library-Seat-v0.3.8.apk", parsed.apkName)
+        assertEquals(filename, parsed.apkName)
         assertEquals(123L, parsed.assetId)
-        assertEquals("$UpdateOrigin/updates/apks/123.apk", parsed.url)
+        assertEquals("$UpdateBaseUrl/releases/v1.0.0/$filename", parsed.url)
         assertEquals(parsed, UpdateManifest.parse(parsed.toJson(), packageName))
     }
 
     @Test fun urlsRejectHttpRedirectTargetsPortsCredentialsQueriesAndEncodedPaths() {
-        for (url in listOf("http://bucea-library-seat.miofelix.com/updates/apks/123.apk",
-            "https://github.com/file.apk", "$UpdateOrigin:443/updates/apks/123.apk",
-            "$UpdateOrigin/updates/apks/123.apk?foo=1", "$UpdateOrigin/updates/apks/%31%32%33.apk",
-            "https://bucea-library-seat.miofelix.com@evil.example/updates/apks/123.apk",
-            "$UpdateOrigin/updates/apks/124.apk", "$UpdateOrigin/updates/apks/123.apk#fragment")) {
+        val url = valid().getJSONObject("apk").getString("url")
+        for (invalid in listOf(url.replace("https:", "http:"), "https://github.com/file.apk",
+            url.replace(UpdateOrigin, "$UpdateOrigin:443"), "$url?foo=1", "$url#fragment",
+            url.replace("/releases/", "/%72eleases/"),
+            url.replace("download.miofelix.com", "download.miofelix.com@evil.example"),
+            url.replace("v0.3.5-beta.1/", "v0.3.5-beta.2/"),
+            url.replace(".apk", "-other.apk"))) {
             val json = valid()
-            json.getJSONObject("apk").put("url", url)
+            json.getJSONObject("apk").put("url", invalid)
+            rejects(json)
+        }
+    }
+
+    @Test fun releaseTagsCannotEscapeTheProjectDirectory() {
+        for (tag in listOf("", "../other", "v1/../../other", "v1%2Fother", "v1?query", "v1#fragment")) {
+            val json = valid().put("releaseTag", tag)
+            json.getJSONObject("apk").put("url", updateApkUrl(tag, json.getJSONObject("apk").getString("name")))
             rejects(json)
         }
     }

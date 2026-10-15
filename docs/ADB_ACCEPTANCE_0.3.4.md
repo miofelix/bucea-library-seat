@@ -1,5 +1,7 @@
 # ADB acceptance — 2026-10-14
 
+> Historical deployment record: Raspberry Pi, systemd, Tunnel, mirror status and server-test results below describe the service at the date of this record. The server implementation is retired; current Cloudflare Pages/R2 setup and activation checks are in [UPDATES.md](UPDATES.md). These results do not establish acceptance of the R2 deployment.
+
 This staged acceptance follows the deferred checks in [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md). The connected physical device is Android 16 / API 36, arm64. Authenticated captures, logs and APK fixtures are kept in ignored `.private/qa-0.3.4/` paths. No account credentials or sessions are committed.
 
 ## Phase 1 — baseline and service prerequisites

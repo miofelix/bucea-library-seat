@@ -1,15 +1,26 @@
-# GitHub Release 更新服务
+# Cloudflare 更新分发
 
-开发机负责构建、签名与发布；树莓派运行独立 Python HTTP 服务和同步器，缓存 GitHub Release 成品。服务直接提供 HTTP 端口，域名和 Cloudflare Tunnel 由用户配置。
+Android APK 在保存原签名密钥的开发机上构建、验证并发布到 GitHub Releases。GitHub Actions 从完整 Release 读取成品，通过 `tools/publish_cloudflare.py` 校验并上传 Cloudflare R2；官网由 Cloudflare Pages 托管。服务器同步器、独立 HTTP 服务和 systemd 配置已从仓库移除，当前分发流程无需树莓派。
 
-- 清单：`https://bucea-library-seat.miofelix.com/updates/latest.json`
-- APK：`https://bucea-library-seat.miofelix.com/updates/apks/<GitHub资产ID>.apk`
-- 包名：`cn.edu.bucea.library`，Android 8.0 / API 26 起，单一更新流、通用 APK。
-- 测试版与正式版一起按最大的 `versionCode` 选择；同代码时优先正式版，再以 release ID 决定。不要复用 `versionCode`。
+官网使用 <https://library.miofelix.com/>。APK、应用更新与官网元数据均由共享 R2 bucket 的 `download.miofelix.com` 自定义域名提供，本项目统一使用 `bucea-library-seat/` 前缀：
 
-## 发布格式
+| 用途                    | 地址                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------- |
+| Android 更新清单        | `https://download.miofelix.com/bucea-library-seat/updates/latest.json`        |
+| 官网与 Android APK 下载 | `https://download.miofelix.com/bucea-library-seat/releases/<tag>/<APK文件名>` |
+| 官网最新下载元数据      | `https://download.miofelix.com/bucea-library-seat/releases/latest.json`       |
 
-每个发布必须在同一 Release 内上传通用 APK、`SHA256SUMS` 和 `update.json`。1.0.0 同时提供四种完整分架构 APK，共七个附件；镜像与应用内更新仍分发通用包，分架构包可从 Release 手动安装。旧 Release 缺少清单会被跳过。通用字段示例：
+清单和 APK 直接返回内容，不经过官网跳转；正常 GET 返回 200，Range 请求返回 206。Cloudflare Pages 仅托管网页，APK 留在 R2。
+
+当前 R2 bucket 尚未创建。本文描述已实现的自动化与后续启用步骤；官网源码保留 GitHub Release 下载入口，在 R2 准备完成前继续可用。先创建 bucket、配置全部凭据并绑定下载域名，再运行首次同步；该 Release 工作流在 R2 上传和公开检查成功后直接构建并部署官网。实际启用以 Actions 日志和下文的公开地址检查为准。此前服务的验收保留在 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md)，其中旧服务器与端口记录均属历史。
+
+本次只修改 App 源码中的下载域名、清单地址与 URL 校验，未重新打包、替换或发布现有 `v1.0.0` APK。现有 Release 字节及其内置的旧更新地址保持原样；同步 `v1.0.0` 到 R2 可以先启用官网 APK 下载，但不会改写 APK 内的更新地址。新地址将在后续构建发布的 App 中生效，本次不提供旧地址兼容。
+
+## Release 格式
+
+包名固定为 `cn.edu.bucea.library`，最低 Android 8.0 / API 26。每个 Release 包含通用 APK、`SHA256SUMS` 和 `update.json`；提供分架构包时同时包含 `arm64-v8a`、`armeabi-v7a`、`x86`、`x86_64` 四包，共七个附件。应用内更新仍选择通用包，官网提供 ARM64 等分架构包。
+
+源清单的通用字段示例：
 
 ```json
 {
@@ -27,33 +38,102 @@
 }
 ```
 
-大小和摘要以实际生成的清单为准。清单与 APK 元数据来自 `aapt dump badging`，发布前由 `apksigner` 验证签名，并拒绝 `debuggable=true` 的 APK。每个 APK 在 `SHA256SUMS` 中对应一行 `<摘要><两个空格><APK文件名>`；1.0.0 共五行。源清单的可选 `apkVariants` 按 `arm64-v8a`、`armeabi-v7a`、`x86`、`x86_64` 顺序列出四包的 `abi`、`name`、`size`、`sha256` 和 `minSdk`；暂存与发布工具要求四种同时存在或全部省略，并验证全部五包。
+大小和摘要以发布成品为准。`SHA256SUMS` 每个 APK 对应一行 `<摘要><两个空格><APK文件名>`。可选 `apkVariants` 列出各分架构包的 `abi`、`name`、`size`、`sha256` 和 `minSdk`。暂存、GitHub 发布和 R2 发布均校验全部声明的附件；校验失败不更新公开清单。
 
-从 1.0.0 起，GitHub Release、源清单与校验文件统一使用 `BUCEA-Library-Seat-vx.x.x.apk`，分架构包在版本后增加对应 ABI 后缀；测试版后缀只用于 Release 标签。此前中文命名仅用于未发布候选，GitHub 会清理中文文件名，用户已明确改用英文格式。镜像保留历史英文和中文源名称的兼容处理；中文源可额外提供 `apk.displayName`，公开更新协议继续使用 ASCII `apk.name`。
+正式版安装包使用 `BUCEA-Library-Seat-vx.x.x.apk`，分架构包增加 `-arm64-v8a` 等 ABI 后缀，测试版后缀只进入 Release 标签。历史已发布文件保持原名。实际包名、版本、最低 SDK、关闭调试及原签名证书由 Android 构建与发布验收确认；R2 自动化不接收签名密钥，也不重新构建 APK。
 
-镜像校验全部已声明附件的元数据和五行校验文件，但只下载、缓存并公开通用包；四种分架构包不进入应用内架构选择流程。部署旧脚本时只接受单行校验文件，必须更新同步器后才能接收 1.0.0。本次镜像部署按用户要求暂缓，GitHub Release 已发布，镜像尚未同步本版。
+## 自动发布
 
-镜像公开清单补充 `prerelease`、`releaseTag`、`releaseId`、`apk.assetId`、`apk.url`。预发布标记取自 GitHub；公开下载地址只使用项目 HTTPS 域名。
+[`release.yml`](../.github/workflows/release.yml) 将已发布的 GitHub Release 同步到 R2，也提供手动 tag 入口，用于首次同步或在网络故障后重新执行同一发布。所有文件先下载到工作目录，核对 Release 元数据、附件大小和 SHA-256，再上传：
 
-## 镜像行为
+1. 全部 APK 写入 `bucea-library-seat/releases/<tag>/<name>`，官网与 Android 更新共用这些下载 URL。
+2. 完成 APK 上传与校验后，最后写入 `bucea-library-seat/updates/latest.json`。公开清单保留 Android 协议字段，补充 Release 标识及 R2 下的通用 APK URL。
+3. 官网最新元数据写入 `bucea-library-seat/releases/latest.json`，本地同时输出 `<website-output>/release.json`。官网使用已选中发布的版本、大小和下载地址，部署流程见 [WEBSITE.md](WEBSITE.md)。
 
-`tools/update_mirror.py` 使用 Python 3.9+ 标准库，每次运行完成一次同步。systemd timer 每 10 分钟启动；文件锁防止并发同步。Release 和附件列表都完整分页，使用 ETag / Last-Modified 条件请求；遇到限流记录持久退避时间，下一次定时运行继续，不在进程里长时间等待。
+`versionCode` 只递增，正式版与测试版共用同一更新流。重复同步相同发布应保持对象内容一致，不能覆盖成不同字节。较旧发布不能将 `latest.json` 降级，上传中断时保留上一份成功清单。相同 tag 的同步串行执行，不同 tag 可并行上传；R2 使用 ETag 条件写入（CAS）防止并发发布降低清单版本。官网部署任务另用共享的 `cloudflare-production` 队列串行执行，获得部署位置后重新读取最新元数据，避免排队期间的新发布被旧页面覆盖。历史版本 APK 保持不可变。
 
-`/var/lib/bucea-updates/` 包含 `state/`、`scratch/` 和 `public/updates/`。HTTP 服务只允许访问公开清单与 APK，不暴露状态目录。GitHub token 可放在 root 所有、权限 0600 的 `/etc/bucea-updates.env`，只需读取该公开仓库的权限。
+APK 使用 `public, max-age=31536000, immutable`，清单和可变下载元数据使用 `no-store, max-age=0`。R2 原生提供 HEAD、ETag、条件请求和 Range；APK 内容的可信依据是发布元数据中的 SHA-256，不把 R2 ETag 当作 SHA-256。Android 安装前仍执行摘要和签名验证。
 
-只有非草稿、附件完整、清单字段和校验文件一致的 Release 才进入候选。APK 先下载到私有临时目录，验证大小和 SHA-256、fsync 后原子移动到资产 ID 路径，最后原子替换 `latest.json`。资产 ID 文件已有内容时必须一致，不能覆盖为不同内容。
+## 一次性配置
 
-网络、GitHub、分页或磁盘故障保留最后成功清单。完整扫描后，如果当前发布消失，再用单独的 release ID 请求确认撤回，避免移动分页误撤回。确认撤回或附件不再有效后重新选择；没有候选时删除公开清单，由 HTTP 服务返回 503。缓存 APK 继续可下载。
+### 1. 创建 R2 bucket
 
-清理保留当前和前两个成功选中的资产；其他资产自最后选中或首次缓存起至少保留 7 天。整个同步和清理使用同一把锁，当前清单引用的文件永远受到保护。磁盘不足时保留现状，需运维清理或扩容。
+1. 打开 Cloudflare 控制台，进入保存 `miofelix.com` 的账户。记录账户首页或右侧 API 信息中的 **Account ID**。
+2. 进入 **存储和数据库 → R2 对象存储（R2 Object Storage）**。首次使用时按控制台提示启用 R2。
+3. 点击 **创建存储桶（Create bucket）**，建议名称为 `miofelix-software-releases`，保留默认标准存储设置后创建。这个 bucket 可存放其他项目，本项目全部对象统一使用 `bucea-library-seat/` 前缀。
+4. 在 bucket 的 **设置 → 自定义域（Settings → Custom Domains）** 中连接 `download.miofelix.com`，按提示完成 DNS 与证书配置。域名直接映射到 bucket 根目录，项目名前缀属于对象键。
 
-## HTTP 服务
+R2 S3 API endpoint 为 `https://<CLOUDFLARE_ACCOUNT_ID>.r2.cloudflarestorage.com`，不是公开下载域名。
 
-`tools/update_server.py` 仅使用 Python 3.9+ 标准库，默认监听 `0.0.0.0:9080`，可通过 `--listen` / `--port` 调整。systemd 服务为 `bucea-updates-http.service`。服务接受公网 Host 头，域名由用户转发到这个 HTTP 端口；部署不涉及修改 Tunnel 或安装其他 Web 服务器。
+### 2. 创建 R2 对象读写凭据
 
-服务只提供清单和资产 ID APK 两种路径，支持 GET / HEAD、单段 Range、ETag、Last-Modified 和条件请求。Range 支持指定起止、从某字节继续和末尾片段；无效范围返回 416，If-Range 不匹配时返回完整文件。每次响应持有独立文件描述符，原子切换或清理不改变正在传输的内容。并发连接上限为 32，空闲读取超时 30 秒。
+1. 在 R2 概览中打开 **管理 R2 API 令牌（Manage R2 API Tokens）**，创建令牌。
+2. 权限选择 **对象读和写（Object Read & Write）**；范围选择 **仅应用于特定存储桶（Apply to specific buckets only）**，只勾选上一步的 bucket。
+3. 创建后保存 **Access Key ID** 和 **Secret Access Key**。它们分别用于 GitHub 的 `R2_ACCESS_KEY_ID` 和 `R2_SECRET_ACCESS_KEY`；Secret Access Key 只在创建完成时显示。
+4. 不将 R2 S3 凭据填写为 Pages API token，也不把凭据写进仓库文件或命令行参数。
 
-清单成功响应为 `no-cache, max-age=0, must-revalidate`，APK 成功响应为 `public, max-age=604800, immutable`，错误响应为 `no-store`。HTTP 服务以独立的 systemd 动态账号运行，只有读取权限，不需要 GitHub token。由用户维护的转发应保留这些缓存语义。
+### 3. 获取 Pages 项目名称并创建 Pages token
+
+1. 进入 **Workers 和 Pages（Workers & Pages）**，打开已托管官网的 Pages 项目，记录**项目名称**。它是项目标识，不是 `library.miofelix.com` 域名。
+2. 在 Cloudflare 个人资料的 **API 令牌（API Tokens）** 中点击 **创建令牌 → 自定义令牌（Create Custom Token）**。
+3. 添加权限 **账户（Account）→ Cloudflare Pages → 编辑（Edit）**，账户资源限定到托管官网的这个账户。
+4. 创建后将 token 保存为 GitHub 的 `CLOUDFLARE_API_TOKEN`。它负责 Pages 部署，R2 对象上传仍使用上一步的 S3 凭据。
+
+### 4. 配置 GitHub Actions
+
+打开仓库 **Settings → Secrets and variables → Actions**。在 **Variables** 页签创建以下 repository variables：
+
+| 名称                       | 值                                                    |
+| -------------------------- | ----------------------------------------------------- |
+| `CLOUDFLARE_ACCOUNT_ID`    | Cloudflare Account ID                                 |
+| `R2_BUCKET`                | 创建的 bucket 名称，建议 `miofelix-software-releases` |
+| `CLOUDFLARE_PAGES_PROJECT` | 已有 Pages 项目名称                                   |
+
+在 **Secrets** 页签创建以下 repository secrets：
+
+| 名称                   | 值                                |
+| ---------------------- | --------------------------------- |
+| `R2_ACCESS_KEY_ID`     | R2 token 的 Access Key ID         |
+| `R2_SECRET_ACCESS_KEY` | R2 token 的 Secret Access Key     |
+| `CLOUDFLARE_API_TOKEN` | 独立的 Cloudflare Pages API token |
+
+GitHub 的 `GITHUB_TOKEN` 由 Actions 提供，用于读取 Release，无需手动创建；Android 签名密钥不上传到 Actions 或 Cloudflare。
+
+### 5. 首次同步并部署官网
+
+R2 下载域名和证书应已生效，三项 variables 与三项 secrets 均已配置。按 [WEBSITE.md](WEBSITE.md) 关闭现有 Pages 项目的 Git 自动生产部署，保留现有项目及官网域名，由 Actions 统一部署。
+
+1. 打开仓库 **Actions → Publish release to Cloudflare → Run workflow**，选择 `main`，填写已发布的 tag（例如 `v1.0.0`），同步已有 Release。
+2. 检查 `publish` job 的附件校验、R2 上传和公开地址检查。对象全部位于 `bucea-library-seat/` 下，包括 `releases/<tag>/<name>`、`updates/latest.json` 和 `releases/latest.json`；公开检查失败会阻止后续官网部署。
+3. `publish` 成功后，`website` job 自动读取最新 R2 元数据，构建、检查下载地址并部署到现有 Pages 项目。无需另行手动启用部署。
+4. 打开 <https://library.miofelix.com/>，核对版本、大小与下载链接，完整下载 APK 并核对摘要；R2 URL 直接返回内容，不重定向到 `r2.dev`、S3 endpoint 或官网。
+5. 后续构建发布包含新地址的 App 后，执行真实 Android 更新检查与下载验收。首次同步现有 `v1.0.0` 只验证分发，不能证明该旧 APK 已切换更新地址。
+
+Cloudflare 的缓存、重写、Access 和挑战规则应允许原生 Android 客户端直接读取清单及 APK。
+
+## 发布工具与离线检查
+
+工作流安装 `tools/requirements-publish.txt`，通过 R2 S3 API 发布。本地可对已经下载并校验的 Release 运行只读计划；`--directory` 目录只包含该 Release 的 APK、`SHA256SUMS` 和 `update.json`，GitHub REST Release 响应另存为 `--release-json` 指定的文件：
+
+```sh
+python3 tools/publish_cloudflare.py \
+  --directory /path/to/release-assets \
+  --release-json /path/to/github-release.json \
+  --bucket miofelix-software-releases \
+  --endpoint-url "https://<CLOUDFLARE_ACCOUNT_ID>.r2.cloudflarestorage.com" \
+  --website-output build/website-release \
+  --download-origin https://download.miofelix.com \
+  --prefix bucea-library-seat \
+  --dry-run
+```
+
+`--dry-run` 只验证输入并输出计划，不访问 R2。实际上传由工作流把仓库 R2 secrets 映射为 `AWS_ACCESS_KEY_ID`、`AWS_SECRET_ACCESS_KEY`，不在命令行传递密钥。
+
+## 上线验证
+
+对下载域名执行 GET / HEAD，检查清单 JSON 的包名、版本、通用 APK URL、字节数和摘要；下载通用包和各分架构包，核对 `SHA256SUMS`。首段、续段和末段 Range 应返回 206 且字节正确，条件请求应符合实际返回的 ETag / Last-Modified。检查响应没有 3xx、登录页或 HTML 挑战页。
+
+抽样 Range 和 HEAD 不等于完整下载；完整文件校验也不等于 Android 安装成功。新架构的公网检查、确认下载、断点续传与系统安装需要分别记录实际结果，不能复用历史树莓派验收作为 R2 上线结果。
 
 ## Android 行为
 
@@ -70,7 +150,3 @@
 用户点击“安装更新”后再次校验文件。如果尚未允许安装未知来源，打开该应用的授权页；返回后需再次点击安装。通过只暴露 `updates/install/` 的非导出 FileProvider 调用系统安装器。下载完成、进程重启、授权返回都不会自动启动安装。只有实际已安装 `versionCode` 达到目标才清理任务；取消安装后保留已校验文件供再次点击。
 
 DownloadManager 无法逐跳限制重定向，所以初始 URL 严格限定本项目固定 HTTPS 地址，落地文件仍必须通过摘要及 APK 签名校验。
-
-## 接续与验证
-
-树莓派部署和接续提示词见 [RASPBERRY_PI_HANDOFF.md](RASPBERRY_PI_HANDOFF.md)，验证记录见 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md) 和 [1.0.0 验收](ADB_ACCEPTANCE_1.0.0.md)。1.0.0 已发布七个 GitHub 附件并完成 ARM64 真机安装；镜像部署仍待后续处理。首次使用更新模块的旧版本需要手动安装。

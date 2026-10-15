@@ -1,5 +1,7 @@
 # Validation — 2026-10-15
 
+> Historical deployment record: Raspberry Pi, systemd, Tunnel, mirror status and server-test results below describe the service at the date of this record. The server implementation is retired; current Cloudflare Pages/R2 setup and activation checks are in [UPDATES.md](UPDATES.md). These results do not establish acceptance of the R2 deployment.
+
 The official release **1.0.0 / versionCode 14** is [published](https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.0), covering denser layouts, four-column seat cards, all-results search, filterable layout cards, inline favorite booking, scrolling secondary tabs, navigation state, separate notice rows and the official-library link. Its fresh build, device and seven-asset publication results are recorded in [ADB_ACCEPTANCE_1.0.0.md](ADB_ACCEPTANCE_1.0.0.md). The preceding 0.3.8 / code 13 implementation checkpoint remains in [ADB_ACCEPTANCE_0.3.8.md](ADB_ACCEPTANCE_0.3.8.md), and the earlier code 12 UI stages remain in [ADB_ACCEPTANCE_UI_2026-10-15.md](ADB_ACCEPTANCE_UI_2026-10-15.md); those results are not reassigned to code 14. The published 0.3.7 checkpoint is in [ADB_ACCEPTANCE_0.3.7.md](ADB_ACCEPTANCE_0.3.7.md), and earlier public-update evidence remains in the versioned records below. Mirror deployment and synchronization are deferred as requested; GitHub publication and ADB installation do not establish a public updater transaction.
 
 ## 0.3.6 release checkpoint

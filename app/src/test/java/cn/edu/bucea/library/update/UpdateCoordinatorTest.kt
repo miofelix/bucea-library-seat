@@ -10,7 +10,7 @@ import java.io.IOException
 
 private fun manifest(code: Long = 9, asset: Long = 90, sdk: Int = 26) = UpdateManifest(
     "cn.edu.bucea.library", code, "0.$code", sdk, "说明", asset, "app-$asset.apk", 1000,
-    "a".repeat(64), "$UpdateOrigin/updates/apks/$asset.apk", true, "v0.$code-beta.1")
+    "a".repeat(64), updateApkUrl("v0.$code-beta.1", "app-$asset.apk"), true, "v0.$code-beta.1")
 
 private class MemoryStorage : UpdateStorage {
     override var lastAttempt = 0L

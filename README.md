@@ -2,7 +2,7 @@
 
 北京建筑大学图书馆的非官方 Android 客户端，让登录、选座和预约更方便。全部界面采用原生「留白」设计，以简洁、清爽和易用为优先。
 
-[查看宣传主页](https://miofelix.github.io/bucea-library-seat/) · [下载正式版 v1.0.0](https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.0)
+[查看宣传主页](https://library.miofelix.com/) · [下载正式版 v1.0.0](https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.0)
 
 多数现代手机选择 `arm64-v8a` 包（约 33.8 MB）；不确定架构时选择无后缀的通用包（约 55.5 MB）。同时提供 `armeabi-v7a`、`x86` 和 `x86_64`，各包均可独立安装。体积优化与取舍见 [APK 大小分析](docs/APK_SIZE.md)。
 
@@ -26,7 +26,9 @@
 
 修改图书馆密码当前未实现，点击入口会显示提示。
 
-从 0.3.4 起支持应用内更新：打开“设置”，展开顶部“应用更新”后点击“手动检查更新”，确认后下载并由系统安装。检查更新无需连接校园网。旧版需先手动安装含更新模块的版本。构建与发布在开发机完成，树莓派只缓存 GitHub Release 成品；部署说明见 [更新服务](docs/UPDATES.md) 和 [树莓派接续文档](docs/RASPBERRY_PI_HANDOFF.md)。
+从 0.3.4 起支持应用内更新：打开“设置”，展开顶部“应用更新”后点击“手动检查更新”，确认后下载并由系统安装。检查更新无需连接校园网。旧版需先手动安装含更新模块的版本。构建与签名在开发机完成，GitHub Releases 保存发布成品，GitHub Actions 负责将 APK 与更新清单发布到 Cloudflare R2，官网由 Cloudflare Pages 托管。首次启用、域名切换和服务验证见 [更新分发](docs/UPDATES.md) 与 [官网部署](docs/WEBSITE.md)。
+
+本次分发迁移只修改 App 源码中的更新地址，未重新构建或替换现有 v1.0.0 APK；新地址将在后续 App 构建发布后生效。R2 首次同步可先提供官网下载。
 
 开发作者：樊彧。欢迎在 [GitHub Issues](https://github.com/miofelix/bucea-library-seat/issues) 提交问题与建议。
 

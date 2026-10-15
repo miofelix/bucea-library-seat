@@ -61,9 +61,9 @@ internal class IsolatedUpdateEnvironment {
             apkName = "instrumentation-fixture.apk",
             size = file.length(),
             sha256 = digest(file),
-            url = "$UpdateOrigin/updates/apks/2147483647.apk",
+            url = updateApkUrl("v0-instrumentation-only", "instrumentation-fixture.apk"),
             prerelease = true,
-            releaseTag = "v-instrumentation-only",
+            releaseTag = "v0-instrumentation-only",
         )
     }
 

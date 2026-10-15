@@ -2,8 +2,9 @@ package cn.edu.bucea.library.update
 
 import org.json.JSONObject
 
-const val UpdateOrigin = "https://bucea-library-seat.miofelix.com"
-const val UpdateManifestUrl = "$UpdateOrigin/updates/latest.json"
+const val UpdateOrigin = "https://download.miofelix.com"
+const val UpdateBaseUrl = "$UpdateOrigin/bucea-library-seat"
+const val UpdateManifestUrl = "$UpdateBaseUrl/updates/latest.json"
 const val UpdateIntervalMillis = 24 * 60 * 60 * 1000L
 const val MaxUpdateApkBytes = 512 * 1024 * 1024L
 
@@ -44,7 +45,8 @@ data class UpdateManifest(
             )
             require(manifest.packageName == expectedPackage) { "更新包名不匹配" }
             require(manifest.versionCode in 1..2_100_000_000L && manifest.assetId > 0) { "更新版本无效" }
-            require(manifest.versionName.length in 1..100 && manifest.releaseTag.length in 1..200 &&
+            require(manifest.versionName.length in 1..100 &&
+                manifest.releaseTag.matches(Regex("v[0-9][A-Za-z0-9._-]{0,198}")) &&
                 manifest.notes.length <= 16000) { "更新说明无效" }
             require(manifest.size in 1..MaxUpdateApkBytes && manifest.sha256.matches(Regex("[0-9a-f]{64}"))) {
                 "更新文件校验信息无效"
@@ -52,11 +54,14 @@ data class UpdateManifest(
             require(manifest.apkName.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,180}\\.apk"))) { "更新文件名无效" }
             // Exact comparison also rejects user-info, alternate ports, queries, fragments,
             // encoded paths and lookalike/subdomains. Only the project HTTPS origin is allowed.
-            require(manifest.url == "$UpdateOrigin/updates/apks/${manifest.assetId}.apk") { "更新下载地址无效" }
+            require(manifest.url == updateApkUrl(manifest.releaseTag, manifest.apkName)) { "更新下载地址无效" }
             return manifest
         }
     }
 }
+
+internal fun updateApkUrl(releaseTag: String, apkName: String): String =
+    "$UpdateBaseUrl/releases/$releaseTag/$apkName"
 
 internal fun JSONObject.strictLong(key: String): Long = when (val value = get(key)) {
     is Int -> value.toLong()

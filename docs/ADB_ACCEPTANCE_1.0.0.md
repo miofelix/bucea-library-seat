@@ -1,5 +1,7 @@
 # Official release acceptance — 1.0.0, 2026-10-15
 
+> Historical deployment record: Raspberry Pi, systemd, Tunnel, mirror status and server-test results below describe the service at the date of this record. The server implementation is retired; current Cloudflare Pages/R2 setup and activation checks are in [UPDATES.md](UPDATES.md). These results do not establish acceptance of the R2 deployment.
+
 The official release is **1.0.0 / versionCode 14**, tagged `v1.0.0`. It includes the compact UI, four-column green/red seat cards, automatic loading of all search results, filterable layout cards, inline Favorites booking and the final scrolling-tab behavior. The earlier **0.3.8 / code 13** candidate was never published; its separate implementation checkpoint is in [ADB_ACCEPTANCE_0.3.8.md](ADB_ACCEPTANCE_0.3.8.md).
 
 ## Verification
@@ -27,13 +29,13 @@ The original universal APK was 102,563,251 bytes. Lossless native-library compre
 
 The release source is commit **`567d8caa27e7947e923b5c40f6cb368157726e1c`**. All five APKs were staged again from that commit. ZIP-entry comparisons against the tested compressed packages show that only `META-INF/version-control-info.textproto` changes; every APK's stamp contains this source SHA.
 
-| APK | Bytes | SHA-256 |
-| --- | ---: | --- |
-| `BUCEA-Library-Seat-v1.0.0.apk` | 55,527,607 | `cb0b622f5e4bb15c8278b97a1f7562d0c23d16d79cf435084f60e982a546e19e` |
-| `BUCEA-Library-Seat-v1.0.0-arm64-v8a.apk` | 33,811,128 | `e0101402c61a59815b12a306d6d3ffb39cbe9f37831aad8ac3ef7b060069e235` |
+| APK                                         |      Bytes | SHA-256                                                            |
+| ------------------------------------------- | ---------: | ------------------------------------------------------------------ |
+| `BUCEA-Library-Seat-v1.0.0.apk`             | 55,527,607 | `cb0b622f5e4bb15c8278b97a1f7562d0c23d16d79cf435084f60e982a546e19e` |
+| `BUCEA-Library-Seat-v1.0.0-arm64-v8a.apk`   | 33,811,128 | `e0101402c61a59815b12a306d6d3ffb39cbe9f37831aad8ac3ef7b060069e235` |
 | `BUCEA-Library-Seat-v1.0.0-armeabi-v7a.apk` | 33,245,934 | `9e8c53c710c0603b8992b68bce9cf8906bb3885824212cb8eb0fc44164c3a85c` |
-| `BUCEA-Library-Seat-v1.0.0-x86.apk` | 35,066,066 | `3666b1f167aa05b47cbf34edfca53b4c955e6c6c745cf20987c4a6b935b8f411` |
-| `BUCEA-Library-Seat-v1.0.0-x86_64.apk` | 35,053,979 | `6b9fd8ad57bd46bacc6aa4767bff647b5765f5abe91b54e49ad33fbf0a000e75` |
+| `BUCEA-Library-Seat-v1.0.0-x86.apk`         | 35,066,066 | `3666b1f167aa05b47cbf34edfca53b4c955e6c6c745cf20987c4a6b935b8f411` |
+| `BUCEA-Library-Seat-v1.0.0-x86_64.apk`      | 35,053,979 | `6b9fd8ad57bd46bacc6aa4767bff647b5765f5abe91b54e49ad33fbf0a000e75` |
 
 Both the final universal and ARM64 packages were installed with ADB, pulled back from the installed `base.apk`, and matched these exact byte counts and hashes. The phone is left on the non-debuggable ARM64 Release. The salted preservation check passed on the identical compressed code 14 implementation before the final Git-stamp-only rebuild; a final attempt to reinstall the previously removed SDK-only harness returned installer error `-99`, so no later harness run is claimed. The ordinary test and harness packages were removed, and system font scale remains 1.0.
 

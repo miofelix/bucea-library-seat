@@ -1,5 +1,7 @@
 # Release acceptance — 0.3.6, 2026-10-14
 
+> Historical deployment record: Raspberry Pi, systemd, Tunnel, mirror status and server-test results below describe the service at the date of this record. The server implementation is retired; current Cloudflare Pages/R2 setup and activation checks are in [UPDATES.md](UPDATES.md). These results do not establish acceptance of the R2 deployment.
+
 Version **0.3.6 / versionCode 11** releases the foreground campus-access recheck and qualified failure guidance from [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md). A failed, idle access check is retried when the activity resumes; startup/ongoing operations and healthy sessions are not interrupted. The correction preserves ordinary explicit logout and account restoration.
 
 ## Current-build validation

@@ -1,5 +1,7 @@
 # Verified update release — 2026-10-14
 
+> Historical deployment record: Raspberry Pi, systemd, Tunnel, mirror status and server-test results below describe the service at the date of this record. The server implementation is retired; current Cloudflare Pages/R2 setup and activation checks are in [UPDATES.md](UPDATES.md). These results do not establish acceptance of the R2 deployment.
+
 The user authorized a bootstrap release followed by a newer verified release. **v0.3.4-beta.1 / code 9** supplies the real public update fixture; **v0.3.5-beta.1 / code 10** increments the installed version. The updater implementation is identical between these two APKs; the final source change is the version code/name. Baseline, platform rejection, overwrite and first system-installer evidence is in [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md).
 
 ## Public native update acceptance

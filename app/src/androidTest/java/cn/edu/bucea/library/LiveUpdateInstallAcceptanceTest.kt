@@ -17,7 +17,7 @@ import cn.edu.bucea.library.update.AndroidUpdateStorage
 import cn.edu.bucea.library.update.ConfirmedUpdate
 import cn.edu.bucea.library.update.DownloadStatus
 import cn.edu.bucea.library.update.UpdateManifest
-import cn.edu.bucea.library.update.UpdateOrigin
+import cn.edu.bucea.library.update.updateApkUrl
 import cn.edu.bucea.library.update.UpdatePhase
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
@@ -105,7 +105,7 @@ class LiveUpdateInstallAcceptanceTest {
             apkName = "BUCEA-Library-Seat-v$expectedName.apk",
             size = candidate.length(),
             sha256 = fileDigest(candidate),
-            url = "$UpdateOrigin/updates/apks/2147483646.apk",
+            url = updateApkUrl("v$expectedName", "BUCEA-Library-Seat-v$expectedName.apk"),
             prerelease = false,
             releaseTag = "v$expectedName",
         )

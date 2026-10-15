@@ -35,7 +35,8 @@ class AndroidUpdatePlatform(private val context: Context) : UpdatePlatform {
 
     @Suppress("DEPRECATION")
     override fun enqueue(manifest: UpdateManifest, token: String): Long {
-        require(manifest.url == "$UpdateOrigin/updates/apks/${manifest.assetId}.apk")
+        // Reuse full manifest validation before passing a URL to DownloadManager.
+        UpdateManifest.parse(manifest.toJson(), context.packageName)
         external.mkdirs()
         internal.mkdirs()
         // Reserve room for both the DownloadManager file and its verified internal copy.

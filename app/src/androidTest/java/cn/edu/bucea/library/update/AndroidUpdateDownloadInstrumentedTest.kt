@@ -170,7 +170,8 @@ class AndroidUpdateDownloadInstrumentedTest {
     @Test fun failedRetryStillEnqueuesOriginalConfirmedVersionAfterNewManifestCheck() = runBlocking {
         val original = environment.manifest()
         val newer = original.copy(versionCode = original.versionCode + 1, versionName = "newer-unconfirmed",
-            assetId = original.assetId + 1, url = "$UpdateOrigin/updates/apks/${original.assetId + 1}.apk")
+            assetId = original.assetId + 1, releaseTag = original.releaseTag + "-newer",
+            url = updateApkUrl(original.releaseTag + "-newer", original.apkName))
         val failed = environment.task(original, UpdatePhase.FAILED).copy(error = "Synthetic transport failure")
         environment.storage.save(failed)
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

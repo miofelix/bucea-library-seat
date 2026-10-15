@@ -1,5 +1,7 @@
 # Release acceptance — 0.3.7, 2026-10-14
 
+> Historical deployment record: Raspberry Pi, systemd, Tunnel, mirror status and server-test results below describe the service at the date of this record. The server implementation is retired; current Cloudflare Pages/R2 setup and activation checks are in [UPDATES.md](UPDATES.md). These results do not establish acceptance of the R2 deployment.
+
 Version **0.3.7 / versionCode 12** adds 奶龙黄 and matching launcher icons, the selected A「留白馆览」homepage, automatic current-day regional statistics, and clearer seat maps. Regional cards are compact, use two columns, and are expanded by default with a manual collapse control. Search-result cards use two columns and matching row heights.
 
 ## Final verification
