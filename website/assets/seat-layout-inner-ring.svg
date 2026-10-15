@@ -1,0 +1,453 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  viewBox="0 0 367.5 367.5"
+  role="img"
+  aria-labelledby="title description"
+>
+  <title id="title">二层内环区局部座位布局示意</title>
+  <desc id="description">
+    按实际座位编号和排列重新绘制的局部布局，共36个座位，中间保留原有过道。颜色和座位内文字展示空闲、使用中、已预约、暂离、不可用和仅限现场六种示例状态，不表示实时情况。
+  </desc>
+  <!-- Redrawn from actual rows 9–14, columns 3–9. Chair geometry follows NativeRoomCanvas; statuses are illustrative. -->
+  <defs>
+    <g id="chair">
+      <rect x="3.43" y="5.88" width="42.14" height="37.73" rx="5.88" />
+      <rect x="6.37" y="2.695" width="36.26" height="4.9" rx="1.96" />
+      <path d="M7.84 42.14H41.16" stroke="currentColor" stroke-width="2.45" />
+    </g>
+  </defs>
+  <g font-family="sans-serif" font-weight="500" text-anchor="middle">
+    <g
+      transform="translate(12.25 36.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="9"
+      data-column="3"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">038B</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(61.25 36.75)"
+      fill="#b33f32"
+      color="#b33f32"
+      data-row="9"
+      data-column="4"
+      data-state="occupied"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">038D</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">用</text>
+    </g>
+    <g
+      transform="translate(110.25 36.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="9"
+      data-column="5"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">037B</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(159.25 36.75)"
+      fill="#94600a"
+      color="#94600a"
+      data-row="9"
+      data-column="6"
+      data-state="reserved"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">037D</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">约</text>
+    </g>
+    <g
+      transform="translate(257.25 36.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="9"
+      data-column="8"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">036B</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(306.25 36.75)"
+      fill="#754ba5"
+      color="#754ba5"
+      data-row="9"
+      data-column="9"
+      data-state="away"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">036D</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">离</text>
+    </g>
+    <g
+      transform="translate(12.25 85.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="10"
+      data-column="3"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">038A</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(61.25 85.75)"
+      fill="#b33f32"
+      color="#b33f32"
+      data-row="10"
+      data-column="4"
+      data-state="occupied"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">038C</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">用</text>
+    </g>
+    <g
+      transform="translate(110.25 85.75)"
+      fill="#b33f32"
+      color="#b33f32"
+      data-row="10"
+      data-column="5"
+      data-state="occupied"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">037A</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">用</text>
+    </g>
+    <g
+      transform="translate(159.25 85.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="10"
+      data-column="6"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">037C</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(257.25 85.75)"
+      fill="#2756a4"
+      color="#2756a4"
+      data-row="10"
+      data-column="8"
+      data-state="local"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">036A</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">现</text>
+    </g>
+    <g
+      transform="translate(306.25 85.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="10"
+      data-column="9"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">036C</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(12.25 134.75)"
+      fill="#94600a"
+      color="#94600a"
+      data-row="11"
+      data-column="3"
+      data-state="reserved"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">035B</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">约</text>
+    </g>
+    <g
+      transform="translate(61.25 134.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="11"
+      data-column="4"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">035D</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(110.25 134.75)"
+      fill="#754ba5"
+      color="#754ba5"
+      data-row="11"
+      data-column="5"
+      data-state="away"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">034B</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">离</text>
+    </g>
+    <g
+      transform="translate(159.25 134.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="11"
+      data-column="6"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">034D</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(257.25 134.75)"
+      fill="#b33f32"
+      color="#b33f32"
+      data-row="11"
+      data-column="8"
+      data-state="occupied"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">033B</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">用</text>
+    </g>
+    <g
+      transform="translate(306.25 134.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="11"
+      data-column="9"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">033D</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(12.25 183.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="12"
+      data-column="3"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">035A</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(61.25 183.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="12"
+      data-column="4"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">035C</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(110.25 183.75)"
+      fill="#b33f32"
+      color="#b33f32"
+      data-row="12"
+      data-column="5"
+      data-state="occupied"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">034A</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">用</text>
+    </g>
+    <g
+      transform="translate(159.25 183.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="12"
+      data-column="6"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">034C</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(257.25 183.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="12"
+      data-column="8"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">033A</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(306.25 183.75)"
+      fill="#94600a"
+      color="#94600a"
+      data-row="12"
+      data-column="9"
+      data-state="reserved"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">033C</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">约</text>
+    </g>
+    <g
+      transform="translate(12.25 232.75)"
+      fill="#b33f32"
+      color="#b33f32"
+      data-row="13"
+      data-column="3"
+      data-state="occupied"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">032B</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">用</text>
+    </g>
+    <g
+      transform="translate(61.25 232.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="13"
+      data-column="4"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">032D</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(110.25 232.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="13"
+      data-column="5"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">031B</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(159.25 232.75)"
+      fill="#586471"
+      color="#586471"
+      data-row="13"
+      data-column="6"
+      data-state="unavailable"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">031D</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">停</text>
+    </g>
+    <g
+      transform="translate(257.25 232.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="13"
+      data-column="8"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">030B</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(306.25 232.75)"
+      fill="#b33f32"
+      color="#b33f32"
+      data-row="13"
+      data-column="9"
+      data-state="occupied"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">030D</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">用</text>
+    </g>
+    <g
+      transform="translate(12.25 281.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="14"
+      data-column="3"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">032A</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(61.25 281.75)"
+      fill="#94600a"
+      color="#94600a"
+      data-row="14"
+      data-column="4"
+      data-state="reserved"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">032C</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">约</text>
+    </g>
+    <g
+      transform="translate(110.25 281.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="14"
+      data-column="5"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">031A</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+    <g
+      transform="translate(159.25 281.75)"
+      fill="#b33f32"
+      color="#b33f32"
+      data-row="14"
+      data-column="6"
+      data-state="occupied"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">031C</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">用</text>
+    </g>
+    <g
+      transform="translate(257.25 281.75)"
+      fill="#754ba5"
+      color="#754ba5"
+      data-row="14"
+      data-column="8"
+      data-state="away"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">030A</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">离</text>
+    </g>
+    <g
+      transform="translate(306.25 281.75)"
+      fill="#087f6d"
+      color="#087f6d"
+      data-row="14"
+      data-column="9"
+      data-state="free"
+    >
+      <use href="#chair" />
+      <text x="24.5" y="23.03" fill="#fff" font-size="11.27">030C</text>
+      <text x="24.5" y="34.3" fill="#fff" font-size="8.33">空</text>
+    </g>
+  </g>
+</svg>

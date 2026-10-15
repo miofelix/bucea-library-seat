@@ -888,8 +888,9 @@
   }
 }
 
-/* The loaded room map scrolls below the same fixed selection header as the app. */
+/* The loaded region keeps the app's fixed selection header and scrollable map. */
 [data-screen="layout"] .mock-scroll {
+  position: relative;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -901,6 +902,53 @@
 [data-screen="layout"] .mock-scroll > .mock-subtitle,
 [data-screen="layout"] .mock-scroll > .mock-segment {
   flex-shrink: 0;
+}
+
+[data-screen="layout"] .mock-heading {
+  height: 11px;
+  font-size: 8px;
+  line-height: 11px;
+  letter-spacing: 0.096em;
+}
+
+[data-screen="layout"] .mock-refresh {
+  position: absolute;
+  top: 21px;
+  right: 13px;
+  width: 38px;
+  height: 38px;
+}
+
+[data-screen="layout"] .mock-scroll > .mock-page-title {
+  margin: 3px 46px 3px 0;
+  font-size: 19.2px;
+  font-weight: 600;
+  line-height: 24px;
+}
+
+[data-screen="layout"] .mock-subtitle {
+  padding-right: 46px;
+  font-size: 9.6px;
+  line-height: 14.4px;
+}
+
+[data-screen="layout"] .mock-segment {
+  gap: 2.4px;
+  margin-top: 8px;
+  padding: 1.6px;
+  border-radius: 11.2px;
+  background: #efeff0;
+  font-size: 9.6px;
+}
+
+[data-screen="layout"] .mock-segment > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 4.8px 1.6px;
+  border-radius: 8px;
+  line-height: 12.8px;
 }
 
 [data-screen="layout"] .mock-layout-panel {
@@ -925,230 +973,123 @@
   border-radius: 12px;
 }
 
-.mock-layout-filters {
-  padding: 10px;
-}
-
-.mock-layout-filters .mock-dates {
-  gap: 6px;
-}
-
-.mock-layout-filters .mock-dates > span {
-  padding: 9px 5px;
-  border-radius: 10px;
-  font-size: 9px;
-}
-
-.mock-layout-filters .mock-fields {
-  gap: 7px;
-  margin-top: 8px;
-}
-
-.mock-layout-filters .mock-fields > div {
-  min-height: 59px;
-  padding: 9px;
-  border-radius: 10px;
-}
-
-.mock-layout-filters .mock-fields strong {
-  margin-top: 7px;
-  padding-right: 12px;
-  font-size: 10px;
-}
-
-.mock-layout-filters .mock-fields b {
-  right: 8px;
-  bottom: 11px;
-  font-size: 15px;
-}
-
-.mock-layout-filters .mock-browse-label {
-  margin-top: 10px;
-}
-
-.mock-layout-filters .mock-regions {
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
-}
-
-.mock-layout-filters .mock-regions span {
-  padding: 9px 8px;
-  border-radius: 9px;
-  font-size: 9px;
-}
-
-.mock-layout-filters .mock-regions .selected {
-  border-color: transparent;
-  background: #f0eaf3;
-  color: #6c397f;
-}
-
 .mock-map-section {
-  padding-top: 12px;
+  padding-top: 0;
 }
 
 .mock-map-heading {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-height: 19px;
+  min-height: 18px;
 }
 
 .mock-map-heading strong {
-  color: #343138;
-  font-size: 13px;
+  color: #272729;
+  font-size: 11.2px;
   font-weight: 500;
+  line-height: 17.6px;
 }
 
-.mock-map-heading small {
-  color: #77747b;
-  font-size: 8px;
-  white-space: nowrap;
+.mock-map-meta {
+  margin-top: 8px;
+  color: #707075;
+  font-size: 9.6px;
+  line-height: 14.4px;
 }
 
 .mock-map-modes {
   display: flex;
-  gap: 2px;
-  margin-top: 8px;
-  padding: 2px;
-  border-radius: 11px;
+  gap: 2.4px;
+  margin-top: 10px;
+  padding: 1.6px;
+  border-radius: 11.2px;
   background: #efeff0;
 }
 
 .mock-map-modes > span {
+  display: flex;
   flex: 1;
-  padding: 5px 2px;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 4.8px 1.6px;
   border-radius: 8px;
-  color: #77747b;
-  font-size: 8px;
-  line-height: 16px;
+  color: #707075;
+  font-size: 9.6px;
+  line-height: 12.8px;
   text-align: center;
 }
 
 .mock-map-modes > .selected {
   background: #fff;
   color: #6c397f;
+  font-weight: 600;
+}
+
+.mock-map-fit {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-height: 38px;
+  padding-right: 10px;
+  color: #6c397f;
+  font-size: 9.6px;
+  line-height: 14.4px;
+}
+
+.mock-room-map {
+  height: 260px;
+  overflow: hidden;
+  border-radius: 14.4px;
+  background: #fff;
+}
+
+.mock-room-map > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .mock-map-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 8px;
-  margin-top: 9px;
+  gap: 5px 8px;
+  margin-top: 10px;
 }
 
 .mock-map-legend > span {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  color: #343138;
-  font-size: 7px;
-  line-height: 13px;
+  gap: 3.2px;
+  color: #272729;
+  font-size: 8.8px;
+  line-height: 16px;
   white-space: nowrap;
 }
 
 .mock-map-legend i {
   display: inline-grid;
-  width: 13px;
-  height: 13px;
+  width: 16px;
+  height: 16px;
   place-items: center;
-  border-radius: 3px;
+  border-radius: 4px;
   background: var(--seat-color, #087f6d);
   color: #fff;
-  font-size: 7px;
+  font-size: 8px;
   font-style: normal;
   font-weight: 600;
 }
 
-.mock-map-fit {
-  margin: 3px 0 4px;
-  color: #6c397f;
-  font-size: 8px;
-  line-height: 21px;
-  text-align: right;
-}
-
-.mock-room-map {
-  position: relative;
-  height: 190px;
-  overflow: hidden;
-  border-radius: 14px;
-  background: #fff;
-}
-
-.mock-map-table {
-  position: absolute;
-  width: 25%;
-  height: 8%;
-  border-radius: 4px;
-  background: #eeeef0;
-}
-
-.mock-map-seat {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 1px;
-  border-radius: 4px;
-  background: var(--seat-color, #087f6d);
-  color: #fff;
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-}
-
-.mock-map-seat::before,
-.mock-map-seat::after {
-  position: absolute;
-  right: 12%;
-  left: 12%;
-  content: "";
-  border-radius: 1px;
-  background: var(--seat-color, #087f6d);
-}
-
-.mock-map-seat::before {
-  top: -3px;
-  height: 2px;
-}
-
-.mock-map-seat::after {
-  bottom: -3px;
-  height: 1px;
-}
-
-.mock-map-seat b {
-  font-size: 6.5px;
-  font-weight: 600;
-}
-
-.mock-map-seat small {
-  font-size: 5.5px;
-}
-
-.mock-map-seat > i {
-  position: absolute;
-  right: 2px;
-  bottom: 3px;
-  width: 3px;
-  height: 3px;
-  border: 1px solid #fff;
-  border-radius: 50%;
-  background: #172535;
-}
-
 .mock-map-tip {
   margin-top: 8px;
-  color: #77747b;
-  font-size: 7px;
-  line-height: 1.65;
+  color: #707075;
+  font-size: 8.8px;
+  line-height: 14.4px;
 }
 
 @media (max-width: 370px) {
   .illustrative-phone .mock-room-map {
-    height: 155px;
+    height: 225px;
   }
 }

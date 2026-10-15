@@ -445,66 +445,30 @@
                   data-screen-panel="layout"
                   role="region"
                   tabindex="0"
-                  aria-label="布局选座示意，可上下滚动查看筛选条件和座位地图"
+                  aria-label="布局选座示意，可上下滚动查看区域信息、座位地图和状态图例"
                   hidden
                 >
-                  <div class="mock-layout-filters mock-card">
-                    <div class="mock-dates">
-                      <span class="selected">今天 10/16</span
-                      ><span>明天 10/17</span>
-                    </div>
-                    <div class="mock-fields">
-                      <div>
-                        <small>场馆</small><strong>图书馆</strong><b>⌄</b>
-                      </div>
-                      <div>
-                        <small>楼层</small><strong>图书馆2层</strong><b>⌄</b>
-                      </div>
-                    </div>
-                    <small class="mock-browse-label">阅览区域</small>
-                    <div class="mock-regions">
-                      <span class="selected">二层内环区</span
-                      ><span>二层西区</span>
-                    </div>
-                  </div>
                   <div class="mock-map-section">
                     <div class="mock-map-heading">
-                      <strong>二层内环区</strong><small>12 个可选座位</small>
+                      <strong>二层内环区</strong>
                     </div>
+                    <p class="mock-map-meta">2026-10-16 · 图书馆 · 图书馆2层</p>
                     <div class="mock-map-modes">
                       <span class="selected">地图</span><span>列表</span>
+                    </div>
+                    <div class="mock-map-fit">适应区域</div>
+                    <div class="mock-room-map">
+                      <img
+                        src="assets/seat-layout-inner-ring.svg"
+                        width="368"
+                        height="368"
+                        alt="按实际编号和排列重新绘制的二层内环区局部布局：36 个放大的座位，保留过道，以六种颜色和文字展示空闲、使用中、已预约、暂离、不可用和仅限现场，状态为示例。"
+                      />
                     </div>
                     <div
                       class="mock-map-legend"
                       aria-label="座位状态图例"
                     ></div>
-                    <div class="mock-map-fit">适应区域</div>
-                    <div
-                      class="mock-room-map"
-                      role="img"
-                      aria-label="合成座位地图示意：24 个带编号的座位、4 张阅览桌，中间留有过道。绿色空闲座位共 12 个，其余展示使用中、已预约、暂离、不可用和仅限现场。"
-                    >
-                      <span
-                        class="mock-map-table"
-                        style="left: 8%; top: 29%"
-                        aria-hidden="true"
-                      ></span>
-                      <span
-                        class="mock-map-table"
-                        style="left: 61%; top: 29%"
-                        aria-hidden="true"
-                      ></span>
-                      <span
-                        class="mock-map-table"
-                        style="left: 8%; top: 71%"
-                        aria-hidden="true"
-                      ></span>
-                      <span
-                        class="mock-map-table"
-                        style="left: 61%; top: 71%"
-                        aria-hidden="true"
-                      ></span>
-                    </div>
                     <p class="mock-map-tip">
                       拖动查看 · 双指缩放 · 点选座位<br />
                       颜色与座位内文字表示当前状态，可预约时段以点选查询为准。
@@ -1041,7 +1005,7 @@
           </div>
           <p>
             按当前 Android 版本的页面结构绘制。<br />示意 UI
-            不含真实账号或实时数据，座位布局为合成示例。
+            不含真实账号或实时数据，座位地图按实际编号与排列重新绘制。
           </p>
         </div>
         <div class="screenshots-toolbar">
