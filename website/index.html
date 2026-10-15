@@ -88,6 +88,23 @@
       <symbol id="i-close" viewBox="0 0 24 24">
         <path d="m6 6 12 12M6 18 18 6" />
       </symbol>
+      <symbol id="i-home" viewBox="0 0 24 24">
+        <path d="m3 11 9-8 9 8v9h-6v-6H9v6H3z" />
+      </symbol>
+      <symbol id="i-person" viewBox="0 0 24 24">
+        <circle cx="12" cy="7" r="3" />
+        <path d="M5 21c.5-4 2.8-6 7-6s6.5 2 7 6" />
+      </symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24">
+        <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z" />
+        <path
+          d="m19 13 2-1-2-1-.3-1.4 1-1.8-2-2-1.8 1L14.5 6l-1-2h-3l-1 2-1.4.6-1.8-1-2 2 1 1.8L5 11l-2 1 2 1 .3 1.4-1 1.8 2 2 1.8-1 1.4.6 1 2h3l1-2 1.4-.6 1.8 1 2-2-1-1.8Z"
+        />
+      </symbol>
+      <symbol id="i-search" viewBox="0 0 24 24">
+        <circle cx="10.5" cy="10.5" r="6.5" />
+        <path d="m16 16 5 5" />
+      </symbol>
     </svg>
 
     <header class="site-header">
@@ -160,10 +177,13 @@
               <div class="mock-heading">
                 <span>BUCEA / LIBRARY</span><span class="mock-refresh">↻</span>
               </div>
-              <h2>选座</h2>
-              <p class="mock-subtitle">为专注，找一个喜欢的位置。</p>
-              <div class="mock-segment">
-                <span class="selected">自选座位</span><span>布局选座</span>
+              <h2 id="mock-page-title">选座</h2>
+              <p class="mock-subtitle" id="mock-page-subtitle">
+                为专注，找一个喜欢的位置。
+              </p>
+              <div class="mock-segment" id="mock-seat-segment">
+                <span id="mock-search-segment" class="selected">自选座位</span
+                ><span id="mock-layout-segment">布局选座</span>
               </div>
               <div class="mock-panel mock-search-panel">
                 <div class="mock-dates">
@@ -178,9 +198,14 @@
                     <small>阅览区域</small><strong>不限房间</strong><b>⌄</b>
                   </div>
                 </div>
-                <div class="mock-input"><span>⌕</span> 座位号（可选）</div>
+                <div class="mock-input">
+                  <svg class="icon"><use href="#i-search" /></svg>
+                  座位号（可选）
+                </div>
                 <div class="mock-filter">时间、电源与靠窗 <b>⌄</b></div>
-                <div class="mock-search-button">⌕ &nbsp;查找可用座位</div>
+                <div class="mock-search-button">
+                  <svg class="icon"><use href="#i-search" /></svg> 查找可用座位
+                </div>
                 <p class="mock-hint">可用日期与条件已更新，请查询座位</p>
                 <h3>座位结果</h3>
                 <div class="mock-switch-row">
@@ -203,13 +228,13 @@
                 <div class="mock-regions">
                   <span>二层内环区</span><span>二层西区</span>
                 </div>
-                <div class="mock-empty-icon">▦</div>
+                <div class="mock-empty-icon">
+                  <svg class="icon"><use href="#i-grid" /></svg>
+                </div>
                 <h3 class="mock-empty-title">找到你喜欢的位置</h3>
                 <p class="mock-empty-copy">选择上方阅览区域，加载座位布局</p>
               </div>
               <div class="mock-panel mock-library-panel" hidden>
-                <h3 class="mock-library-title">我的图书馆</h3>
-                <p class="mock-subtitle">按时间，安排下一次到馆。</p>
                 <div class="mock-library-tabs">
                   <span class="selected">我的预约</span><span>收藏座位</span
                   ><span>常用座位</span><span>违约记录</span>
@@ -225,11 +250,22 @@
                 </p>
               </div>
               <nav class="mock-bottom-nav" aria-label="示意底部导航">
-                <span>⌂<small>首页</small></span
-                ><span class="active">▦<small>选座</small></span
-                ><span>▱<small>我的</small></span
-                ><span>♙<small>账号</small></span
-                ><span>⚙<small>设置</small></span>
+                <span data-nav="home"
+                  ><svg class="icon"><use href="#i-home" /></svg
+                  ><small>首页</small></span
+                ><span data-nav="search" class="active"
+                  ><svg class="icon"><use href="#i-grid" /></svg
+                  ><small>选座</small></span
+                ><span data-nav="library"
+                  ><svg class="icon"><use href="#i-book" /></svg
+                  ><small>我的</small></span
+                ><span
+                  ><svg class="icon"><use href="#i-person" /></svg
+                  ><small>账号</small></span
+                ><span
+                  ><svg class="icon"><use href="#i-settings" /></svg
+                  ><small>设置</small></span
+                >
               </nav>
             </div>
           </div>
@@ -272,16 +308,7 @@
               ><span>我的图书馆</span>
             </button>
           </div>
-          <div class="floating-note actual-note">
-            <span class="note-icon"
-              ><svg class="icon"><use href="#i-check" /></svg></span
-            ><span
-              >当前版本 UI 示意<br /><strong>按真实页面还原。</strong></span
-            >
-          </div>
-          <p class="preview-caption">
-            <span></span> 当前版本 UI 示意 · 与 App 结构保持一致
-          </p>
+          <p class="preview-caption"><span></span> UI 示意 · 结构按当前 App</p>
         </div>
       </section>
 
@@ -557,15 +584,30 @@
                 <span>场馆<strong>不限场馆</strong></span
                 ><span>阅览区域<strong>不限房间</strong></span>
               </div>
-              <div class="mini-input">⌕　座位号（可选）</div>
+              <div class="mini-input">
+                <svg class="icon"><use href="#i-search" /></svg>　座位号（可选）
+              </div>
               <div class="mini-filter">时间、电源与靠窗⌄</div>
-              <div class="mini-button">⌕　查找可用座位</div>
+              <div class="mini-button">
+                <svg class="icon"><use href="#i-search" /></svg>　查找可用座位
+              </div>
               <div class="mini-bottom">
-                <span>⌂<small>首页</small></span
-                ><span class="active">▦<small>选座</small></span
-                ><span>▱<small>我的</small></span
-                ><span>♙<small>账号</small></span
-                ><span>⚙<small>设置</small></span>
+                <span
+                  ><svg class="icon"><use href="#i-home" /></svg
+                  ><small>首页</small></span
+                ><span class="active"
+                  ><svg class="icon"><use href="#i-grid" /></svg
+                  ><small>选座</small></span
+                ><span
+                  ><svg class="icon"><use href="#i-book" /></svg
+                  ><small>我的</small></span
+                ><span
+                  ><svg class="icon"><use href="#i-person" /></svg
+                  ><small>账号</small></span
+                ><span
+                  ><svg class="icon"><use href="#i-settings" /></svg
+                  ><small>设置</small></span
+                >
               </div>
             </div>
           </article>
@@ -593,15 +635,27 @@
                 <span>二层内环区</span><span>二层西区</span>
               </div>
               <div class="mini-empty">
-                ▦<strong>找到你喜欢的位置</strong
+                <svg class="icon"><use href="#i-grid" /></svg
+                ><strong>找到你喜欢的位置</strong
                 ><small>选择上方阅览区域，加载座位布局</small>
               </div>
               <div class="mini-bottom">
-                <span>⌂<small>首页</small></span
-                ><span class="active">▦<small>选座</small></span
-                ><span>▱<small>我的</small></span
-                ><span>♙<small>账号</small></span
-                ><span>⚙<small>设置</small></span>
+                <span
+                  ><svg class="icon"><use href="#i-home" /></svg
+                  ><small>首页</small></span
+                ><span class="active"
+                  ><svg class="icon"><use href="#i-grid" /></svg
+                  ><small>选座</small></span
+                ><span
+                  ><svg class="icon"><use href="#i-book" /></svg
+                  ><small>我的</small></span
+                ><span
+                  ><svg class="icon"><use href="#i-person" /></svg
+                  ><small>账号</small></span
+                ><span
+                  ><svg class="icon"><use href="#i-settings" /></svg
+                  ><small>设置</small></span
+                >
               </div>
             </div>
           </article>
@@ -635,11 +689,22 @@
                 </div>
               </div>
               <div class="mini-bottom">
-                <span>⌂<small>首页</small></span
-                ><span>▦<small>选座</small></span
-                ><span>▱<small>我的</small></span
-                ><span>♙<small>账号</small></span
-                ><span class="active">⚙<small>设置</small></span>
+                <span
+                  ><svg class="icon"><use href="#i-home" /></svg
+                  ><small>首页</small></span
+                ><span
+                  ><svg class="icon"><use href="#i-grid" /></svg
+                  ><small>选座</small></span
+                ><span
+                  ><svg class="icon"><use href="#i-book" /></svg
+                  ><small>我的</small></span
+                ><span
+                  ><svg class="icon"><use href="#i-person" /></svg
+                  ><small>账号</small></span
+                ><span class="active"
+                  ><svg class="icon"><use href="#i-settings" /></svg
+                  ><small>设置</small></span
+                >
               </div>
             </div>
           </article>
