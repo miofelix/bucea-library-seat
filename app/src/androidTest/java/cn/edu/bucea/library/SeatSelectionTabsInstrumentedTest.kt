@@ -31,6 +31,7 @@ import androidx.core.view.accessibility.AccessibilityNodeInfoCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import cn.edu.bucea.library.ui.SeatSelectionScreen
+import cn.edu.bucea.library.ui.LibraryDestinationState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -46,6 +47,70 @@ class SeatSelectionTabsInstrumentedTest {
     private val instrumentation get() = InstrumentationRegistry.getInstrumentation()
     private val automation get() = instrumentation.uiAutomation
     private val appPackage get() = instrumentation.targetContext.packageName
+
+    @Test fun bottomNavigationRetainsBothSeatModesButAnotherIdentityStartsFresh() {
+        val destination = mutableStateOf(1)
+        val identity = mutableStateOf("fixture-account-one")
+        val authenticated = mutableStateOf(true)
+        val layout = mutableStateOf(false)
+        val activity = instrumentation.startActivitySync(
+            Intent(instrumentation.targetContext, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK),
+        ) as MainActivity
+        try {
+            instrumentation.runOnMainSync {
+                activity.setContent {
+                    MaterialTheme {
+                        LibraryDestinationState(destination.value, identity.value, authenticated.value) {
+                            if (destination.value == 1) SeatSelectionScreen(
+                                layoutSelected = layout.value,
+                                onSelectLayout = { layout.value = it },
+                                onRefresh = {},
+                                searchContent = { SearchFixture() },
+                                layoutContent = { LayoutFixture() },
+                            ) else Text("其他页面")
+                        }
+                    }
+                }
+            }
+            waitFor("Search must appear") { findText("自选计数 0") != null }
+            click(requireNotNull(findText("自选计数 0")))
+            scrollForward()
+            val searchRows = visibleRows("自选条目 ")
+            assertTrue(searchRows.isNotEmpty() && "自选条目 0" !in searchRows)
+            click(tab("布局选座"))
+            waitFor("Layout must appear") { findText("布局计数 0") != null }
+            click(requireNotNull(findText("布局计数 0")))
+            scrollForward()
+            val layoutRows = visibleRows("布局条目 ")
+            assertTrue(layoutRows.isNotEmpty() && "布局条目 0" !in layoutRows)
+
+            instrumentation.runOnMainSync { destination.value = 4 }
+            waitFor("Navigating away must remove seat content") { findText("其他页面") != null }
+            instrumentation.runOnMainSync { destination.value = 1 }
+            waitFor("The nested layout scroll position must survive bottom navigation") {
+                visibleRows("布局条目 ") == layoutRows
+            }
+            scrollToStart("布局计数 1")
+            click(tab("自选座位"))
+            waitFor("The other nested mode must also retain its previous position") {
+                visibleRows("自选条目 ") == searchRows
+            }
+            scrollToStart("自选计数 1")
+
+            instrumentation.runOnMainSync { identity.value = "fixture-account-two" }
+            waitFor("Another account must get fresh destination state") { findText("自选计数 0") != null }
+            click(requireNotNull(findText("自选计数 0")))
+            waitFor("The second account's local state must update") { findText("自选计数 1") != null }
+            instrumentation.runOnMainSync { authenticated.value = false }
+            waitFor("Signing out must discard personalized UI state") { findText("自选计数 0") != null }
+        } catch (failure: Throwable) {
+            captureFailure(failure)
+            throw failure
+        } finally {
+            instrumentation.runOnMainSync { activity.finish() }
+        }
+    }
 
     @Test fun topTabsStayFixedAndRetainEachModesStateAndScrollPosition() {
         val layoutSelected = mutableStateOf(false)

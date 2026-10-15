@@ -186,6 +186,7 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
                 }
             }
         }) { padding ->
+            LibraryDestinationState(tab, state.activeAccountId, state.authenticated) {
             when {
                 tab == 0 -> Dashboard(state.copy(busy = state.busy || mutating || seatState.reservationBusy || accountState.busy), hubState, Modifier.padding(padding), viewModel::login,
                     onRefresh = {
@@ -260,6 +261,7 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
                     viewModel::setThemeColor) {
                     UpdateSettings(updateState, updates.installedVersionName, updates.coordinator)
                 }
+            }
             }
         }
         if (signOutOpen) SignOutDialog(accountState.accountLabel, state.busy,
