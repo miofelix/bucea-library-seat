@@ -316,10 +316,25 @@ class NativeSmoke:
         self.tap_exact("首页", bottom=True)
         self.tap_exact("选座", bottom=True)
         self.tap_exact("自选座位")
-        self.find_scrolling(lambda: self.exact("查找可用座位"),
-                            "未找到原生查询控件。", max_swipes=12, up=True)
-        self.wait(lambda: self.exact("查找可用座位") is not None and self.nodes(lambda node: ISO_DATE.fullmatch(label(node)) is not None),
-                  "选座未就绪；请先在 App 中保存账号并完成登录，确认已连接校园网。")
+        if self.exact("查找可用座位") is None:
+            # Returning to the destination can restore an expanded filter card
+            # with the query action just below the viewport. One bounded gesture
+            # settles that common state before the normal wait.
+            time.sleep(.8)
+            for _ in range(3):
+                self.snapshot()
+                if self.exact("查找可用座位") is not None:
+                    break
+                # The restored expanded card may expose a stale scroll node;
+                # a verified in-app swipe reliably brings its footer into view.
+                self.adb("shell", "input", "swipe", str(self.width // 2),
+                         str(int(self.height * .76)), str(self.width // 2),
+                         str(int(self.height * .38)), "450")
+                time.sleep(.45)
+        self.wait(lambda: self.exact("查找可用座位") is not None,
+                  "未找到原生查询控件。")
+        self.find_scrolling(lambda: self.nodes(lambda node: ISO_DATE.fullmatch(label(node)) is not None),
+                            "选座未就绪；请先在 App 中保存账号并完成登录，确认已连接校园网。", max_swipes=12, up=True)
         raw_today = self.adb("shell", "date", "+%Y-%m-%d").decode().strip()
         try:
             today = date.fromisoformat(raw_today)
@@ -487,8 +502,12 @@ class NativeSmoke:
         self.tap_exact("首页", bottom=True)
         self.tap_exact("选座", bottom=True)
         self.wait(lambda: self.exact("查找可用座位"), "原生筛选页面未就绪。")
-        if self.exact("时间、电源与靠窗") is not None:
-            self.tap_exact("时间、电源与靠窗")
+        if self.exact("收起筛选条件") is None:
+            advanced = self.find_scrolling(
+                lambda: self.exact("时间、电源与靠窗"),
+                "未找到高级筛选入口。", max_swipes=12, up=True,
+            )
+            self.tap(advanced, "时间、电源与靠窗")
         for title in ["场馆", "阅览区域", "开始时间", "结束时间", "使用时长", "电源", "靠窗"]:
             node = self.find_scrolling(lambda value=title: self.exact(value), "高级筛选字段未完整显示。")
             self.tap(node, title)
@@ -522,6 +541,9 @@ class NativeSmoke:
         self.phase = "原生地图楼层与区域"
         self.tap_exact("首页", bottom=True)
         self.tap_exact("选座", bottom=True)
+        # The destination now preserves the last map room. Cycle the peer tabs
+        # to explicitly request the selector before checking every floor.
+        self.tap_exact("自选座位")
         self.tap_exact("布局选座")
         self.require_map_ready()
         raw_today = self.adb("shell", "date", "+%Y-%m-%d").decode().strip()
@@ -538,7 +560,8 @@ class NativeSmoke:
         self.tap_exact("关闭")
         if not floor_labels:
             raise SmokeFailure("学校未返回可用楼层。")
-        for index, floor in enumerate(floor_labels[:6], start=1):
+        floors_to_check = floor_labels[:6]
+        for index, floor in enumerate(floors_to_check, start=1):
             self.open_floor_options()
             node = self.exact(floor)
             if node is None:
@@ -565,6 +588,12 @@ class NativeSmoke:
                                 "原生地图列表没有显示座位。")
             self.pass_phase(f"08-native-map-floor-{index}-list")
             self.switch_map_mode("map")
+            if index < len(floors_to_check):
+                # Selecting a room can retain its direct layout. Re-enter the
+                # peer tab to make the floor selector the explicit next step.
+                self.tap_exact("自选座位")
+                self.tap_exact("布局选座")
+                self.require_map_ready()
 
     def run_password_unimplemented_check(self) -> None:
         """Check that the unavailable entry shows a notice and opens no form."""

@@ -174,7 +174,9 @@ fun SeatSearchScreen(
     )
     Column(
         Modifier.fillMaxSize().background(Paper).verticalScroll(rememberScrollState())
-            .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 28.dp),
+            // Leave the query action above the persistent bottom navigation when
+            // all advanced filters are expanded on a tall or large-text screen.
+            .padding(start = 24.dp, end = 24.dp, top = 16.dp, bottom = 140.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
