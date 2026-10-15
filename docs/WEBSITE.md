@@ -60,13 +60,14 @@ Pages 发布依赖正确的账户 ID、项目名称与 API token。`pages.yml` �
 
 两份工作流的官网部署共享 `cloudflare-production` 队列，串行执行；Release 官网 job 等待获得部署位置后才重新读取 R2 最新元数据，减少并发发布覆盖新版本的可能。Direct Upload 项目不配置额外的 Git 自动生产部署。
 
-工作流不再使用 GitHub Pages artifact 或 `github-pages` 环境。[首次生产部署](https://github.com/miofelix/bucea-library-seat/actions/runs/38788641625) 已成功，官网展示 `v1.0.0` 并提供五种 R2 APK 下载。后续每次发布仍需核对 Actions 结果、页面版本和下载链接。
+工作流不再使用 GitHub Pages artifact 或 `github-pages` 环境。[首次生产部署](https://github.com/miofelix/bucea-library-seat/actions/runs/38788641625) 展示 `v1.0.0` 并提供五种 R2 APK 下载。1.0.1 及后续版本由发布工作流读取最新 R2 元数据更新官网，每次发布仍需核对 Actions 结果、页面版本和下载链接；本版结果见 [RELEASE_VALIDATION_1.0.1.md](RELEASE_VALIDATION_1.0.1.md)。
 
 ## 内容维护
 
 - 发布新版 APK 后，R2 发布任务生成版本、包大小和下载元数据，官网构建据此更新页面，避免手动维护多份版本号。下载按钮指向 `https://download.miofelix.com/bucea-library-seat/releases/<tag>/<name>`；保留 GitHub Release 页面作为发行说明与备用来源。确认 R2 对象和元数据可读后再部署页面。
-- 现有 `v1.0.0` 已同步到 R2，其 APK 字节与内置更新地址不变；App 的新更新地址需后续构建发布后生效。本次未执行来自 R2 的真实 Android 更新下载与安装。
+- `1.0.1 / versionCode 15` 构建包含新的 R2 更新地址。首次同步到 R2 的 `v1.0.0` 保留原始 APK 字节和内置旧地址；使用旧地址的版本需从官网下载并手动安装新版本。各版本的真实 Android 更新下载与安装验收按实际执行记录。
 - 推荐 ARM64 包供大多数现代手机使用，并保留通用包；ARM32、x86 和 x86_64 通过下载区的紧凑链接提供，五种 APK 均直接从 R2 下载。GitHub 发行页保留备用下载与更新日志。安装要求、校园网络和馆内 Wi-Fi 说明应与 README 保持一致。
+- 官网提供项目 MIT 开源许可入口，发布产物保留许可证文件；App 设置中的许可入口与官网使用相同的项目许可。
 - 网页中的手机界面使用 HTML/CSS 示意 UI，按当前 Android 版本的页面结构维护，不直接嵌入真实账号截图，也不展示实时数据。更新 App UI 时，同步检查示意中的页面顺序、标题、分段标签、筛选条件、底部导航和设置条目。
 - 首屏与下方图库共用同一套示意页面，覆盖馆内概况、各区域座位、自选座位、布局选座、我的图书馆、账号管理与设置。前两项均属于首页，区域视角展示首页滚动后的内容。页面内容在 `index.html`，切换和图库复用逻辑在 `script.js`，示意专用样式在 `preview.css`；图库通过等比缩放复用页面，避免两处展示不一致。
 - 所有示意 UI 默认静态展示，`.mock-screen` 的 `data-preview-static` 属性禁用内部鼠标、触摸和键盘滚动，保留滚动容器与预设展示位置；不影响网页正常滚动、首屏外部页面切换或图库横向浏览。恢复内部滚动时移除该属性，并由 `showIllustration` 重新设置对应页面的焦点与说明。

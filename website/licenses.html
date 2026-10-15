@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#6c397f" />
+    <meta
+      name="description"
+      content="北建大图书馆选座的 MIT 开源许可与第三方组件说明。"
+    />
+    <link rel="canonical" href="https://library.miofelix.com/licenses.html" />
+    <link rel="icon" type="image/svg+xml" href="./assets/icon.svg" />
+    <link rel="apple-touch-icon" href="./assets/icon.png" />
+    <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./licenses.css" />
+    <title>开源许可 · 北建大图书馆选座</title>
+  </head>
+  <body class="license-page">
+    <a class="skip-link" href="#main">跳到主要内容</a>
+    <header class="site-header">
+      <div class="nav-wrap container">
+        <a class="brand" href="./"
+          ><img src="./assets/icon.svg" alt="" width="38" height="38" /><span
+            >北建大图书馆选座<small>把时间，留给专注。</small></span
+          ></a
+        >
+        <a class="license-back" href="./"
+          ><span aria-hidden="true">←</span> 返回官网</a
+        >
+      </div>
+    </header>
+
+    <main class="license-main container" id="main">
+      <div class="license-heading">
+        <p class="eyebrow">OPEN SOURCE</p>
+        <h1>开源，也欢迎你的好主意。</h1>
+        <p>关于这个小工具的使用、分享与创作。</p>
+      </div>
+
+      <section class="license-project" aria-labelledby="project-heading">
+        <div class="license-project-copy">
+          <span class="license-badge">MIT License</span>
+          <h2 id="project-heading">自由使用，保留一份署名。</h2>
+          <p>
+            本项目原创代码采用 MIT
+            许可证，允许使用、修改与分发。再分发时，请保留版权声明和许可文本。
+          </p>
+          <p class="license-author">© 2026 Yu Fan（樊彧）</p>
+          <a
+            class="text-link"
+            href="https://github.com/miofelix/bucea-library-seat"
+            >查看项目源码 <span aria-hidden="true">↗</span></a
+          >
+        </div>
+        <details class="license-full">
+          <summary>MIT 许可全文<span aria-hidden="true">+</span></summary>
+          <pre lang="en">
+MIT License
+
+Copyright (c) 2026 Yu Fan (樊彧)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.</pre>
+          <a class="license-file" href="./LICENSE">打开纯文本许可</a>
+        </details>
+      </section>
+
+      <section
+        class="license-third-party"
+        aria-labelledby="third-party-heading"
+      >
+        <div class="license-section-heading">
+          <h2 id="third-party-heading">也感谢这些开源项目。</h2>
+          <p>第三方组件与模型保留各自的许可。以下全文均可在本站阅读。</p>
+        </div>
+        <div class="license-groups">
+          <section class="license-group" aria-labelledby="apache-heading">
+            <h3 id="apache-heading">应用基础与网络</h3>
+            <p>Apache License 2.0</p>
+            <ul class="license-components">
+              <li>
+                <span>AndroidX / Jetpack Compose</span>
+                <a href="./licenses/AndroidX-LICENSE.txt">许可全文</a>
+              </li>
+              <li>
+                <span>Kotlin</span>
+                <a href="./licenses/Kotlin-LICENSE.txt">许可全文</a>
+              </li>
+              <li>
+                <span>Kotlin Coroutines</span>
+                <a href="./licenses/Kotlin-Coroutines-LICENSE.txt">许可全文</a>
+              </li>
+              <li>
+                <span>OkHttp</span>
+                <a href="./licenses/OkHttp-LICENSE.txt">许可全文</a>
+              </li>
+              <li>
+                <span>Okio</span>
+                <a href="./licenses/Okio-LICENSE.txt">许可全文</a>
+              </li>
+            </ul>
+          </section>
+          <section class="license-group" aria-labelledby="mit-heading">
+            <h3 id="mit-heading">解析与本地识别</h3>
+            <p>MIT License</p>
+            <ul class="license-components">
+              <li>
+                <span>jsoup</span>
+                <a href="./licenses/jsoup-MIT.txt">许可全文</a>
+              </li>
+              <li>
+                <span>ONNX Runtime</span>
+                <a href="./licenses/ONNXRuntime-MIT.txt">许可全文</a>
+              </li>
+              <li>
+                <span>ddddocr 模型与字符表</span>
+                <a href="./licenses/ddddocr-MIT.txt">许可全文</a>
+              </li>
+            </ul>
+            <p class="license-group-note">
+              ONNX Runtime 内含组件另附<a
+                href="./licenses/ONNXRuntime-ThirdPartyNotices.txt"
+                >第三方声明</a
+              >。
+            </p>
+          </section>
+        </div>
+        <div class="license-extra">
+          <p>
+            OkHttp 内含的 Public Suffix List 使用 MPL 2.0 许可。
+            <a href="./licenses/Public-Suffix-List-NOTICE.txt">查看版权声明</a>
+            <span aria-hidden="true">·</span>
+            <a href="./licenses/MPL-2.0.txt">查看许可全文</a>
+          </p>
+          <p>
+            验证码识别在设备上完成，使用 ddddocr 的模型与字符表，通过 ONNX
+            Runtime 运行。
+            <a href="./licenses/THIRD_PARTY_NOTICES.txt">完整组件与来源说明</a>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer container">
+      <p>由 樊彧 开发 <span>·</span> 非官方客户端</p>
+      <div><a href="./">返回官网</a><a href="./#download">下载应用</a></div>
+    </footer>
+  </body>
+</html>

@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material.icons.outlined.Palette
@@ -459,6 +460,7 @@ internal fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLog
     onAutoSwitch: (Boolean) -> Unit, onThemeColor: (AppThemeColor) -> Unit, updateContent: @Composable () -> Unit) {
     var showColors by rememberSaveable { mutableStateOf(false) }
     var showAbout by rememberSaveable { mutableStateOf(false) }
+    var showLicenses by rememberSaveable { mutableStateOf(false) }
     var updatesExpanded by rememberSaveable { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())
@@ -490,6 +492,8 @@ internal fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLog
             SettingsEntry(Icons.Outlined.Edit, "问题与建议", "分享你的使用体验", onClick = { uriHandler.openUri("$ProjectUrl/issues") })
             HorizontalDivider(color = Line)
             CommunityGroupEntry()
+            HorizontalDivider(color = Line)
+            SettingsEntry(Icons.Outlined.Code, "开源许可", "MIT 许可与第三方组件", onClick = { showLicenses = true })
         }
         Text("BUCEA-LIBRARY-SEAT · 非官方客户端", color = Muted, fontSize = 11.sp,
             modifier = Modifier.align(Alignment.CenterHorizontally))
@@ -498,6 +502,7 @@ internal fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLog
         text = { ThemeColorPicker(state.themeColor, onThemeColor) },
         confirmButton = { Button(onClick = { showColors = false }, shape = RoundedCornerShape(12.dp), modifier = Modifier.heightIn(min = 48.dp)) { Text("完成") } })
     if (showAbout) AboutSheet { showAbout = false }
+    if (showLicenses) OpenSourceLicensesSheet { showLicenses = false }
 }
 
 @Composable

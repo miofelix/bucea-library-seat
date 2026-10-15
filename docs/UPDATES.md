@@ -14,7 +14,7 @@ Android APK 在保存原签名密钥的开发机上构建、验证并发布到 G
 
 R2 和官网已于 2026-10-16 启用。bucket 为 `miofelix-software-releases`，`download.miofelix.com` 自定义域名绑定处于活动状态。官网使用 Direct Upload Pages 项目 `bucea-library-seat-website`，生产分支为 `main`，不连接 Git 仓库；`library.miofelix.com` 已活动且启用 SSL。三项仓库 variables 和三项 secrets 已配置，首次上传、完整下载与官网上线结果见下文验证记录。官网源码保留 GitHub Release 备用下载入口；正式构建由 R2 元数据生成下载链接。此前服务的验收保留在 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md)，其中旧服务器与端口记录均属历史。
 
-本次只修改 App 源码中的下载域名、清单地址与 URL 校验，未重新打包、替换或发布现有 `v1.0.0` APK。现有 Release 字节及其内置的旧更新地址保持原样；同步 `v1.0.0` 到 R2 已启用官网 APK 下载，但不会改写 APK 内的更新地址。新地址将在后续构建发布的 App 中生效，本次不提供旧地址兼容。
+`1.0.1 / versionCode 15` 包含新下载域名、清单地址与 URL 校验。首次 R2 上线同步的 `v1.0.0` 保留原始字节及内置旧地址；同步只启用了该版本的官网下载，不会改变其应用内更新地址。使用旧更新地址的版本需从官网手动安装新版本，本次不提供旧地址兼容。1.0.1 的最终构建、发布与新来源验收见 [RELEASE_VALIDATION_1.0.1.md](RELEASE_VALIDATION_1.0.1.md)。
 
 ## Release 格式
 
@@ -110,7 +110,7 @@ R2 下载域名和证书应已生效，三项 variables 与三项 secrets 均已
 2. 检查 `publish` job 的附件校验、R2 上传和公开地址检查。对象全部位于 `bucea-library-seat/` 下，包括 `releases/<tag>/<name>`、`updates/latest.json` 和 `releases/latest.json`；公开检查失败会阻止后续官网部署。
 3. `publish` 成功后，`website` job 自动读取最新 R2 元数据，构建、检查下载地址并部署到 `bucea-library-seat-website`。首次部署后绑定官网自定义域名，后续发布直接更新该项目。
 4. 打开 <https://library.miofelix.com/>，核对版本、大小与下载链接，完整下载 APK 并核对摘要；R2 URL 直接返回内容，不重定向到 `r2.dev`、S3 endpoint 或官网。
-5. 后续构建发布包含新地址的 App 后，执行真实 Android 更新检查与下载验收。首次同步现有 `v1.0.0` 只验证分发，不能证明该旧 APK 已切换更新地址。
+5. 对包含新地址的 `1.0.1` 构建执行真实 Android 更新检查与下载验收。首次同步 `v1.0.0` 只验证分发，不能证明该旧 APK 已切换更新地址。
 
 Cloudflare 的缓存、重写、Access 和挑战规则应允许原生 Android 客户端直接读取清单及 APK。
 

@@ -53,6 +53,7 @@ fun BusinessSelectionSheet(
     icon: (@Composable () -> Unit)? = null,
     title: (@Composable () -> Unit)? = null,
     text: (@Composable () -> Unit)? = null,
+    scrollContent: Boolean = true,
 ) {
     val interactions = LocalBusinessInteractions.current
     DisposableEffect(interactions) {
@@ -60,6 +61,7 @@ fun BusinessSelectionSheet(
         onDispose { interactions?.dialogs?.let { it.intValue-- } }
     }
     val contentHeight = (LocalConfiguration.current.screenHeightDp.dp * .55f).coerceAtMost(480.dp)
+    val contentScrollState = rememberScrollState()
     ModalBottomSheet(onDismissRequest = onDismissRequest,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
@@ -76,7 +78,7 @@ fun BusinessSelectionSheet(
                 }
             }
             if (text != null) Box(Modifier.weight(1f, fill = false).fillMaxWidth().heightIn(max = contentHeight)
-                .verticalScroll(rememberScrollState())) { text() }
+                .then(if (scrollContent) Modifier.verticalScroll(contentScrollState) else Modifier)) { text() }
             FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 dismissButton?.invoke()

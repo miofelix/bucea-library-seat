@@ -1,0 +1,44 @@
+第三方组件说明
+
+北建大图书馆选座的原创代码采用 MIT 许可，作者为 Yu Fan（樊彧）。第三方组件及资源继续适用各自的许可；本项目的 MIT 许可不会替代上游授权。
+
+以下许可全文均随 App 提供，可在“开源许可”列表中离线阅读。许可证和上游版权声明保留英文原文。
+
+AndroidX 与 Jetpack Compose
+Apache License 2.0 · Android Open Source Project contributors
+https://android.googlesource.com/platform/frameworks/support/
+
+Kotlin 2.1.21 与 Kotlin 标准库
+Apache License 2.0 · JetBrains s.r.o. and Kotlin contributors
+https://github.com/JetBrains/kotlin
+
+Kotlin Coroutines 1.10.2
+Apache License 2.0 · JetBrains s.r.o. and Kotlin Programming Language contributors
+https://github.com/Kotlin/kotlinx.coroutines
+
+OkHttp 4.12.0 与 Okio 3.6.0
+Apache License 2.0 · Square, Inc. and contributors
+https://github.com/square/okhttp
+https://github.com/square/okio
+
+jsoup 1.20.1
+MIT · Copyright (c) 2009–2025 Jonathan Hedley
+https://jsoup.org/
+
+ONNX Runtime Android 1.22.0
+MIT · Copyright (c) Microsoft Corporation
+https://github.com/microsoft/onnxruntime
+随附该版本上游的 ThirdPartyNotices，保留其第三方组件声明。
+
+ddddocr 1.6.1 模型与字符集
+MIT · https://github.com/sml2h3/ddddocr
+离线验证码识别使用 common_old.onnx、common_det.onnx 与 CHARSET_OLD。原始导出版本为 c40f56f95412e10bcb9bd0bd24411e92f896d238。
+上游许可证中的版权表述原样保留。模型摘要及预处理参数保存在 App 资源中的 ocr/model.json 与 ocr/detection-model.json。
+验证码图片与账号凭据不会发送到 OCR 服务。
+
+Public Suffix List
+Mozilla Public License 2.0
+https://publicsuffix.org/list/public_suffix_list.dat
+OkHttp 包含由该列表编译的 publicsuffixes.gz；上游 NOTICE 与 MPL 2.0 全文均已附带。
+
+LanczosPreprocessor.kt 为本项目原创 Kotlin 实现，复现 Pillow 的可分离 Lanczos3 重采样算法及整数灰度转换，未打包 Pillow 源代码。
