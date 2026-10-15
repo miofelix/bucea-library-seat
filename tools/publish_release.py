@@ -11,11 +11,17 @@ import re
 def validate_upload(directory, tag, target):
     manifest = json.loads((directory / "update.json").read_text(encoding="utf-8"))
     apk = manifest["apk"]
+    version = manifest.get("versionName")
     if (manifest.get("packageName") != "cn.edu.bucea.library" or manifest.get("schemaVersion") != 1
-            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,180}\.apk", apk["name"])
+            or not isinstance(version, str)
+            or not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version)
+            or apk["name"] != f"北建大图书馆选座-v{version}.apk"
+            or not isinstance(apk.get("sha256"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", apk["sha256"])
+            or type(apk.get("size")) is not int or apk["size"] <= 0
             or not re.fullmatch(r"[0-9a-f]{40}", target)
-            or tag != "v" + manifest["versionName"]
-            and not tag.startswith("v" + manifest["versionName"] + "-")):
+            or not re.fullmatch(r"v[0-9][A-Za-z0-9._-]*", tag)
+            or tag != "v" + version and not tag.startswith("v" + version + "-")):
         raise ValueError("invalid release metadata, tag or commit SHA")
     digest = hashlib.sha256()
     with (directory / apk["name"]).open("rb") as stream:
@@ -29,6 +35,29 @@ def validate_upload(directory, tag, target):
 
 def gh(*args, capture=False):
     return subprocess.run(["gh", *args], check=True, text=True, capture_output=capture)
+
+
+def validate_remote_assets(assets, directory, manifest):
+    expected = {}
+    for name in (manifest["apk"]["name"], "SHA256SUMS", "update.json"):
+        path = directory / name
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(chunk)
+        expected[name] = (path.stat().st_size, "sha256:" + digest.hexdigest())
+    if not isinstance(assets, list) or len(assets) != len(expected):
+        raise ValueError("draft must contain exactly the three reviewed assets")
+    seen = set()
+    for asset in assets:
+        name = asset.get("name")
+        if name not in expected or name in seen:
+            raise ValueError("GitHub asset names differ from the reviewed release")
+        size, digest = expected[name]
+        if (asset.get("state") != "uploaded" or asset.get("size") != size
+                or asset.get("digest") not in (None, digest)):
+            raise ValueError("GitHub asset size, state or digest differs from the reviewed release")
+        seen.add(name)
 
 
 def main():
@@ -50,6 +79,9 @@ def main():
     gh("release", "upload", args.tag, "--repo", "miofelix/bucea-library-seat",
        str(args.directory / manifest["apk"]["name"]), str(args.directory / "SHA256SUMS"),
        str(args.directory / "update.json"))
+    uploaded = json.loads(gh("release", "view", args.tag, "--repo", "miofelix/bucea-library-seat",
+                            "--json", "assets", capture=True).stdout)
+    validate_remote_assets(uploaded.get("assets"), args.directory, manifest)
     gh("release", "edit", args.tag, "--repo", "miofelix/bucea-library-seat", "--draft=false",
        "--prerelease=" + str(args.prerelease).lower())
 

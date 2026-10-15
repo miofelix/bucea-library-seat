@@ -30,6 +30,9 @@ BASE_URL = "https://bucea-library-seat.miofelix.com"
 MAX_APK = 512 * 1024 * 1024
 MAX_METADATA = 128 * 1024
 RETENTION = 7 * 24 * 3600
+ASCII_APK_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,180}\.apk")
+RELEASE_VERSION = r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+RELEASE_APK_NAME = re.compile(rf"北建大图书馆选座-v({RELEASE_VERSION})\.apk")
 
 
 class UpstreamError(Exception):
@@ -84,6 +87,15 @@ def positive_int(value, maximum):
     return type(value) is int and 0 < value <= maximum
 
 
+def valid_apk_name(name, version_name):
+    if not isinstance(name, str):
+        return False
+    if ASCII_APK_NAME.fullmatch(name):
+        return True  # Historical releases retain their original portable filenames.
+    release_name = RELEASE_APK_NAME.fullmatch(name)
+    return release_name is not None and release_name.group(1) == version_name
+
+
 def validate_manifest(value):
     if not isinstance(value, dict) or type(value.get("schemaVersion")) is not int or value.get("schemaVersion") != 1:
         raise IntegrityError("unsupported update schema")
@@ -96,8 +108,7 @@ def validate_manifest(value):
             or not isinstance(value.get("notes"), str)
             or len(value["notes"]) > 16000
             or not isinstance(apk, dict)
-            or not isinstance(apk.get("name"), str)
-            or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,180}\.apk", apk["name"])
+            or not valid_apk_name(apk.get("name"), value["versionName"])
             or not positive_int(apk.get("size"), MAX_APK)
             or not isinstance(apk.get("sha256"), str)
             or not re.fullmatch(r"[0-9a-f]{64}", apk["sha256"])):
@@ -309,20 +320,26 @@ class Mirror:
         cache_path = self.state / f"release-{release['id']}.json"
         cached = read_json(cache_path, {})
         if cached.get("fingerprint") == fingerprint:
-            manifest = validate_manifest(cached["manifest"])
+            source_manifest = validate_manifest(cached["manifest"])
         else:
             try:
-                manifest = validate_manifest(json.loads(self.github.asset_bytes(metadata)))
+                source_manifest = validate_manifest(json.loads(self.github.asset_bytes(metadata)))
                 sums = self.github.asset_bytes(checksums).decode("utf-8")
             except (ValueError, UnicodeError) as error:
                 raise IntegrityError("invalid release metadata") from error
-            expected = f"{manifest['apk']['sha256']}  {manifest['apk']['name']}"
+            expected = f"{source_manifest['apk']['sha256']}  {source_manifest['apk']['name']}"
             if sums.strip().splitlines() != [expected]:
                 raise IntegrityError("SHA256SUMS disagrees with update.json")
-            atomic_json(cache_path, {"fingerprint": fingerprint, "manifest": manifest})
-        asset = by_name.get(manifest["apk"]["name"])
-        if asset is None or asset["size"] != manifest["apk"]["size"]:
+            atomic_json(cache_path, {"fingerprint": fingerprint, "manifest": source_manifest})
+        asset = by_name.get(source_manifest["apk"]["name"])
+        if asset is None or asset["size"] != source_manifest["apk"]["size"]:
             raise IntegrityError("missing or mismatched APK attachment")
+        # Select/checksum the original GitHub attachment before deriving the public
+        # filename. Existing Android clients require apk.name to remain portable ASCII.
+        manifest = validate_manifest(source_manifest)
+        if not ASCII_APK_NAME.fullmatch(manifest["apk"]["name"]):
+            manifest["apk"]["displayName"] = manifest["apk"]["name"]
+            manifest["apk"]["name"] = f"BUCEA-Library-Seat-v{manifest['versionName']}.apk"
         manifest["apk"].update(assetId=asset["id"], url=f"{self.base_url}/updates/apks/{asset['id']}.apk")
         manifest.update(releaseId=release["id"], releaseTag=release["tag_name"], prerelease=release["prerelease"])
         return manifest, asset

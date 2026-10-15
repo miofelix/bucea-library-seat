@@ -28,6 +28,8 @@ def inspect_apk(apk, aapt, apksigner):
     name, code, version = package.groups()
     if name != "cn.edu.bucea.library":
         raise ValueError("unexpected APK package")
+    if not re.fullmatch(r"(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)", version):
+        raise ValueError("APK versionName must use major.minor.patch for the release filename")
     return {"schemaVersion": 1, "packageName": name, "versionCode": int(code),
             "versionName": version, "minSdk": int(sdk.group(1))}
 
@@ -42,7 +44,7 @@ def stage(apk, aapt, apksigner, output, tag, notes):
     if len(notes) > 16000 or not notes.strip():
         raise ValueError("provide nonempty release notes (at most 16000 characters)")
     output.mkdir(parents=True, exist_ok=True)
-    name = f"BUCEA-Library-Seat-{tag}.apk"
+    name = f"北建大图书馆选座-v{metadata['versionName']}.apk"
     destination = output / name
     # Remove old staged output so a wildcard upload cannot mix releases.
     for old in output.iterdir():

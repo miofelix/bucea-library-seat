@@ -24,6 +24,17 @@ class UpdateManifestTest {
         assertEquals(parsed, UpdateManifest.parse(parsed.toJson(), packageName))
     }
 
+    @Test fun chineseReleaseDisplayNamePreservesTheLegacyDownloadContract() {
+        val json = valid().put("versionName", "0.3.8").put("releaseTag", "v0.3.8-beta.1")
+        json.getJSONObject("apk").put("name", "BUCEA-Library-Seat-v0.3.8.apk")
+            .put("displayName", "北建大图书馆选座-v0.3.8.apk")
+        val parsed = UpdateManifest.parse(json, packageName)
+        assertEquals("BUCEA-Library-Seat-v0.3.8.apk", parsed.apkName)
+        assertEquals(123L, parsed.assetId)
+        assertEquals("$UpdateOrigin/updates/apks/123.apk", parsed.url)
+        assertEquals(parsed, UpdateManifest.parse(parsed.toJson(), packageName))
+    }
+
     @Test fun urlsRejectHttpRedirectTargetsPortsCredentialsQueriesAndEncodedPaths() {
         for (url in listOf("http://bucea-library-seat.miofelix.com/updates/apks/123.apk",
             "https://github.com/file.apk", "$UpdateOrigin:443/updates/apks/123.apk",

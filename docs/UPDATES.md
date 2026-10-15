@@ -29,6 +29,8 @@
 
 大小和摘要以实际生成的清单为准。清单与 APK 元数据来自 `aapt dump badging`，发布前由 `apksigner` 验证签名，并拒绝 `debuggable=true` 的 APK。`SHA256SUMS` 是一行 `<摘要><两个空格><APK文件名>`。
 
+从 0.3.8 起，GitHub Release 中的 APK、源 `update.json` 的 `apk.name` 与 UTF-8 `SHA256SUMS` 统一使用 `北建大图书馆选座-vx.x.x.apk`。测试版后缀只用于 Release 标签。新版镜像先按中文原名定位附件并校验，再将公开清单的 `apk.name` 转为旧客户端支持的 ASCII 兼容名（例如 `BUCEA-Library-Seat-v0.3.8.apk`），并在 `apk.displayName` 保留中文附件名。实际下载仍使用原附件的资产 ID、大小及 SHA-256；历史英文附件继续按原规则处理。镜像须部署包含该兼容处理的新脚本后才能选择中文附件，本次用户明确将镜像部署留待稍后处理。
+
 镜像公开清单补充 `prerelease`、`releaseTag`、`releaseId`、`apk.assetId`、`apk.url`。预发布标记取自 GitHub；公开下载地址只使用项目 HTTPS 域名。
 
 ## 镜像行为

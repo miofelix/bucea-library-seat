@@ -13,7 +13,7 @@ python3 -m unittest discover -s tools/tests -v
 
 测试版产物位于 `app/build/outputs/beta-release/`：
 
-- `BUCEA-Library-Seat-v0.3.8-beta.1.apk`
+- `北建大图书馆选座-v0.3.8.apk`
 - `SHA256SUMS`
 - `update.json`
 
@@ -33,7 +33,7 @@ python3 tools/publish_release.py --directory app/build/outputs/beta-release --ta
 
 正式版移除 `--prerelease` 并使用正式产物/标签。发布脚本使用 `gh` 的当前授权。如果上传失败，草稿会保留，检查附件后人工完成或删除草稿重试。不要用 `--clobber` 替换已发布资产。
 
-Release 标题使用 `北建大图书馆选座 v0.3.8 测试版`，下载文件名保持包含应用名称和版本号的 ASCII 名称。本次 Android 16 / API 36 验收见 [ADB_ACCEPTANCE_0.3.8.md](ADB_ACCEPTANCE_0.3.8.md)，版本递增前的分阶段界面验收见 [ADB_ACCEPTANCE_UI_2026-10-15.md](ADB_ACCEPTANCE_UI_2026-10-15.md)。先前客户端自动重检的修复验收见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)，先前公开更新结果见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)。Android 8 / API 26 设备验证仍未完成，依赖图书馆内部 Wi-Fi 的实际签到与后续使用操作未执行。不能将模拟任务或安装器测试记作公开网络更新成功。
+Release 标题使用 `北建大图书馆选座 v0.3.8 测试版`。从本版起，所有后续发布的 APK 附件统一命名为 `北建大图书馆选座-vx.x.x.apk`，版本来自 APK 的三段 `versionName`；测试版标签的 `-beta.N` 不进入安装包文件名，打包与上传工具会强制校验。历史附件不改名、不替换。中文名称同时写入该 Release 的 `update.json` 和 UTF-8 `SHA256SUMS`。本次 Android 16 / API 36 验收见 [ADB_ACCEPTANCE_0.3.8.md](ADB_ACCEPTANCE_0.3.8.md)，版本递增前的分阶段界面验收见 [ADB_ACCEPTANCE_UI_2026-10-15.md](ADB_ACCEPTANCE_UI_2026-10-15.md)。先前客户端自动重检的修复验收见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)，先前公开更新结果见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)。Android 8 / API 26 设备验证仍未完成，依赖图书馆内部 Wi-Fi 的实际签到与后续使用操作未执行。不能将模拟任务或安装器测试记作公开网络更新成功。
 
 ## 启用
 

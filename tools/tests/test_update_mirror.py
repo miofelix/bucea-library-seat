@@ -8,7 +8,8 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 
 from tools.update_mirror import (BASE_URL, GitHub, GitHubRedirects, IntegrityError,
-                                 Mirror, RETENTION, UpstreamError, atomic_json)
+                                 Mirror, RETENTION, UpstreamError, atomic_json,
+                                 validate_manifest)
 from urllib.request import Request
 
 
@@ -24,15 +25,16 @@ class FakeGitHub:
         self.failure = False
         self.downloads = []
 
-    def release(self, code, prerelease=False, identity=None, data=None):
+    def release(self, code, prerelease=False, identity=None, data=None, name=None, version=None):
         identity = identity or code
         data = data or f"APK-{identity}".encode()
         manifest = {"schemaVersion": 1, "packageName": "cn.edu.bucea.library", "versionCode": code,
-                    "versionName": f"0.{code}", "minSdk": 26, "notes": "更新说明",
-                    "apk": {"name": f"app-{identity}.apk", "size": len(data), "sha256": digest(data)}}
+                    "versionName": version if version is not None else f"0.{code}", "minSdk": 26, "notes": "更新说明",
+                    "apk": {"name": name if name is not None else f"app-{identity}.apk",
+                            "size": len(data), "sha256": digest(data)}}
         assets = []
-        payloads = {manifest["apk"]["name"]: data, "update.json": json.dumps(manifest).encode(),
-                    "SHA256SUMS": f"{digest(data)}  {manifest['apk']['name']}\n".encode()}
+        payloads = {manifest["apk"]["name"]: data, "update.json": json.dumps(manifest, ensure_ascii=False).encode("utf-8"),
+                    "SHA256SUMS": f"{digest(data)}  {manifest['apk']['name']}\n".encode("utf-8")}
         for number, (name, payload) in enumerate(payloads.items(), 1):
             asset_id = identity * 10 + number
             url = f"https://api.github.com/repos/miofelix/bucea-library-seat/releases/assets/{asset_id}"
@@ -81,6 +83,81 @@ class MirrorTest(unittest.TestCase):
         self.assertEqual(0o644, (self.mirror.public / "latest.json").stat().st_mode & 0o777)
         self.assertEqual(0o644, (self.mirror.apks / "151.apk").stat().st_mode & 0o777)
         self.assertEqual(0o600, (self.mirror.state / "catalog.json").stat().st_mode & 0o777)
+
+    def test_chinese_attachment_uses_original_asset_with_legacy_compatible_public_name(self):
+        name = "北建大图书馆选座-v0.3.8.apk"
+        _, source, assets = self.github.release(38, name=name, version="0.3.8")
+        # A matching ASCII alias is a separate attachment and must never replace
+        # the Chinese attachment selected and verified by the source metadata.
+        alias = dict(assets[0], id=3899, name="BUCEA-Library-Seat-v0.3.8.apk",
+                     url=assets[0]["url"] + "-alias")
+        assets.append(alias)
+        self.github.content[alias["url"]] = self.github.content[assets[0]["url"]]
+        latest = self.mirror.sync()
+
+        self.assertEqual("BUCEA-Library-Seat-v0.3.8.apk", latest["apk"]["name"])
+        self.assertEqual(name, latest["apk"]["displayName"])
+        self.assertEqual(assets[0]["id"], latest["apk"]["assetId"])
+        self.assertEqual(f"{BASE_URL}/updates/apks/{assets[0]['id']}.apk", latest["apk"]["url"])
+        self.assertEqual(source["apk"]["sha256"], latest["apk"]["sha256"])
+        self.assertEqual(source["apk"]["size"], latest["apk"]["size"])
+        self.assertEqual([assets[0]["id"]], self.github.downloads)
+        self.assertEqual(self.github.content[assets[0]["url"]],
+                         (self.mirror.apks / f"{assets[0]['id']}.apk").read_bytes())
+
+        # This is the unchanged Android client's strict filename contract. Extra
+        # displayName is ignored while the name/asset URL/size/hash remain usable.
+        self.assertRegex(latest["apk"]["name"], r"\A[A-Za-z0-9][A-Za-z0-9._-]{0,180}\.apk\Z")
+        self.assertEqual(latest["apk"]["name"], validate_manifest(latest)["apk"]["name"])
+        cache = json.loads((self.mirror.state / "release-38.json").read_text(encoding="utf-8"))
+        self.assertEqual(source, cache["manifest"])
+        self.assertNotIn("displayName", cache["manifest"]["apk"])
+
+        restarted = Mirror(self.root, self.github, clock=lambda: self.now)
+        with patch.object(self.github, "asset_bytes", side_effect=AssertionError("unchanged source must use cache")):
+            self.assertEqual(latest, restarted.sync())
+        self.assertEqual([assets[0]["id"]], self.github.downloads)
+        self.assertEqual(source, json.loads((self.mirror.state / "release-38.json").read_text())["manifest"])
+
+    def test_historical_ascii_attachment_and_manifest_remain_unchanged(self):
+        _, source, _ = self.github.release(8)
+        latest = self.mirror.sync()
+        self.assertEqual(source["apk"]["name"], latest["apk"]["name"])
+        self.assertNotIn("displayName", latest["apk"])
+        self.assertEqual(source, validate_manifest(latest))
+        self.assertEqual(latest, self.mirror.sync())
+
+    def test_future_official_filename_matches_its_version(self):
+        self.github.release(1234, name="北建大图书馆选座-v12.34.56.apk", version="12.34.56")
+        latest = self.mirror.sync()
+        self.assertEqual("BUCEA-Library-Seat-v12.34.56.apk", latest["apk"]["name"])
+        self.assertEqual("北建大图书馆选座-v12.34.56.apk", latest["apk"]["displayName"])
+
+    def test_official_filename_rejects_unsafe_names_and_version_mismatches(self):
+        names = ("北建大图书馆选座-v0.3.9.apk", "北建大图书馆选座-v0.03.8.apk",
+                 "北建大图书馆选座-v0.3.8-beta.apk", "北建大图书馆选座-v0.3.8.apk/other.apk",
+                 "../北建大图书馆选座-v0.3.8.apk", "北建大图书馆选座\\v0.3.8.apk",
+                 "北建大图书馆选座-v0.3.8.apk\n", "北建大图书馆选座-v0.3.8.apk\x00",
+                 "北建大图书馆选座-v0.3.8.APK", "北建大图书馆选座-v０.3.8.apk",
+                 "北建大图书馆选座-v0.3.8%2f.apk", "北建大图书馆选座-v0.3.8\u200b.apk",
+                 "其他图书馆-v0.3.8.apk", "../app.apk", "dir/app.apk", "dir\\app.apk")
+        for code, name in enumerate(names, 100):
+            with self.subTest(name=name):
+                release, _, _ = self.github.release(code, name=name, version="0.3.8")
+                with self.assertRaises(IntegrityError):
+                    self.mirror.candidate(release)
+
+    def test_chinese_attachment_requires_exact_original_name_in_checksums_and_assets(self):
+        release, _, assets = self.github.release(38, name="北建大图书馆选座-v0.3.8.apk", version="0.3.8")
+        self.github.content[assets[2]["url"]] = (
+            f"{digest(self.github.content[assets[0]['url']])}  BUCEA-Library-Seat-v0.3.8.apk\n".encode("utf-8"))
+        with self.assertRaises(IntegrityError):
+            self.mirror.candidate(release)
+        self.github.content[assets[2]["url"]] = (
+            f"{digest(self.github.content[assets[0]['url']])}  北建大图书馆选座-v0.3.8.apk\n".encode("utf-8"))
+        assets[0]["name"] = "BUCEA-Library-Seat-v0.3.8.apk"
+        with self.assertRaises(IntegrityError):
+            self.mirror.candidate(release)
 
     def test_stable_wins_equal_version_code_deterministically(self):
         self.github.release(9, identity=91)
