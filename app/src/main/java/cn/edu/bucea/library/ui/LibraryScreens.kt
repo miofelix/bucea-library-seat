@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Logout
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Password
@@ -99,6 +100,7 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private const val ProjectUrl = "https://github.com/miofelix/bucea-library-seat"
+private const val OfficialLibraryUrl = "https://lib.bucea.edu.cn/"
 
 @Composable
 internal fun FeatureLoginPrompt(state: LibraryUiState, modifier: Modifier, onLogin: () -> Unit,
@@ -170,7 +172,17 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
                 Text("馆内公告", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
                 TextButton(onClick = { noticesExpanded = !noticesExpanded }) { Text(if (noticesExpanded) "收起" else "查看", fontSize = 12.sp) }
             }
-            if (noticesExpanded) notices.take(5).forEach { Text(it, style = MaterialTheme.typography.bodySmall, color = Muted) }
+            if (noticesExpanded) LibraryCard {
+                notices.forEachIndexed { index, notice ->
+                    if (index > 0) HorizontalDivider(color = Line)
+                    Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(Modifier.padding(top = 8.dp).size(5.dp).clip(CircleShape).background(Accent))
+                        Text(notice, style = MaterialTheme.typography.bodySmall, color = Muted,
+                            lineHeight = 20.sp, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Icons.Outlined.Info, null, tint = Muted, modifier = Modifier.size(16.dp))
@@ -445,6 +457,7 @@ internal fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLog
     var showColors by rememberSaveable { mutableStateOf(false) }
     var showAbout by rememberSaveable { mutableStateOf(false) }
     var updatesExpanded by rememberSaveable { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)) {
         LibraryPageHeader("设置", "简单一点，刚刚好。")
@@ -465,14 +478,16 @@ internal fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLog
             }
         }
         SettingsGroup {
+            SettingsEntry(Icons.Outlined.Language, "官方网站", "北京建筑大学图书馆",
+                onClick = { uriHandler.openUri(OfficialLibraryUrl) })
+            HorizontalDivider(color = Line)
             SettingsEntry(Icons.Outlined.Info, "关于这个客户端", "北建大图书馆选座", onClick = { showAbout = true })
             HorizontalDivider(color = Line)
-            val uriHandler = LocalUriHandler.current
             SettingsEntry(Icons.Outlined.Edit, "问题与建议", "分享你的使用体验", onClick = { uriHandler.openUri("$ProjectUrl/issues") })
             HorizontalDivider(color = Line)
             CommunityGroupEntry()
         }
-        Text("BUCEA LIBRARY · 非官方客户端", color = Muted, fontSize = 11.sp,
+        Text("BUCEA-LIBRARY-SEAT · 非官方客户端", color = Muted, fontSize = 11.sp,
             modifier = Modifier.align(Alignment.CenterHorizontally))
     }
     if (showColors) BusinessSelectionSheet(onDismissRequest = { showColors = false }, title = { Text("主题颜色") },
