@@ -68,6 +68,14 @@ Pages 发布依赖正确的账户 ID、项目名称与 API token。`pages.yml` �
 
 [首次生产部署](https://github.com/miofelix/bucea-library-seat/actions/runs/38788641625) 展示 `v1.0.0` 并提供五种 R2 APK 下载。1.0.1 及后续版本由发布工作流读取最新 R2 元数据更新网页，每次同步仍需核对 Actions 结果、两站页面版本和下载链接；本版结果见 [RELEASE_VALIDATION_1.0.1.md](RELEASE_VALIDATION_1.0.1.md)。
 
+### 2026-10-16 双站同步验证
+
+提交 [`592ed14`](https://github.com/miofelix/bucea-library-seat/commit/592ed14a4d1bb876f9c86ee66aa25b53eade2ff3) 推送后自动触发的 [部署任务 `38801145837`](https://github.com/miofelix/bucea-library-seat/actions/runs/38801145837) 成功，网页 job 用时 3 分 27 秒，Cloudflare 和 GitHub Pages 部署均通过。公开 GET 确认两站 `index.html` 与 `release.json` 分别逐字节一致，版本为 `1.0.1 / versionCode 15`，五个 APK 链接均指向 R2 的 `v1.0.1`。GitHub Pages 的 25 项静态资源（含许可文本、样式、JavaScript、图标与座位图）与本地源码逐字节一致。
+
+手动同步已有 `v1.0.1` 的 [任务 `38801360440`](https://github.com/miofelix/bucea-library-seat/actions/runs/38801360440) 也成功，`publish` 用时 34 秒、`website` 用时 33 秒，完成 R2 校验及两站部署，无需重新发布 App、APK 或 Release。
+
+Ego 浏览器在 1920px 桌面宽度下确认 GitHub Pages 首页版本、五个下载链接、许可入口和无横向溢出。390px 手机宽度下首页显示 `1.0.1`，从页脚进入项目路径下的 `licenses.html`，展开 MIT 后可读到完整免责声明，返回官网链接正常回到 GitHub Pages 项目根路径，首页与许可页均无横向溢出。API 确认 `github-pages` 环境允许 `main` 分支与 `v*` 标签。actionlint、14 项网站测试、JavaScript 语法检查和格式检查通过。
+
 ## 内容维护
 
 - 发布新版 APK 后，R2 发布任务生成版本、包大小和下载元数据，官网构建据此更新页面，避免手动维护多份版本号。下载按钮指向 `https://download.miofelix.com/bucea-library-seat/releases/<tag>/<name>`；保留 GitHub Release 页面作为发行说明与备用来源。确认 R2 对象和元数据可读后再部署页面。
