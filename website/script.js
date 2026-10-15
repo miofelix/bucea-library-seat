@@ -1,74 +1,46 @@
 "use strict";
 
-// This is a local demonstration. No library account or live inventory is used.
-const previewCopy = {
-  overview: ["今天，也给专注<br>留一点时间。", "去图书馆，找回自己的节奏。"],
-  map: ["为专注，<br>找一个喜欢的位置。", "看布局选座，把喜欢的角落找到。"],
-  favorites: ["喜欢的位置，<br>下次还坐这里。", "长按收藏，下次不必重新寻找。"],
+// This mockup follows the current Android screens while keeping the page
+// self-contained and free of account-specific screenshots.
+const heroPhone = document.querySelector(".illustrative-phone");
+const heroTabs = [...document.querySelectorAll(".actual-ui-tabs [role=tab]")];
+const heroPanels = {
+  search: document.querySelector(".mock-search-panel"),
+  layout: document.querySelector(".mock-layout-panel"),
+  library: document.querySelector(".mock-library-panel"),
 };
-const previewTabs = [...document.querySelectorAll(".phone-tabs [role=tab]")];
-
-function selectPreview(tab) {
-  previewTabs.forEach((item) => {
+function selectHeroScreenshot(tab) {
+  heroTabs.forEach((item) => {
     const selected = item === tab;
     item.setAttribute("aria-selected", String(selected));
     item.tabIndex = selected ? 0 : -1;
-    document.getElementById(item.getAttribute("aria-controls")).hidden =
-      !selected;
   });
-  const [title, subtitle] = previewCopy[tab.dataset.panel];
-  document.getElementById("preview-title").innerHTML = title;
-  document.getElementById("preview-subtitle").textContent = subtitle;
+  heroPhone.dataset.screen = tab.dataset.screen;
+  Object.entries(heroPanels).forEach(([name, panel]) => {
+    panel.hidden = name !== tab.dataset.screen;
+  });
 }
-
-previewTabs.forEach((tab, index) => {
-  tab.addEventListener("click", () => selectPreview(tab));
+heroTabs.forEach((tab, index) => {
+  tab.addEventListener("click", () => selectHeroScreenshot(tab));
   tab.addEventListener("keydown", (event) => {
     let next;
-    if (event.key === "ArrowRight") next = (index + 1) % previewTabs.length;
+    if (event.key === "ArrowRight") next = (index + 1) % heroTabs.length;
     if (event.key === "ArrowLeft")
-      next = (index - 1 + previewTabs.length) % previewTabs.length;
+      next = (index - 1 + heroTabs.length) % heroTabs.length;
     if (event.key === "Home") next = 0;
-    if (event.key === "End") next = previewTabs.length - 1;
+    if (event.key === "End") next = heroTabs.length - 1;
     if (next === undefined) return;
     event.preventDefault();
-    selectPreview(previewTabs[next]);
-    previewTabs[next].focus();
+    selectHeroScreenshot(heroTabs[next]);
+    heroTabs[next].focus();
   });
 });
-
-const seatMap = document.getElementById("seat-map");
-const occupiedSeats = new Set([2, 5, 8, 9, 14, 19, 22]);
-for (let index = 0; index < 24; index += 1) {
-  const button = document.createElement("button");
-  const number = String(index + 25).padStart(3, "0");
-  const occupied = occupiedSeats.has(index);
-  button.type = "button";
-  button.textContent = number;
-  button.disabled = occupied;
-  button.setAttribute(
-    "aria-label",
-    `示例座位 ${number}，${occupied ? "使用中" : "空闲，点击选择"}`,
-  );
-  if (!occupied) {
-    button.setAttribute("aria-pressed", "false");
-    button.addEventListener("click", () => {
-      seatMap.querySelectorAll("[aria-pressed]").forEach((item) => {
-        item.setAttribute("aria-pressed", String(item === button));
-      });
-      document.getElementById("seat-feedback").textContent =
-        `已选示例座位 ${number} · 实际预约请在 App 中完成。`;
-    });
-  }
-  seatMap.append(button);
-}
 
 document.querySelectorAll(".theme-picker button").forEach((button) => {
   button.addEventListener("click", () => {
     document.querySelectorAll(".theme-picker button").forEach((item) => {
       item.setAttribute("aria-pressed", String(item === button));
     });
-    document.querySelector(".phone").dataset.theme = button.dataset.theme;
     document.querySelector(".theme-preview").dataset.theme =
       button.dataset.theme;
     document.getElementById("theme-name").textContent =
@@ -79,6 +51,7 @@ document.querySelectorAll(".theme-picker button").forEach((button) => {
 const dialog = document.getElementById("image-dialog");
 const enlargedImage = document.getElementById("enlarged-image");
 document.querySelectorAll(".screenshot-card").forEach((button) => {
+  if (!button.dataset.image) return;
   button.addEventListener("click", () => {
     enlargedImage.src = button.dataset.image;
     enlargedImage.alt = button.querySelector("img").alt;

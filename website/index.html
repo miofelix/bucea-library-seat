@@ -152,168 +152,135 @@
           <span class="visual-label">A LITTLE SPACE FOR FOCUS</span>
           <div class="orbit orbit-one" aria-hidden="true"></div>
           <div class="orbit orbit-two" aria-hidden="true"></div>
-          <div class="phone" data-theme="purple">
-            <div class="phone-status" aria-hidden="true">
-              <span>9:41</span><span class="camera"></span
-              ><span>▰ <span class="battery"></span></span>
+          <div class="phone illustrative-phone" data-screen="search">
+            <div class="mock-status" aria-hidden="true">
+              <span>9:41</span><span>⌁ 100%</span>
             </div>
-            <div
-              class="phone-tabs"
-              role="tablist"
-              aria-label="App 功能交互预览"
-            >
-              <button
-                id="tab-overview"
-                type="button"
-                role="tab"
-                aria-selected="true"
-                aria-controls="preview-overview"
-                tabindex="0"
-                data-panel="overview"
-              >
-                <svg class="icon"><use href="#i-book" /></svg>馆览</button
-              ><button
-                id="tab-map"
-                type="button"
-                role="tab"
-                aria-selected="false"
-                aria-controls="preview-map"
-                tabindex="-1"
-                data-panel="map"
-              >
-                <svg class="icon"><use href="#i-grid" /></svg>选座</button
-              ><button
-                id="tab-favorites"
-                type="button"
-                role="tab"
-                aria-selected="false"
-                aria-controls="preview-favorites"
-                tabindex="-1"
-                data-panel="favorites"
-              >
-                <svg class="icon"><use href="#i-star" /></svg>收藏
-              </button>
-            </div>
-            <div class="phone-screen">
-              <div class="app-heading">
-                <span>BUCEA / LIBRARY</span
-                ><svg class="icon"><use href="#i-sun" /></svg>
+            <div class="mock-screen">
+              <div class="mock-heading">
+                <span>BUCEA / LIBRARY</span><span class="mock-refresh">↻</span>
               </div>
-              <h2 class="app-title" id="preview-title">
-                今天，也给专注<br />留一点时间。
-              </h2>
-              <p class="app-subtitle" id="preview-subtitle">
-                去图书馆，找回自己的节奏。
-              </p>
-              <div
-                id="preview-overview"
-                class="preview-panel"
-                role="tabpanel"
-                tabindex="0"
-                aria-labelledby="tab-overview"
-              >
-                <div class="overview-card">
-                  <div class="card-label">
-                    <svg class="icon"><use href="#i-book" /></svg> 当前馆内概况
-                    <span class="sync-dot"></span>
-                  </div>
-                  <div class="overview-stats">
-                    <div><strong>172</strong><span>空闲座位</span></div>
-                    <div><strong>1,475</strong><span>正在使用</span></div>
-                    <div><strong>9</strong><span>等待签到</span></div>
-                  </div>
-                  <div class="usage-bar">
-                    <span></span><span></span><span></span>
-                  </div>
-                  <p class="card-note">馆内状态一目了然，选一个适合的位置。</p>
-                </div>
-                <div class="region-heading">
-                  <strong>各区域座位</strong
-                  ><span>今天 <span class="tiny-arrow">↗</span></span>
-                </div>
-                <div class="region-grid">
-                  <div class="region-card">
-                    <span>二层内环区</span><small>图书馆 · 2 层</small>
-                    <p><b>34</b> 空闲 <span>/ 292</span></p>
-                    <div class="mini-bar"><span></span></div>
-                  </div>
-                  <div class="region-card">
-                    <span>二层西区</span><small>图书馆 · 2 层</small>
-                    <p><b>17</b> 空闲 <span>/ 128</span></p>
-                    <div class="mini-bar short"><span></span></div>
-                  </div>
-                </div>
-                <div class="app-tip">
-                  <svg class="icon"><use href="#i-star" /></svg
-                  ><span>常坐的位置，收藏起来。</span><span>↗</span>
-                </div>
+              <h2>选座</h2>
+              <p class="mock-subtitle">为专注，找一个喜欢的位置。</p>
+              <div class="mock-segment">
+                <span class="selected">自选座位</span><span>布局选座</span>
               </div>
-              <div
-                id="preview-map"
-                class="preview-panel"
-                role="tabpanel"
-                aria-labelledby="tab-map"
-                hidden
-              >
-                <div class="map-heading">
-                  <strong>二层内环区</strong><span>图书馆 · 2 层</span>
+              <div class="mock-panel mock-search-panel">
+                <div class="mock-dates">
+                  <span class="selected"><b>▦</b> 2026-10-15</span
+                  ><span><b>▦</b> 2026-10-16</span>
                 </div>
-                <div class="map-legend">
-                  <span><i></i>空闲</span><span><i></i>使用中</span
-                  ><span><i></i>已选择</span>
-                </div>
-                <div
-                  class="seat-map"
-                  id="seat-map"
-                  aria-label="座位布局示意，点击空闲座位体验"
-                ></div>
-                <p class="seat-feedback" id="seat-feedback" aria-live="polite">
-                  点一个绿色座位，看看你喜欢的位置。
-                </p>
-                <a class="preview-download" href="#download"
-                  >在 App 中选座预约 <span>↗</span></a
-                >
-              </div>
-              <div
-                id="preview-favorites"
-                class="preview-panel"
-                role="tabpanel"
-                tabindex="0"
-                aria-labelledby="tab-favorites"
-                hidden
-              >
-                <div class="favorite-heading">
-                  <svg class="icon"><use href="#i-star" /></svg
-                  ><span>喜欢的位置，下次还来。</span>
-                </div>
-                <div class="favorite-card">
-                  <span class="seat-number">037</span>
+                <div class="mock-fields">
                   <div>
-                    <strong>二层内环区</strong><span>图书馆 · 2 层</span>
+                    <small>场馆</small><strong>不限场馆</strong><b>⌄</b>
                   </div>
-                  <svg class="icon"><use href="#i-star" /></svg>
+                  <div>
+                    <small>阅览区域</small><strong>不限房间</strong><b>⌄</b>
+                  </div>
                 </div>
-                <div class="favorite-card">
-                  <span class="seat-number">128</span>
-                  <div><strong>三层东区</strong><span>图书馆 · 3 层</span></div>
-                  <svg class="icon"><use href="#i-star" /></svg>
-                </div>
-                <div class="favorite-note">
-                  <svg class="icon"><use href="#i-book" /></svg>
-                  <p>长按座位卡片收藏，<br />把熟悉的位置留在手边。</p>
+                <div class="mock-input"><span>⌕</span> 座位号（可选）</div>
+                <div class="mock-filter">时间、电源与靠窗 <b>⌄</b></div>
+                <div class="mock-search-button">⌕ &nbsp;查找可用座位</div>
+                <p class="mock-hint">可用日期与条件已更新，请查询座位</p>
+                <h3>座位结果</h3>
+                <div class="mock-switch-row">
+                  <span>仅看可用<small>只筛选本页已加载座位</small></span
+                  ><i></i>
                 </div>
               </div>
+              <div class="mock-panel mock-layout-panel" hidden>
+                <div class="mock-dates">
+                  <span class="selected">今天 10/15</span
+                  ><span>明天 10/16</span>
+                </div>
+                <div class="mock-fields">
+                  <div><small>场馆</small><strong>图书馆</strong><b>⌄</b></div>
+                  <div>
+                    <small>楼层</small><strong>图书馆2层</strong><b>⌄</b>
+                  </div>
+                </div>
+                <small class="mock-browse-label">阅览区域</small>
+                <div class="mock-regions">
+                  <span>二层内环区</span><span>二层西区</span>
+                </div>
+                <div class="mock-empty-icon">▦</div>
+                <h3 class="mock-empty-title">找到你喜欢的位置</h3>
+                <p class="mock-empty-copy">选择上方阅览区域，加载座位布局</p>
+              </div>
+              <div class="mock-panel mock-library-panel" hidden>
+                <h3 class="mock-library-title">我的图书馆</h3>
+                <p class="mock-subtitle">按时间，安排下一次到馆。</p>
+                <div class="mock-library-tabs">
+                  <span class="selected">我的预约</span><span>收藏座位</span
+                  ><span>常用座位</span><span>违约记录</span>
+                </div>
+                <div class="mock-reservation">
+                  <small>▣ &nbsp; 当前预约</small
+                  ><strong>暂无进行中的预约</strong>
+                  <p>当前没有可签到的预约，已预约座位请查看预约记录</p>
+                </div>
+                <h3 class="mock-timeline-title">预约时间线</h3>
+                <p class="mock-timeline-copy">
+                  已加载的预约按时间排列，加载更多可查看其余记录。
+                </p>
+              </div>
+              <nav class="mock-bottom-nav" aria-label="示意底部导航">
+                <span>⌂<small>首页</small></span
+                ><span class="active">▦<small>选座</small></span
+                ><span>▱<small>我的</small></span
+                ><span>♙<small>账号</small></span
+                ><span>⚙<small>设置</small></span>
+              </nav>
             </div>
-            <div class="home-indicator" aria-hidden="true"></div>
           </div>
-          <div class="floating-note">
+          <div
+            class="actual-ui-tabs mock-ui-tabs"
+            role="tablist"
+            aria-label="查看示意界面"
+          >
+            <button
+              id="hero-tab-search"
+              type="button"
+              role="tab"
+              aria-selected="true"
+              tabindex="0"
+              data-screen="search"
+            >
+              <svg class="icon"><use href="#i-grid" /></svg
+              ><span>自选座位</span>
+            </button>
+            <button
+              id="hero-tab-layout"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              tabindex="-1"
+              data-screen="layout"
+            >
+              <svg class="icon"><use href="#i-grid" /></svg
+              ><span>布局选座</span>
+            </button>
+            <button
+              id="hero-tab-library"
+              type="button"
+              role="tab"
+              aria-selected="false"
+              tabindex="-1"
+              data-screen="library"
+            >
+              <svg class="icon"><use href="#i-book" /></svg
+              ><span>我的图书馆</span>
+            </button>
+          </div>
+          <div class="floating-note actual-note">
             <span class="note-icon"
               ><svg class="icon"><use href="#i-check" /></svg></span
-            ><span>喜欢的位置，<br /><strong>刚好有空。</strong></span
-            ><span class="note-spark" aria-hidden="true">✳</span>
+            ><span
+              >当前版本 UI 示意<br /><strong>按真实页面还原。</strong></span
+            >
           </div>
           <p class="preview-caption">
-            <span></span> 可切换下方标签体验 · 界面示意，数据为示例
+            <span></span> 当前版本 UI 示意 · 与 App 结构保持一致
           </p>
         </div>
       </section>
@@ -561,63 +528,121 @@
           <div>
             <p class="eyebrow">少即是多，顺手就好</p>
             <h2 id="screenshots-title">
-              真实界面，<span>简单如你所见。</span>
+              界面示意，<span>贴近实际使用。</span>
             </h2>
           </div>
           <p>
-            原生 Android 体验，清爽的留白设计。<br />点击图片，可以放大看看。
+            按当前 Android 版本的页面结构绘制。<br />示意 UI
+            不含真实账号或实时数据。
           </p>
         </div>
         <div class="screenshots">
-          <button
-            class="screenshot-card"
-            type="button"
-            data-image="./assets/seats.webp"
-            data-caption="自选座位 · 查看座位状态，按条件查找"
-          >
+          <article class="screenshot-card">
             <span class="screenshot-label"
-              ><b>01</b> 按条件，找到合适的位置 <span>↗</span></span
-            ><span class="screenshot-device"
-              ><img
-                src="./assets/seats.webp"
-                width="432"
-                height="938"
-                loading="lazy"
-                alt="App 自选座位页面，包含日期和区域筛选"
-            /></span></button
-          ><button
-            class="screenshot-card"
-            type="button"
-            data-image="./assets/map.webp"
-            data-caption="布局选座 · 拖动和缩放，查看真实座位布局"
-          >
+              ><b>01</b> 自选座位 · 按条件查找 <span>↗</span></span
+            >
+            <div class="screenshot-device illustration-device">
+              <div class="mini-status">9:41 <span>⌁ 100%</span></div>
+              <div class="mini-heading">BUCEA / LIBRARY <span>↻</span></div>
+              <h3>选座</h3>
+              <p>为专注，找一个喜欢的位置。</p>
+              <div class="mini-segment">
+                <span class="selected">自选座位</span><span>布局选座</span>
+              </div>
+              <div class="mini-date-row">
+                <span class="selected">▦ 2026-10-15</span
+                ><span>▦ 2026-10-16</span>
+              </div>
+              <div class="mini-field-row">
+                <span>场馆<strong>不限场馆</strong></span
+                ><span>阅览区域<strong>不限房间</strong></span>
+              </div>
+              <div class="mini-input">⌕　座位号（可选）</div>
+              <div class="mini-filter">时间、电源与靠窗⌄</div>
+              <div class="mini-button">⌕　查找可用座位</div>
+              <div class="mini-bottom">
+                <span>⌂<small>首页</small></span
+                ><span class="active">▦<small>选座</small></span
+                ><span>▱<small>我的</small></span
+                ><span>♙<small>账号</small></span
+                ><span>⚙<small>设置</small></span>
+              </div>
+            </div>
+          </article>
+          <article class="screenshot-card">
             <span class="screenshot-label"
-              ><b>02</b> 看布局，选一个喜欢的角落 <span>↗</span></span
-            ><span class="screenshot-device"
-              ><img
-                src="./assets/map.webp"
-                width="432"
-                height="938"
-                loading="lazy"
-                alt="App 座位地图页面，显示区域内的座位分布"
-            /></span></button
-          ><button
-            class="screenshot-card"
-            type="button"
-            data-image="./assets/settings.webp"
-            data-caption="应用设置 · 主题、更新和登录偏好"
-          >
+              ><b>02</b> 布局选座 · 先选区域 <span>↗</span></span
+            >
+            <div class="screenshot-device illustration-device">
+              <div class="mini-status">9:41 <span>⌁ 100%</span></div>
+              <div class="mini-heading">BUCEA / LIBRARY <span>↻</span></div>
+              <h3>选座</h3>
+              <p>为专注，找一个喜欢的位置。</p>
+              <div class="mini-segment">
+                <span>自选座位</span><span class="selected">布局选座</span>
+              </div>
+              <div class="mini-date-row">
+                <span class="selected">今天 10/15</span><span>明天 10/16</span>
+              </div>
+              <div class="mini-field-row">
+                <span>场馆<strong>图书馆</strong></span
+                ><span>楼层<strong>图书馆2层</strong></span>
+              </div>
+              <small class="mini-label">阅览区域</small>
+              <div class="mini-regions">
+                <span>二层内环区</span><span>二层西区</span>
+              </div>
+              <div class="mini-empty">
+                ▦<strong>找到你喜欢的位置</strong
+                ><small>选择上方阅览区域，加载座位布局</small>
+              </div>
+              <div class="mini-bottom">
+                <span>⌂<small>首页</small></span
+                ><span class="active">▦<small>选座</small></span
+                ><span>▱<small>我的</small></span
+                ><span>♙<small>账号</small></span
+                ><span>⚙<small>设置</small></span>
+              </div>
+            </div>
+          </article>
+          <article class="screenshot-card">
             <span class="screenshot-label"
-              ><b>03</b> 小细节，也合你的习惯 <span>↗</span></span
-            ><span class="screenshot-device"
-              ><img
-                src="./assets/settings.webp"
-                width="432"
-                height="938"
-                loading="lazy"
-                alt="App 设置页面，提供主题色、应用更新和登录偏好选项"
-            /></span>
-          </button>
+              ><b>03</b> 设置 · 更新与主题偏好 <span>↗</span></span
+            >
+            <div class="screenshot-device illustration-device">
+              <div class="mini-status">9:41 <span>⌁ 100%</span></div>
+              <div class="mini-heading">BUCEA / LIBRARY <span>⌁</span></div>
+              <h3>设置</h3>
+              <p>简单一点，刚刚好。</p>
+              <div class="mini-settings-card">
+                <div>
+                  <strong>应用更新</strong><small>检查并管理新版本</small
+                  ><b>⌄</b>
+                </div>
+                <div>
+                  <strong>主题颜色</strong><small>建大紫 <i></i></small>
+                </div>
+              </div>
+              <h4>登录偏好</h4>
+              <div class="mini-settings-card mini-toggles">
+                <div>
+                  <strong>自动恢复登录</strong><small>下次打开时恢复会话</small
+                  ><i class="on"></i>
+                </div>
+                <div>
+                  <strong>失败时自动切换账号</strong
+                  ><small>使用下一个已保存账号</small><i></i>
+                </div>
+              </div>
+              <div class="mini-bottom">
+                <span>⌂<small>首页</small></span
+                ><span>▦<small>选座</small></span
+                ><span>▱<small>我的</small></span
+                ><span>♙<small>账号</small></span
+                ><span class="active">⚙<small>设置</small></span>
+              </div>
+            </div>
+          </article>
         </div>
       </section>
 
