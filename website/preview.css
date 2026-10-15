@@ -887,3 +887,306 @@
     transform: none;
   }
 }
+
+/* The loaded room map scrolls below the same fixed selection header as the app. */
+[data-screen="layout"] .mock-scroll {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 10px;
+}
+
+[data-screen="layout"] .mock-scroll > .mock-heading,
+[data-screen="layout"] .mock-scroll > .mock-page-title,
+[data-screen="layout"] .mock-scroll > .mock-subtitle,
+[data-screen="layout"] .mock-scroll > .mock-segment {
+  flex-shrink: 0;
+}
+
+[data-screen="layout"] .mock-layout-panel {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  padding: 2px 2px 10px;
+}
+
+.mock-layout-panel::-webkit-scrollbar {
+  display: none;
+}
+
+.mock-layout-panel:focus-visible {
+  outline: 2px solid #9c72ae;
+  outline-offset: -2px;
+  border-radius: 12px;
+}
+
+.mock-layout-filters {
+  padding: 10px;
+}
+
+.mock-layout-filters .mock-dates {
+  gap: 6px;
+}
+
+.mock-layout-filters .mock-dates > span {
+  padding: 9px 5px;
+  border-radius: 10px;
+  font-size: 9px;
+}
+
+.mock-layout-filters .mock-fields {
+  gap: 7px;
+  margin-top: 8px;
+}
+
+.mock-layout-filters .mock-fields > div {
+  min-height: 59px;
+  padding: 9px;
+  border-radius: 10px;
+}
+
+.mock-layout-filters .mock-fields strong {
+  margin-top: 7px;
+  padding-right: 12px;
+  font-size: 10px;
+}
+
+.mock-layout-filters .mock-fields b {
+  right: 8px;
+  bottom: 11px;
+  font-size: 15px;
+}
+
+.mock-layout-filters .mock-browse-label {
+  margin-top: 10px;
+}
+
+.mock-layout-filters .mock-regions {
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.mock-layout-filters .mock-regions span {
+  padding: 9px 8px;
+  border-radius: 9px;
+  font-size: 9px;
+}
+
+.mock-layout-filters .mock-regions .selected {
+  border-color: transparent;
+  background: #f0eaf3;
+  color: #6c397f;
+}
+
+.mock-map-section {
+  padding-top: 12px;
+}
+
+.mock-map-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 19px;
+}
+
+.mock-map-heading strong {
+  color: #343138;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.mock-map-heading small {
+  color: #77747b;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.mock-map-modes {
+  display: flex;
+  gap: 2px;
+  margin-top: 8px;
+  padding: 2px;
+  border-radius: 11px;
+  background: #efeff0;
+}
+
+.mock-map-modes > span {
+  flex: 1;
+  padding: 5px 2px;
+  border-radius: 8px;
+  color: #77747b;
+  font-size: 8px;
+  line-height: 16px;
+  text-align: center;
+}
+
+.mock-map-modes > .selected {
+  background: #fff;
+  color: #6c397f;
+}
+
+.mock-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin-top: 9px;
+}
+
+.mock-map-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #343138;
+  font-size: 7px;
+  line-height: 13px;
+  white-space: nowrap;
+}
+
+.mock-map-legend i {
+  display: inline-grid;
+  width: 13px;
+  height: 13px;
+  place-items: center;
+  border-radius: 3px;
+  background: var(--seat-color, #087f6d);
+  color: #fff;
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.mock-map-fit {
+  margin: 3px 0 4px;
+  color: #6c397f;
+  font-size: 8px;
+  line-height: 21px;
+  text-align: right;
+}
+
+.mock-room-map {
+  position: relative;
+  height: 190px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.mock-map-window,
+.mock-map-wall,
+.mock-map-table,
+.mock-map-entrance {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  color: #77747b;
+  font-size: 7px;
+  line-height: 1;
+  text-align: center;
+}
+
+.mock-map-window {
+  top: 4%;
+  width: 25%;
+  height: 6%;
+  border-radius: 3px;
+  background: #e1e9f0;
+}
+
+.mock-map-wall {
+  top: 4%;
+  left: 3%;
+  width: 1.5%;
+  height: 83%;
+  border-radius: 2px;
+  background: #b7b8bc;
+}
+
+.mock-map-table {
+  width: 25%;
+  height: 8%;
+  border-radius: 4px;
+  background: #eeeef0;
+}
+
+.mock-map-entrance {
+  right: 40%;
+  bottom: 3%;
+  left: 40%;
+  height: 7%;
+  border-radius: 3px;
+  background: #eeeef0;
+}
+
+.mock-map-seat {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border-radius: 4px;
+  background: var(--seat-color, #087f6d);
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.mock-map-seat::before,
+.mock-map-seat::after {
+  position: absolute;
+  right: 12%;
+  left: 12%;
+  content: "";
+  border-radius: 1px;
+  background: var(--seat-color, #087f6d);
+}
+
+.mock-map-seat::before {
+  top: -3px;
+  height: 2px;
+}
+
+.mock-map-seat::after {
+  bottom: -3px;
+  height: 1px;
+}
+
+.mock-map-seat b {
+  font-size: 6.5px;
+  font-weight: 600;
+}
+
+.mock-map-seat small {
+  font-size: 5.5px;
+}
+
+.mock-map-seat > i {
+  position: absolute;
+  right: 2px;
+  bottom: 3px;
+  width: 3px;
+  height: 3px;
+  border: 1px solid #fff;
+  border-radius: 50%;
+  background: #172535;
+}
+
+.mock-map-tip {
+  margin-top: 8px;
+  color: #77747b;
+  font-size: 7px;
+  line-height: 1.65;
+}
+
+@media (max-width: 370px) {
+  .illustrative-phone .mock-room-map {
+    height: 155px;
+  }
+}

@@ -3,6 +3,73 @@
 // Both preview areas use the same illustrated Android screens.
 const heroPhone = document.querySelector(".illustrative-phone");
 const heroTabs = [...document.querySelectorAll(".actual-ui-tabs [role=tab]")];
+
+// Synthetic room geometry, drawn with the same chair shapes and status palette
+// as NativeRoomCanvas. This is an illustration, not a floor plan or live data.
+const mapSeatStyles = {
+  free: { label: "空闲", marker: "空", color: "#087f6d" },
+  occupied: { label: "使用中", marker: "用", color: "#b33f32" },
+  reserved: { label: "已预约", marker: "约", color: "#94600a" },
+  away: { label: "暂离", marker: "离", color: "#754ba5" },
+  unavailable: { label: "不可用", marker: "停", color: "#586471" },
+  unknown: { label: "未知状态", marker: "?", color: "#626c79" },
+  local: { label: "仅限现场", marker: "现", color: "#2756a4" },
+};
+const illustratedMapSeats = [
+  "free",
+  "occupied",
+  "free",
+  "reserved",
+  "free",
+  "away",
+  "occupied",
+  "free",
+  "free",
+  "local",
+  "unavailable",
+  "free",
+  "free",
+  "reserved",
+  "occupied",
+  "free",
+  "free",
+  "away",
+  "free",
+  "unknown",
+  "reserved",
+  "free",
+  "occupied",
+  "free",
+];
+const roomMap = heroPhone.querySelector(".mock-room-map");
+const mapLegend = heroPhone.querySelector(".mock-map-legend");
+Object.values(mapSeatStyles).forEach((style) => {
+  const item = document.createElement("span");
+  item.style.setProperty("--seat-color", style.color);
+  const marker = document.createElement("i");
+  marker.textContent = style.marker;
+  marker.setAttribute("aria-hidden", "true");
+  item.append(marker, document.createTextNode(style.label));
+  mapLegend.append(item);
+});
+illustratedMapSeats.forEach((state, index) => {
+  const seat = document.createElement("span");
+  seat.className = "mock-map-seat";
+  seat.style.setProperty("--seat-color", mapSeatStyles[state].color);
+  seat.style.left = `${[8, 17, 26, 61, 70, 79][index % 6]}%`;
+  seat.style.top = `${[16, 37, 58, 79][Math.floor(index / 6)]}%`;
+  seat.style.width = "7%";
+  seat.style.height = "10%";
+  seat.setAttribute("aria-hidden", "true");
+  const number = document.createElement("b");
+  number.textContent = String(index + 1).padStart(3, "0");
+  const marker = document.createElement("small");
+  marker.textContent = mapSeatStyles[state].marker;
+  seat.append(number, marker);
+  if (index % 3 === 0) seat.append(document.createElement("i"));
+  roomMap.append(seat);
+});
+
 const screenDefinitions = {
   home: {
     title: "首页",
@@ -80,6 +147,7 @@ function showIllustration(device, screen) {
     item.classList.toggle("active", item.dataset.nav === definition.nav);
   });
   const scroller = device.querySelector(".mock-scroll");
+  scroller.tabIndex = screen === "layout" ? -1 : 0;
   scroller.setAttribute(
     "aria-label",
     `${definition.title}界面示意，可上下滚动`,
@@ -88,6 +156,10 @@ function showIllustration(device, screen) {
   if (screen === "regions") {
     const regions = device.querySelector(".mock-region-section");
     scroller.scrollTop = regions.offsetTop - scroller.offsetTop - 12;
+  }
+  if (screen === "layout") {
+    const layout = device.querySelector(".mock-layout-panel");
+    layout.scrollTop = layout.querySelector(".mock-map-heading").offsetTop;
   }
 }
 

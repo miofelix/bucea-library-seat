@@ -3204,25 +3204,6 @@ details a {
   color: #716d75;
   font-size: 10px;
 }
-.mock-empty-icon {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  margin: 51px auto 15px;
-  border-radius: 50%;
-  background: #f0eaf3;
-  color: var(--brand);
-  font-size: 24px;
-}
-.mock-empty-title {
-  text-align: center;
-}
-.mock-empty-copy {
-  color: #77727a;
-  font-size: 10px;
-  text-align: center;
-}
 .mock-library-title {
   margin: 18px 0 1px !important;
   font-size: 24px !important;
