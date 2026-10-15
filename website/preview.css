@@ -1078,49 +1078,11 @@
   background: #fff;
 }
 
-.mock-map-window,
-.mock-map-wall,
-.mock-map-table,
-.mock-map-entrance {
-  position: absolute;
-  display: grid;
-  place-items: center;
-  color: #77747b;
-  font-size: 7px;
-  line-height: 1;
-  text-align: center;
-}
-
-.mock-map-window {
-  top: 4%;
-  width: 25%;
-  height: 6%;
-  border-radius: 3px;
-  background: #e1e9f0;
-}
-
-.mock-map-wall {
-  top: 4%;
-  left: 3%;
-  width: 1.5%;
-  height: 83%;
-  border-radius: 2px;
-  background: #b7b8bc;
-}
-
 .mock-map-table {
+  position: absolute;
   width: 25%;
   height: 8%;
   border-radius: 4px;
-  background: #eeeef0;
-}
-
-.mock-map-entrance {
-  right: 40%;
-  bottom: 3%;
-  left: 40%;
-  height: 7%;
-  border-radius: 3px;
   background: #eeeef0;
 }
 
