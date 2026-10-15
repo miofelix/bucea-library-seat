@@ -105,6 +105,13 @@
         <circle cx="10.5" cy="10.5" r="6.5" />
         <path d="m16 16 5 5" />
       </symbol>
+      <symbol id="i-calendar" viewBox="0 0 24 24">
+        <path
+          fill="currentColor"
+          stroke="none"
+          d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2Zm0 16H5V10h14v10Zm0-12H5V6h14v2ZM7 12h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2zM7 16h2v2H7zm4 0h2v2h-2zm4 0h2v2h-2z"
+        />
+      </symbol>
     </svg>
 
     <header class="site-header">
@@ -187,8 +194,15 @@
               </div>
               <div class="mock-panel mock-search-panel">
                 <div class="mock-dates">
-                  <span class="selected"><b>▦</b> 2026-10-15</span
-                  ><span><b>▦</b> 2026-10-16</span>
+                  <span class="selected"
+                    ><svg class="icon date-icon" aria-hidden="true">
+                      <use href="#i-calendar" /></svg
+                    ><span>2026-10-15</span></span
+                  ><span
+                    ><svg class="icon date-icon" aria-hidden="true">
+                      <use href="#i-calendar" /></svg
+                    ><span>2026-10-16</span></span
+                  >
                 </div>
                 <div class="mock-fields">
                   <div>
@@ -199,12 +213,17 @@
                   </div>
                 </div>
                 <div class="mock-input">
-                  <svg class="icon"><use href="#i-search" /></svg>
-                  座位号（可选）
+                  <svg class="icon" aria-hidden="true">
+                    <use href="#i-search" />
+                  </svg>
+                  <span>座位号（可选）</span>
                 </div>
                 <div class="mock-filter">时间、电源与靠窗 <b>⌄</b></div>
                 <div class="mock-search-button">
-                  <svg class="icon"><use href="#i-search" /></svg> 查找可用座位
+                  <svg class="icon" aria-hidden="true">
+                    <use href="#i-search" />
+                  </svg>
+                  <span>查找可用座位</span>
                 </div>
                 <p class="mock-hint">可用日期与条件已更新，请查询座位</p>
                 <h3>座位结果</h3>
@@ -577,19 +596,32 @@
                 <span class="selected">自选座位</span><span>布局选座</span>
               </div>
               <div class="mini-date-row">
-                <span class="selected">▦ 2026-10-15</span
-                ><span>▦ 2026-10-16</span>
+                <span class="selected"
+                  ><svg class="icon date-icon" aria-hidden="true">
+                    <use href="#i-calendar" /></svg
+                  ><span>2026-10-15</span></span
+                ><span
+                  ><svg class="icon date-icon" aria-hidden="true">
+                    <use href="#i-calendar" /></svg
+                  ><span>2026-10-16</span></span
+                >
               </div>
               <div class="mini-field-row">
                 <span>场馆<strong>不限场馆</strong></span
                 ><span>阅览区域<strong>不限房间</strong></span>
               </div>
               <div class="mini-input">
-                <svg class="icon"><use href="#i-search" /></svg>　座位号（可选）
+                <svg class="icon" aria-hidden="true">
+                  <use href="#i-search" />
+                </svg>
+                <span>座位号（可选）</span>
               </div>
               <div class="mini-filter">时间、电源与靠窗⌄</div>
               <div class="mini-button">
-                <svg class="icon"><use href="#i-search" /></svg>　查找可用座位
+                <svg class="icon" aria-hidden="true">
+                  <use href="#i-search" />
+                </svg>
+                <span>查找可用座位</span>
               </div>
               <div class="mini-bottom">
                 <span
@@ -842,10 +874,18 @@
             </p>
           </details>
           <details>
-            <summary>支持 iPhone 吗？安装包该怎么选？<span>+</span></summary>
+            <summary>
+              支持 iPhone 或鸿蒙系统吗？安装包该怎么选？<span>+</span>
+            </summary>
             <p>
-              目前提供 Android 版本，支持 Android 8.0 及以上。多数现代手机选择
-              ARM64 版；不确定架构时选择通用版。其他架构的独立安装包可以在
+              目前提供 Android APK，支持 Android 8.0
+              及以上。iPhone（iOS）暂不支持；仍兼容 Android APK
+              的鸿蒙设备可尝试安装，具体以设备兼容情况为准。HarmonyOS NEXT
+              等不支持 Android APK 的系统暂不适用，目前暂无鸿蒙原生版。
+            </p>
+            <p>
+              多数 Android 手机选择 ARM64
+              版；不确定架构时选择通用版。其他架构的独立安装包可以在
               <a
                 href="https://github.com/miofelix/bucea-library-seat/releases/latest"
                 >GitHub Releases</a
