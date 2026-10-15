@@ -77,21 +77,20 @@ class SeatPresentationInstrumentedTest {
         assertEquals("不可用", nativeMapSeatStyle("空闲", false).label)
     }
 
-    @Test fun availabilityFilterUsesTheServerFlagAndOnlyTheLoadedPage() {
-        val page = SeatSearchState(page = 2, hasSearched = true, hasNextPage = true, seats = listOf(
+    @Test fun availabilityFilterUsesTheServerFlagAcrossAllLoadedResults() {
+        val results = SeatSearchState(hasSearched = true, resultsComplete = true, seats = listOf(
             NativeSeat("a", "001A", "测试区域", status = "正在使用", available = true),
             NativeSeat("b", "001B", "测试区域", status = "空闲", available = false),
             NativeSeat("c", "001C", "测试区域", status = "未知", available = true),
         ))
-        val shown = SeatPresentationPolicy.visibleSeats(page.seats, true)
+        val shown = SeatPresentationPolicy.visibleSeats(results.seats, true)
         assertEquals(listOf("a", "c"), shown.map { it.id })
-        assertEquals(3, page.seats.size)
-        assertSame(page.seats, SeatPresentationPolicy.visibleSeats(page.seats, false))
-        assertTrue(page.hasNextPage)
-        assertEquals(2, page.page)
-        val unavailablePage = page.copy(seats = page.seats.filterNot { it.available })
-        assertTrue(SeatPresentationPolicy.visibleSeats(unavailablePage.seats, true).isEmpty())
-        assertTrue(unavailablePage.hasNextPage)
-        assertFalse(unavailablePage.seats.isEmpty())
+        assertEquals(3, results.seats.size)
+        assertSame(results.seats, SeatPresentationPolicy.visibleSeats(results.seats, false))
+        assertTrue(results.resultsComplete)
+        val unavailableResults = results.copy(seats = results.seats.filterNot { it.available })
+        assertTrue(SeatPresentationPolicy.visibleSeats(unavailableResults.seats, true).isEmpty())
+        assertTrue(unavailableResults.resultsComplete)
+        assertFalse(unavailableResults.seats.isEmpty())
     }
 }

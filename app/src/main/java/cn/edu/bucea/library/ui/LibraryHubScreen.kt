@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -49,6 +50,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -60,6 +62,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalConfiguration
@@ -97,6 +100,19 @@ data class LibraryHubState(
     val requiresLibraryWifi: Boolean = false,
 )
 
+/** The hub shares the server-backed time picker without leaving its current destination. */
+data class FavoriteBookingActions(
+    val state: SeatSearchState,
+    val onDate: (HubFavorite, String) -> Boolean,
+    val onRetryDates: () -> Unit,
+    val onStart: (String) -> Unit,
+    val onEnd: (String) -> Unit,
+    val onConfirm: () -> Unit,
+    val onDismiss: () -> Unit,
+    val onVerify: () -> Unit,
+    val onOpenReservations: () -> Unit,
+)
+
 /** Account-specific records, details and actions rendered entirely in Compose. */
 @Composable
 fun LibraryHubScreen(
@@ -113,11 +129,13 @@ fun LibraryHubScreen(
     onCancelRecord: (HubRecord) -> Unit,
     onOpenRecord: (HubRecord) -> Unit,
     onDismissRecord: () -> Unit,
+    favoriteBooking: FavoriteBookingActions? = null,
 ) {
     val context = LocalContext.current
     var confirmingAction by remember(state.currentStatus, state.currentDetails) { mutableStateOf<HubAction?>(null) }
     var removingFavorite by remember(state.section) { mutableStateOf<HubFavorite?>(null) }
     var cancellingRecord by remember(state.section) { mutableStateOf<HubRecord?>(null) }
+    var bookingFavorite by remember(state.section) { mutableStateOf<HubFavorite?>(null) }
     val maximumDialogHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.45f).coerceAtMost(360.dp)
     LaunchedEffect(state.actions, state.favorites, state.records) {
         if (confirmingAction?.id?.let { id -> state.actions.none { it.id == id } } == true) confirmingAction = null
@@ -140,7 +158,7 @@ fun LibraryHubScreen(
     }
     val subtitle = when (state.section) {
         HubSection.RESERVATIONS -> "按时间，安排下一次到馆。"
-        HubSection.FAVORITES -> "喜欢的位置，留到下次。"
+        HubSection.FAVORITES -> "在选座页长按座位卡片即可收藏，再次长按可取消收藏。"
         HubSection.FREQUENT -> "熟悉的位置，轻松找到。"
         HubSection.VIOLATIONS -> "每一次按时赴约，都值得。"
     }
@@ -209,7 +227,10 @@ fun LibraryHubScreen(
         item(key = "section-title") { LibrarySectionTitle(sectionTitle) }
         if (favoriteSection) {
             items(state.favorites, key = { "favorite_${it.id}" }) { favorite ->
-                FavoriteCard(favorite, state.loading, { onFavorite(favorite) }, { removingFavorite = favorite })
+                FavoriteCard(favorite, state.loading || favoriteBooking?.state?.reservationBusy == true, {
+                    onFavorite(favorite)
+                    if (favoriteBooking != null) bookingFavorite = favorite
+                }, { removingFavorite = favorite })
             }
         } else if (state.section == HubSection.RESERVATIONS) {
             if (state.hasMore) item(key = "timeline-scope") {
@@ -242,7 +263,7 @@ fun LibraryHubScreen(
                 },
                 message = when (state.section) {
                     HubSection.RESERVATIONS -> "找到合适的座位，开始一次专注时光。"
-                    HubSection.FAVORITES -> "在选座页收藏喜欢的位置，下次更快找到。"
+                    HubSection.FAVORITES -> "前往选座页，长按喜欢的座位卡片即可收藏。"
                     HubSection.FREQUENT -> "常用座位由图书馆系统根据使用记录生成。"
                     HubSection.VIOLATIONS -> "感谢你按时签到、合理使用座位。"
                 },
@@ -340,6 +361,73 @@ fun LibraryHubScreen(
                 }
             },
             dismissButton = { TextButton(enabled = !state.loading, onClick = { removingFavorite = null }, modifier = Modifier.heightIn(min = 48.dp)) { Text("取消") } },
+        )
+    }
+    if (favoriteBooking != null) bookingFavorite?.let { favorite ->
+        HubFavoriteBooking(favorite, favoriteBooking) {
+            favoriteBooking.onDismiss()
+            bookingFavorite = null
+        }
+    }
+}
+
+@Composable
+private fun HubFavoriteBooking(favorite: HubFavorite, booking: FavoriteBookingActions, onDismiss: () -> Unit) {
+    val state = booking.state
+    val dates = state.options["onDate"].orEmpty()
+    var selectedDate by remember(favorite.id, dates) {
+        mutableStateOf(state.filters["onDate"]?.takeIf { value -> dates.any { it.value == value } } ?: dates.firstOrNull()?.value)
+    }
+    var choosingTimes by remember(favorite.id) { mutableStateOf(false) }
+    LaunchedEffect(choosingTimes, state.selectedSeat, state.reservationBusy) {
+        if (choosingTimes && state.selectedSeat == null && !state.reservationBusy) onDismiss()
+    }
+    if (choosingTimes) {
+        state.selectedSeat?.takeIf { it.id == favorite.id }?.let { seat ->
+            NativeReservationDialog(state, seat, booking.onStart, booking.onEnd, booking.onConfirm, onDismiss,
+                booking.onVerify, booking.onOpenReservations)
+        }
+    } else {
+        BusinessSelectionSheet(
+            onDismissRequest = onDismiss,
+            title = { Text("选择预约日期") },
+            text = {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
+                    Text("${favorite.name} · ${favorite.location}", color = Muted, fontSize = 13.sp)
+                    if (state.loading) {
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                        Text("正在读取可预约日期…", color = Muted, fontSize = 12.sp)
+                    }
+                    state.error?.let { error ->
+                        Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp)
+                        TextButton(onClick = booking.onRetryDates, enabled = !state.loading) { Text("重新读取日期") }
+                    }
+                    if (!state.loading && state.error == null && dates.isEmpty()) {
+                        Text("图书馆暂未开放可预约日期。", color = Muted, fontSize = 13.sp)
+                        TextButton(onClick = booking.onRetryDates) { Text("重新读取日期") }
+                    }
+                    dates.forEach { date ->
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                            .background(if (selectedDate == date.value) SoftAccent else Color.Transparent)
+                            .selectable(selected = selectedDate == date.value, enabled = !state.loading && state.error == null,
+                                role = Role.RadioButton, onClick = { selectedDate = date.value })
+                            .heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Text(date.label, modifier = Modifier.weight(1f), fontSize = 14.sp,
+                                color = if (selectedDate == date.value) Accent else Ink)
+                            RadioButton(selected = selectedDate == date.value, onClick = null,
+                                enabled = !state.loading && state.error == null)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = !state.loading && state.error == null && dates.any { it.value == selectedDate },
+                    onClick = {
+                        selectedDate?.let { date -> if (booking.onDate(favorite, date)) choosingTimes = true }
+                    }) { Text("选择时间") }
+            },
+            dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
         )
     }
 }

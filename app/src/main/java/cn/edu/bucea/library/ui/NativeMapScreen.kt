@@ -3,6 +3,7 @@ package cn.edu.bucea.library.ui
 import android.graphics.Paint
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -11,17 +12,17 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Chair
 import androidx.compose.material.icons.outlined.GridView
-import androidx.compose.material.icons.outlined.List
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -38,6 +39,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -70,6 +72,7 @@ internal fun nativeMapSeatStyle(status: String, available: Boolean, localOnly: B
 private fun cellStyle(cell: NativeMapCell): MapSeatStyle =
     nativeMapSeatStyle(cell.seat?.status.orEmpty(), cell.seat?.available == true, cell.localOnly)
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun NativeMapScreen(
     state: NativeMapState,
@@ -82,9 +85,16 @@ fun NativeMapScreen(
     onBack: () -> Unit,
     onVerify: () -> Unit = {},
     showHeader: Boolean = true,
+    favoriteSeatIds: Set<String> = emptySet(),
+    onToggleFavorite: ((NativeSeat) -> Unit)? = null,
 ) {
     var choosing by remember { mutableStateOf<String?>(null) }
     var selected by remember(state.layout?.roomId, state.filters["onDate"], state.layout) { mutableStateOf<NativeMapCell?>(null) }
+    var onlyAvailable by rememberSaveable { mutableStateOf(false) }
+    val seatCells = remember(state.layout) { state.layout?.cells.orEmpty().filter { it.seat != null } }
+    val visibleCells = remember(seatCells, onlyAvailable) {
+        if (onlyAvailable) seatCells.filter { it.seat?.available == true && !it.localOnly } else seatCells
+    }
     BackHandler {
         when {
             selected != null -> selected = null
@@ -98,138 +108,167 @@ fun NativeMapScreen(
     val chipColors = FilterChipDefaults.filterChipColors(containerColor = Color.White,
         labelColor = Muted, selectedContainerColor = SoftAccent, selectedLabelColor = Accent,
         selectedLeadingIconColor = Accent)
-    LazyColumn(modifier.fillMaxSize().background(Paper), contentPadding = PaddingValues(
-        start = LibrarySpacing.pageHorizontal, end = LibrarySpacing.pageHorizontal,
-        top = LibrarySpacing.pageVertical, bottom = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
-        if (showHeader) item {
-            LibraryPageHeader(title = if (state.directRegionView) roomName else "布局选座",
-                subtitle = if (state.directRegionView) listOfNotNull(
-                    state.filters["onDate"],
-                    state.options.buildings.find { it.value == state.filters["building"] }?.label,
-                    state.options.floors.find { it.value == state.filters["floor"] }?.label,
-                ).joinToString(" · ") else "沿着真实布局，找到喜欢的位置。",
-                onBack = onBack, onRefresh = onRefresh, refreshDescription = "刷新座位地图", refreshEnabled = !state.loading)
-        }
-        else if (state.directRegionView) item {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                LibrarySectionTitle(roomName)
-                Text(listOfNotNull(
-                    state.filters["onDate"],
-                    state.options.buildings.find { it.value == state.filters["building"] }?.label,
-                    state.options.floors.find { it.value == state.filters["floor"] }?.label,
-                ).joinToString(" · "), color = Muted, fontSize = 12.sp)
-            }
-        }
-        if (state.loading) item {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                LinearProgressIndicator(Modifier.fillMaxWidth(), color = Accent, trackColor = SoftAccent)
-                Text(if (state.layout == null) "正在加载区域与座位…" else "正在更新座位状态…", color = Muted, fontSize = 12.sp)
-            }
-        }
-        if (!state.directRegionView) item {
-            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
-                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        state.options.dates.forEach { date -> FilterChip(selected = state.filters["onDate"] == date.value,
-                            onClick = { onFilter("onDate", date.value) }, enabled = !state.loading,
-                            modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = date.value }, colors = chipColors,
-                            label = { Text(friendlyDate(date), fontSize = 12.sp) }) }
-                    }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        val building = state.options.buildings.find { it.value == state.filters["building"] }?.label ?: "选择场馆"
-                        val floor = state.options.floors.find { it.value == state.filters["floor"] }?.label ?: "选择楼层"
-                        MapFilterField("场馆", building, !state.loading && state.options.buildings.isNotEmpty(), Modifier.weight(1f)) { choosing = "building" }
-                        MapFilterField("楼层", floor, !state.loading && state.options.floors.isNotEmpty(), Modifier.weight(1f)) { choosing = "floor" }
-                    }
-                    if (state.rooms.isNotEmpty()) Text("阅览区域", fontSize = 11.sp, color = Muted)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        state.rooms.forEach { room -> FilterChip(selected = state.layout?.roomId == room.id,
-                            onClick = { onLoadRoom(room.id) }, enabled = !state.loading, colors = chipColors,
-                            modifier = Modifier.heightIn(min = 48.dp),
-                            label = { Text(room.name, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis) }) }
-                    }
+    BoxWithConstraints(modifier.fillMaxSize().background(Paper)) {
+        val seatColumns = compactSeatColumns(maxWidth - LibrarySpacing.pageHorizontal * 2)
+        val seatRows = remember(visibleCells, seatColumns) { visibleCells.chunked(seatColumns) }
+        val minimumBodyHeight = (maxHeight - 44.dp - 20.dp).coerceAtLeast(0.dp)
+        val mapScroll = rememberLazyListState()
+        val listScroll = rememberLazyListState()
+        val activeScroll = if (state.listMode) listScroll else mapScroll
+        val switchMode: (Int) -> Unit = { index ->
+            val listMode = index == 1
+            if (listMode != state.listMode) {
+                val destination = if (listMode) listScroll else mapScroll
+                // Keep partially visible shared controls at the same offset.
+                // Once they are gone, retain each mode's own body position.
+                if (activeScroll.firstVisibleItemIndex == 0) {
+                    destination.requestScrollToItem(0, activeScroll.firstVisibleItemScrollOffset)
+                } else if (destination.firstVisibleItemIndex == 0) {
+                    destination.requestScrollToItem(1)
                 }
+                onListMode(listMode)
             }
         }
-        state.error?.let { error -> item {
-            Surface(color = Color(0xFFF8EAE4), shape = RoundedCornerShape(14.dp)) {
-                Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                    Text(error, color = Color(0xFF8E473A), fontSize = 13.sp)
-                    TextButton(onClick = onRefresh, enabled = !state.loading) { Text("重试") }
-                }
-            }
-        } }
-        state.notice?.let { notice -> item { Text(notice, color = Muted, fontSize = 13.sp, lineHeight = 21.sp) } }
-        if (state.verificationRequired) item {
-            Button(onClick = onVerify, enabled = !state.loading, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(14.dp)) { Text("完成验证") }
-        }
-        state.layout?.let { layout ->
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
-                    if (!state.directRegionView) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
-                        LibrarySectionTitle(roomName, Modifier.weight(1f))
-                        Text("${layout.cells.count { it.seat?.available == true }} 个可选座位", color = Muted, fontSize = 12.sp)
-                    }
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(SoftAccent).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        listOf(false to "地图", true to "列表").forEach { (listMode, label) ->
-                            val active = state.listMode == listMode
-                            Surface(onClick = { onListMode(listMode) }, selected = active,
-                                color = if (active) Color.White else Color.Transparent, shape = RoundedCornerShape(11.dp), modifier = Modifier.weight(1f)) {
-                                Row(Modifier.heightIn(min = 48.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Center) {
-                                    Icon(if (listMode) Icons.Outlined.List else Icons.Outlined.GridView, null, Modifier.size(17.dp), tint = if (active) Accent else Muted)
-                                    Spacer(Modifier.width(7.dp))
-                                    Text(label, fontSize = 13.sp, color = if (active) Accent else Muted)
+        key(state.listMode) {
+            LazyColumn(Modifier.fillMaxSize(), state = activeScroll, contentPadding = PaddingValues(bottom = 20.dp)) {
+                item(key = "map-controls") {
+                    Column(Modifier.fillMaxWidth().padding(start = LibrarySpacing.pageHorizontal, end = LibrarySpacing.pageHorizontal,
+                        top = LibrarySpacing.pageVertical, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
+                        if (showHeader) {
+                            LibraryPageHeader(title = if (state.directRegionView) roomName else "布局选座",
+                                subtitle = if (state.directRegionView) listOfNotNull(
+                                    state.filters["onDate"],
+                                    state.options.buildings.find { it.value == state.filters["building"] }?.label,
+                                    state.options.floors.find { it.value == state.filters["floor"] }?.label,
+                                ).joinToString(" · ") else "沿着真实布局，找到喜欢的位置。",
+                                onBack = onBack, onRefresh = onRefresh, refreshDescription = "刷新座位地图", refreshEnabled = !state.loading)
+                        }
+                        else if (state.directRegionView) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                LibrarySectionTitle(roomName)
+                                Text(listOfNotNull(
+                                    state.filters["onDate"],
+                                    state.options.buildings.find { it.value == state.filters["building"] }?.label,
+                                    state.options.floors.find { it.value == state.filters["floor"] }?.label,
+                                ).joinToString(" · "), color = Muted, fontSize = 12.sp)
+                            }
+                        }
+                        if (state.loading) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                LinearProgressIndicator(Modifier.fillMaxWidth(), color = Accent, trackColor = SoftAccent)
+                                Text(if (state.layout == null) "正在加载区域与座位…" else "正在更新座位状态…", color = Muted, fontSize = 12.sp)
+                            }
+                        }
+                        if (!state.directRegionView) {
+                            Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
+                                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        state.options.dates.forEach { date -> FilterChip(selected = state.filters["onDate"] == date.value,
+                                            onClick = { onFilter("onDate", date.value) }, enabled = !state.loading,
+                                            modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = date.value }, colors = chipColors,
+                                            label = { Text(friendlyDate(date), fontSize = 12.sp) }) }
+                                    }
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        val building = state.options.buildings.find { it.value == state.filters["building"] }?.label ?: "选择场馆"
+                                        val floor = state.options.floors.find { it.value == state.filters["floor"] }?.label ?: "选择楼层"
+                                        MapFilterField("场馆", building, !state.loading && state.options.buildings.isNotEmpty(), Modifier.weight(1f)) { choosing = "building" }
+                                        MapFilterField("楼层", floor, !state.loading && state.options.floors.isNotEmpty(), Modifier.weight(1f)) { choosing = "floor" }
+                                    }
+                                    if (state.rooms.isNotEmpty()) Text("阅览区域", fontSize = 11.sp, color = Muted)
+                                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        state.rooms.forEach { room -> FilterChip(selected = state.layout?.roomId == room.id,
+                                            onClick = { onLoadRoom(room.id) }, enabled = !state.loading, colors = chipColors,
+                                            modifier = Modifier.heightIn(min = 48.dp),
+                                            label = { Text(room.name, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis) }) }
+                                    }
                                 }
                             }
                         }
-                    }
-                }
-            }
-            if (state.listMode) {
-                items(layout.cells.filter { it.seat != null }, key = { it.seat!!.id }) { cell ->
-                    val seat = cell.seat!!
-                    val style = cellStyle(cell)
-                    Card(onClick = { selected = cell }, enabled = !state.loading, shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
-                        Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Surface(color = style.fill, shape = RoundedCornerShape(10.dp)) {
-                                Icon(Icons.Outlined.Chair, null, tint = Color.White, modifier = Modifier.padding(8.dp).size(24.dp))
-                            }
-                            Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                                Text(seat.label, color = Ink, fontWeight = FontWeight.SemiBold)
-                                Text("第 ${cell.row + 1} 行 · 第 ${cell.column + 1} 列", color = Muted, fontSize = 11.sp)
-                                Text(SeatPresentationPolicy.availabilityLabel(seat.available && !cell.localOnly), color = Ink, fontSize = 11.sp)
-                            }
-                            Surface(color = style.fill, shape = RoundedCornerShape(8.dp)) {
-                                Text(style.label, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.widthIn(max = 100.dp).padding(horizontal = 8.dp, vertical = 5.dp))
-                            }
-                        }
-                    }
-                }
-            } else item {
-                Column(verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
-                    if (state.directRegionView) NativeRoomCanvas(layout, !state.loading, selected?.seat?.id) { selected = it }
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        (SeatVisualState.entries.map(::mapSeatStyle) + MapLocalOnly).forEach { style ->
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Box(Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)).background(style.fill), contentAlignment = Alignment.Center) {
-                                    Text(style.marker, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        state.error?.let { error ->
+                            Surface(color = Color(0xFFF8EAE4), shape = RoundedCornerShape(14.dp)) {
+                                Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                                    Text(error, color = Color(0xFF8E473A), fontSize = 13.sp)
+                                    TextButton(onClick = onRefresh, enabled = !state.loading) { Text("重试") }
                                 }
-                                Text(style.label, color = Ink, fontSize = 11.sp)
+                            }
+                        }
+                        state.notice?.let { notice -> Text(notice, color = Muted, fontSize = 13.sp, lineHeight = 21.sp) }
+                        if (state.verificationRequired) {
+                            Button(onClick = onVerify, enabled = !state.loading, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(14.dp)) { Text("完成验证") }
+                        }
+                        if (state.layout != null && !state.directRegionView) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
+                                LibrarySectionTitle(roomName, Modifier.weight(1f))
+                                Text("${seatCells.count { it.seat?.available == true && !it.localOnly }} 个可选座位", color = Muted, fontSize = 12.sp)
                             }
                         }
                     }
-                    if (!state.directRegionView) NativeRoomCanvas(layout, !state.loading, selected?.seat?.id) { selected = it }
-                    Text("拖动查看 · 双指缩放 · 点选座位\n颜色与座位内文字表示当前状态，可预约时段以点选查询为准。", color = Muted, fontSize = 11.sp, lineHeight = 18.sp)
+                }
+                if (state.layout != null) stickyHeader(key = "map-mode-tabs") {
+                    // Keep padding outside the selectable bar's semantics.
+                    Box(Modifier.fillMaxWidth().background(Paper).padding(horizontal = LibrarySpacing.pageHorizontal)
+                        .semantics { contentDescription = "座位视图切换" }) {
+                        LibrarySegmentedTabs(labels = listOf("地图", "列表"), selectedIndex = if (state.listMode) 1 else 0,
+                            onSelect = switchMode, enabled = !state.loading)
+                    }
+                }
+                state.layout?.let { layout ->
+                    if (state.listMode) {
+                        // A short result set still fills the body viewport, so
+                        // switching modes cannot pull the sticky tabs down.
+                        if (seatRows.isEmpty() || 70.dp * seatRows.size + 40.dp < minimumBodyHeight) {
+                            item(key = "seat-list-short") {
+                                Column(Modifier.fillMaxWidth().heightIn(min = minimumBodyHeight)
+                                    .padding(horizontal = LibrarySpacing.pageHorizontal).padding(top = 8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    MapSeatListHeader(onlyAvailable, visibleCells.size, seatCells.size, onToggleFavorite != null) { onlyAvailable = it }
+                                    if (visibleCells.isEmpty()) LibraryEmptyState(
+                                        title = if (onlyAvailable) "暂无可预约座位" else "暂无座位信息",
+                                        message = if (onlyAvailable) "关闭“仅看可用”可查看全部座位状态。" else "请刷新或选择其他阅览区域。",
+                                        icon = Icons.Outlined.GridView)
+                                    seatRows.forEach { cells ->
+                                        MapSeatCardRow(cells, seatColumns, !state.loading, favoriteSeatIds, onToggleFavorite) { selected = it }
+                                    }
+                                }
+                            }
+                        } else {
+                            item(key = "seat-list-filter") {
+                                Box(Modifier.padding(horizontal = LibrarySpacing.pageHorizontal).padding(top = 8.dp, bottom = 6.dp)) {
+                                    MapSeatListHeader(onlyAvailable, visibleCells.size, seatCells.size, onToggleFavorite != null) { onlyAvailable = it }
+                                }
+                            }
+                            items(seatRows, key = { "seat-row-${it.first().seat!!.id}" }, contentType = { "seat-cards" }) { cells ->
+                                MapSeatCardRow(cells, seatColumns, !state.loading, favoriteSeatIds, onToggleFavorite,
+                                    Modifier.padding(horizontal = LibrarySpacing.pageHorizontal).padding(bottom = 6.dp)) { selected = it }
+                            }
+                        }
+                    } else item(key = "map-body") {
+                        Column(Modifier.fillMaxWidth().heightIn(min = minimumBodyHeight)
+                            .padding(horizontal = LibrarySpacing.pageHorizontal).padding(top = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
+                            if (state.directRegionView) NativeRoomCanvas(layout, !state.loading, selected?.seat?.id) { selected = it }
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                (SeatVisualState.entries.map(::mapSeatStyle) + MapLocalOnly).forEach { style ->
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Box(Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)).background(style.fill), contentAlignment = Alignment.Center) {
+                                            Text(style.marker, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                        Text(style.label, color = Ink, fontSize = 11.sp)
+                                    }
+                                }
+                            }
+                            if (!state.directRegionView) NativeRoomCanvas(layout, !state.loading, selected?.seat?.id) { selected = it }
+                            Text("拖动查看 · 双指缩放 · 点选座位\n颜色与座位内文字表示当前状态，可预约时段以点选查询为准。", color = Muted, fontSize = 11.sp, lineHeight = 18.sp)
+                        }
+                    }
+                }
+                if (state.layout == null && !state.loading && state.error == null) item {
+                    LibraryEmptyState(title = "找到你喜欢的位置",
+                        message = if (state.rooms.isEmpty()) "选择日期和楼层，查看阅览区域" else "选择上方阅览区域，加载座位布局",
+                        icon = Icons.Outlined.GridView)
                 }
             }
-        }
-        if (state.layout == null && !state.loading && state.error == null) item {
-            LibraryEmptyState(title = "找到你喜欢的位置",
-                message = if (state.rooms.isEmpty()) "选择日期和楼层，查看阅览区域" else "选择上方阅览区域，加载座位布局",
-                icon = Icons.Outlined.GridView)
         }
     }
     choosing?.let { key ->
@@ -266,6 +305,7 @@ fun NativeMapScreen(
                     SeatPresentationPolicy.visualState(seat.status, seat.available), seat.available
                 )?.let { Text(it, color = Muted, fontSize = 12.sp) }
                 Text(state.filters["onDate"].orEmpty(), color = Muted)
+                Text("第 ${cell.row + 1} 行 · 第 ${cell.column + 1} 列", color = Muted, fontSize = 12.sp)
                 if (cell.power || cell.window) Text(listOfNotNull(if (cell.power) "有电源" else null, if (cell.window) "靠窗" else null).joinToString(" · "), color = Accent)
             }
         }, confirmButton = {
@@ -274,6 +314,42 @@ fun NativeMapScreen(
                 onClick = { selected = null; onSeat(seat, state.filters["onDate"].orEmpty()) }) { Text("选择使用时间") }
         }, dismissButton = { TextButton(onClick = { selected = null }) { Text("关闭") } })
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MapSeatListHeader(onlyAvailable: Boolean, visibleCount: Int, totalCount: Int, canFavorite: Boolean, onOnlyAvailable: (Boolean) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 40.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("仅看可用", color = Ink, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium)
+                Text("显示 $visibleCount / 全部 $totalCount 个", color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+            }
+            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides 40.dp) {
+                Switch(checked = onlyAvailable, onCheckedChange = onOnlyAvailable, modifier = Modifier.semantics {
+                    contentDescription = "仅看可用"
+                    stateDescription = if (onlyAvailable) "仅显示可预约座位" else "显示全部座位"
+                }, colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Accent))
+            }
+        }
+        if (visibleCount > 0) Text(if (canFavorite) "点按查看 · 长按收藏" else "点按查看座位与可用时间",
+            color = Muted, fontSize = 10.sp, lineHeight = 14.sp)
+    }
+}
+
+@Composable
+private fun MapSeatCardRow(cells: List<NativeMapCell>, columns: Int, enabled: Boolean, favoriteSeatIds: Set<String>,
+    onToggleFavorite: ((NativeSeat) -> Unit)?, modifier: Modifier = Modifier, onSelect: (NativeMapCell) -> Unit) {
+    CompactSeatRow(cells.map { it.toNativeSeat(favoriteSeatIds) }, columns, enabled, modifier, onToggleFavorite,
+        canFavorite = { seat -> cells.none { it.seat?.id == seat.id && it.localOnly } },
+        showDetails = true, onSelectSeat = { seat -> onSelect(cells.first { it.seat?.id == seat.id }) })
+}
+
+private fun NativeMapCell.toNativeSeat(favoriteSeatIds: Set<String>): NativeSeat {
+    val model = requireNotNull(seat)
+    return NativeSeat(model.id, model.label, model.room, power, window,
+        status = if (localOnly) "仅限现场预约" else model.status,
+        available = model.available && !localOnly, localFavorite = model.id in favoriteSeatIds)
 }
 
 @Composable

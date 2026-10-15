@@ -294,14 +294,14 @@ class NativeSmoke:
     def seat_choice(self) -> ET.Element | None:
         matches = self.nodes(lambda node: SEAT_LABEL.fullmatch(label(node)) is not None)
         for node in sorted(matches, key=lambda element: (bounds(element)[1], bounds(element)[0])):
-            # Pagination contains bare integers too. A seat card owns a bookmark
-            # affordance; checking that semantic ancestor avoids tapping page numbers.
+            # A compact seat card owns the long-press favorite gesture and an
+            # explicit availability label. Never treat other numbers as seats.
             parent = self.parents.get(node)
             for _ in range(3):
                 if parent is None:
                     break
                 texts = [label(child) for child in parent.iter("node")]
-                if any(text.startswith(("收藏 ", "取消收藏 ")) for text in texts):
+                if parent.get("long-clickable") == "true" and "可约" in texts:
                     return node
                 parent = self.parents.get(parent)
         return None
@@ -349,7 +349,7 @@ class NativeSmoke:
         self.tap_exact("查找可用座位")
         self.wait(lambda: self.exact("查找可用座位"),
                   "座位查询未完成；请确认校园网连接，或稍后重试。")
-        self.find_scrolling(lambda: self.nodes(lambda node: label(node).startswith(("已加载 ", "本页显示 "))),
+        self.find_scrolling(lambda: self.nodes(lambda node: label(node).startswith(("已加载 ", "全部 ", "显示 "))),
                             "查询未显示座位结果；请检查校园网或筛选条件。")
         self.pass_phase("01-native-search")
 

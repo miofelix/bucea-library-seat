@@ -16,15 +16,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import cn.edu.bucea.library.ui.HubAction
+import cn.edu.bucea.library.ui.FavoriteBookingActions
 import cn.edu.bucea.library.ui.HubFavorite
 import cn.edu.bucea.library.ui.HubRecord
 import cn.edu.bucea.library.ui.HubSection
 import cn.edu.bucea.library.ui.LibraryHubScreen
 import cn.edu.bucea.library.ui.LibraryHubState
+import cn.edu.bucea.library.ui.NativeSeat
+import cn.edu.bucea.library.ui.SeatOption
+import cn.edu.bucea.library.ui.SeatSearchState
 import cn.edu.bucea.library.data.models.ReservationSchedule
 import cn.edu.bucea.library.ui.reservationTimeline
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -195,6 +200,110 @@ class LibraryHubUiInstrumentedTest {
         }
     }
 
+    @Test fun favoriteBookingSelectsServerDatesAndTimesInlineWithLoadingRetryDismissAndConfirmation() {
+        val favorite = HubFavorite("fixture-favorite", "A101", "测试阅览区", local = true)
+        val hub = mutableStateOf(LibraryHubState(section = HubSection.FAVORITES, favorites = listOf(favorite)))
+        val reservation = mutableStateOf(SeatSearchState(loading = true, accountLabel = "测试账号"))
+        val navigation = AtomicInteger()
+        val retries = AtomicInteger()
+        val preparations = AtomicInteger()
+        val submissions = AtomicInteger()
+        val dismissals = AtomicInteger()
+        val chosenDate = AtomicReference<String?>()
+        val dates = listOf(SeatOption("fixture-today", "今天（测试）"), SeatOption("fixture-tomorrow", "明天（测试）"))
+        val seat = NativeSeat(favorite.id, favorite.name, favorite.location)
+        withHub(hub,
+            onSearch = { navigation.incrementAndGet() },
+            onFavorite = { preparations.incrementAndGet() },
+            favoriteBooking = {
+                FavoriteBookingActions(
+                    state = reservation.value,
+                    onDate = { selected, date ->
+                        assertEquals(favorite, selected)
+                        assertTrue("Only returned server dates can be selected", dates.any { it.value == date })
+                        chosenDate.set(date)
+                        reservation.value = reservation.value.copy(filters = mapOf("onDate" to date), selectedSeat = seat,
+                            startOptions = listOf(SeatOption("540", "09:00")), endOptions = emptyList(),
+                            selectedStart = null, selectedEnd = null)
+                        true
+                    },
+                    onRetryDates = {
+                        retries.incrementAndGet()
+                        reservation.value = reservation.value.copy(options = mapOf("onDate" to dates),
+                            filters = mapOf("onDate" to dates.first().value), loading = false, error = null)
+                    },
+                    onStart = { value -> reservation.value = reservation.value.copy(selectedStart = value,
+                        endOptions = listOf(SeatOption("600", "10:00"))) },
+                    onEnd = { value -> reservation.value = reservation.value.copy(selectedEnd = value) },
+                    onConfirm = {
+                        submissions.incrementAndGet()
+                        reservation.value = reservation.value.copy(selectedSeat = null, status = "预约成功")
+                    },
+                    onDismiss = {
+                        dismissals.incrementAndGet()
+                        reservation.value = reservation.value.copy(selectedSeat = null, error = null)
+                    },
+                    onVerify = {},
+                    onOpenReservations = { hub.value = hub.value.copy(section = HubSection.RESERVATIONS) },
+                )
+            },
+        ) {
+            findWithScroll("Favorites must explain the long-press gesture") {
+                findText("在选座页长按座位卡片即可收藏，再次长按可取消收藏。")
+            }
+            click(findWithScroll("A favorite must offer its inline booking flow") { findText("选择使用时间") })
+            waitFor("The current page must display loading dates") { hasText("正在读取可预约日期…") }
+            assertEquals(0, navigation.get())
+            assertEquals(HubSection.FAVORITES, hub.value.section)
+            assertNull(chosenDate.get())
+            click(requireNode("The pending date selection must remain dismissible") { findText("取消") })
+            waitFor("Closing pending selection must restore the favorites list") { !hasText("选择预约日期") }
+            assertEquals("Dismiss must not submit a reservation", 0, submissions.get())
+
+            click(findWithScroll("The favorite must reopen on the same page") { findText("选择使用时间") })
+            instrumentation.runOnMainSync { reservation.value = reservation.value.copy(loading = false, error = "合成日期读取失败") }
+            waitFor("A failed date read must show its reason") { hasText("合成日期读取失败") }
+            click(requireNode("Dates must support a deliberate retry") { findText("重新读取日期") })
+            waitFor("A successful retry must render returned dates") { hasText("明天（测试）") }
+            assertEquals(1, retries.get())
+            click(requireNode("The user must be able to choose a different server date") { findText("明天（测试）") })
+            click(requireNode("Choosing a date must open times locally") { findText("选择时间") })
+            waitFor("The favorite must reuse the native time sheet") { hasText("选择可用时段") }
+            assertEquals("fixture-tomorrow", chosenDate.get())
+            assertEquals(0, navigation.get())
+            assertEquals(HubSection.FAVORITES, hub.value.section)
+
+            click(requireNode("Start times must remain selectable") { findDescription("选择开始时间") })
+            click(requireNode("Only a returned start time is used") { findText("09:00") })
+            waitFor("The chosen start time must reach the native reservation sheet") {
+                reservation.value.selectedStart == "540" && findDescription("关闭预约面板") != null
+            }
+            click(requireNode("End times must remain selectable") { findDescription("选择结束时间") })
+            click(requireNode("Only a returned end time is used") { findText("10:00") })
+            waitFor("The chosen end time must reach the native reservation sheet") {
+                reservation.value.selectedEnd == "600" && findDescription("关闭预约面板") != null
+            }
+            instrumentation.waitForIdleSync()
+            click(requireNode("A favorite must still require the confirmation step") { findText("下一步") })
+            try {
+                waitFor("Reservation details must be confirmed before submission") { hasText("确认这次预约") }
+            } catch (failure: AssertionError) {
+                throw AssertionError("${failure.message}; seat=${reservation.value.selectedSeat?.id}, " +
+                    "start=${reservation.value.selectedStart}, end=${reservation.value.selectedEnd}, " +
+                    "submissions=${submissions.get()}, dismissals=${dismissals.get()}", failure)
+            }
+            assertEquals(0, submissions.get())
+            assertTrue("Confirmation must show the explicitly selected date", hasText("明天（测试）"))
+            click(requireNode("Only explicit final confirmation may submit") { findText("确认预约") })
+            waitFor("A successful inline reservation must return to favorites") {
+                submissions.get() == 1 && !hasText("确认这次预约") && !hasText("选择预约日期")
+            }
+            assertEquals(HubSection.FAVORITES, hub.value.section)
+            assertEquals(0, navigation.get())
+            assertEquals(2, preparations.get())
+        }
+    }
+
     private fun withHub(
         state: MutableState<LibraryHubState>,
         onRefresh: () -> Unit = {},
@@ -205,6 +314,8 @@ class LibraryHubUiInstrumentedTest {
         onCancelRecord: (HubRecord) -> Unit = {},
         onLoadMore: () -> Unit = {},
         onOpenRecord: (HubRecord) -> Unit = { state.value = state.value.copy(selectedRecord = it) },
+        onSearch: () -> Unit = {},
+        favoriteBooking: () -> FavoriteBookingActions? = { null },
         assertions: () -> Unit,
     ) {
         val activity = instrumentation.startActivitySync(
@@ -221,7 +332,7 @@ class LibraryHubUiInstrumentedTest {
                             onRefresh = onRefresh,
                             onSection = onSection,
                             onLoadMore = onLoadMore,
-                            onSearch = {},
+                            onSearch = onSearch,
                             onOpenMap = {},
                             onFavorite = onFavorite,
                             onRemoveFavorite = onRemoveFavorite,
@@ -229,6 +340,7 @@ class LibraryHubUiInstrumentedTest {
                             onCancelRecord = onCancelRecord,
                             onOpenRecord = onOpenRecord,
                             onDismissRecord = { state.value = state.value.copy(selectedRecord = null) },
+                            favoriteBooking = favoriteBooking(),
                         )
                     }
                 }

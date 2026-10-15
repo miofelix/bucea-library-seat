@@ -74,6 +74,7 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
     val state by viewModel.state.collectAsStateWithLifecycle()
     val seatState by features.search.collectAsStateWithLifecycle()
     val hubState by features.hub.collectAsStateWithLifecycle()
+    val favoriteSeatIds by features.favoriteSeatIds.collectAsStateWithLifecycle()
     val regionState by regions.state.collectAsStateWithLifecycle()
     val extensionOptions by features.extensionTimes.collectAsStateWithLifecycle()
     val mutating by features.mutationBusy.collectAsStateWithLifecycle()
@@ -238,7 +239,7 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
                             NativeMapScreen(mapState, onFilter = maps::onFilter, onRefresh = maps::refresh, onLoadRoom = maps::loadRoom,
                                 onListMode = maps::setListMode, onSeat = features::selectMappedSeat, onBack = backFromSeats,
                                 onVerify = { state.activeAccountId?.let { verificationOrigin = "map"; verification.begin(it, mapState.verificationUserId) } },
-                                showHeader = false)
+                                showHeader = false, favoriteSeatIds = favoriteSeatIds, onToggleFavorite = features::toggleFavorite)
                             seatState.selectedSeat?.let { seat -> NativeReservationDialog(seatState, seat, features::selectStart,
                                 features::selectEnd, features::confirmReservation, features::dismissReservation, verifySearch,
                                 onOpenReservations = { features.dismissReservation(); tab = 2 }) }
@@ -247,9 +248,15 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
                 } else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login, viewModel::refresh) { tab = 3 }
                 tab == 2 -> if (state.authenticated) LibraryHubScreen(hubState, Modifier.padding(padding), features::refreshHub,
                     features::selectHubSection, features::loadMoreHistory, onSearch = { layoutSelected = false; tab = 1 }, onOpenMap = { maps.showRegionSelector(); tab = 1; layoutSelected = true },
-                    onFavorite = { favorite -> layoutSelected = false; tab = 1; features.loadSearch(features.favoriteSeat(favorite)) },
+                    onFavorite = features::prepareFavoriteBooking,
                     onRemoveFavorite = features::removeFavorite, onAction = features::performAction, onCancelRecord = features::cancelRecord,
-                    onOpenRecord = features::openRecord, onDismissRecord = features::dismissRecord)
+                    onOpenRecord = features::openRecord, onDismissRecord = features::dismissRecord,
+                    favoriteBooking = FavoriteBookingActions(seatState, features::selectFavoriteDate, features::refreshSearch,
+                        features::selectStart, features::selectEnd, features::confirmReservation, features::dismissReservation,
+                        verifySearch, onOpenReservations = {
+                            features.dismissReservation()
+                            features.selectHubSection(HubSection.RESERVATIONS)
+                        }))
                 else FeatureLoginPrompt(state, Modifier.padding(padding), viewModel::login, viewModel::refresh) { tab = 3 }
                 tab == 3 -> AccountsScreen(state.copy(busy = state.busy || seatState.reservationBusy || mutating || accountState.busy),
                     Modifier.padding(padding), viewModel::saveAccount, viewModel::selectAccount, viewModel::deleteAccount, viewModel::login,

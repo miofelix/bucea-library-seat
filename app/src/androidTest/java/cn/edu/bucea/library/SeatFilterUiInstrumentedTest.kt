@@ -2,6 +2,7 @@ package cn.edu.bucea.library
 
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.Rect
 import android.os.Build
 import android.os.SystemClock
@@ -29,7 +30,7 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Presentation-only fixture replaces MainActivity's content with synthetic seat pages.
+ * Presentation-only fixture replaces MainActivity's content with synthetic seat results.
  * Initial MainActivity creation may perform its normal public/session restore; this test does
  * not claim to suppress those startup reads. Fixture callbacks never use a VM, vault or server,
  * and never submit a search, booking, account operation or password mutation.
@@ -40,16 +41,84 @@ class SeatFilterUiInstrumentedTest {
     private val automation get() = instrumentation.uiAutomation
     private val appPackage get() = instrumentation.targetContext.packageName
 
-    @Test fun toggleImmediatelyFiltersTheLoadedPageAndAppliesToNewPagesWithoutAnotherQuery() {
+    @Test fun fourCompactCardsFitLongLabelsAndKeepLongPressFavoritesSeparateFromSelection() {
+        val selected = AtomicInteger()
+        val favorites = AtomicInteger()
+        val seats = listOf(
+            NativeSeat("compact-free", "A101", "阅览室", status = "座位空闲", available = true),
+            NativeSeat("compact-used", "B202", "大兴校区三层自然科学阅览区域靠窗长名称",
+                status = "当前正在使用，可预约其他时段", available = true, power = true, window = true),
+            NativeSeat("compact-blocked", "C303", "阅览室", status = "座位空闲", available = false),
+            NativeSeat("compact-long", "D404-长座位编号", "大兴校区三层自然科学阅览区域靠窗长名称",
+                status = "服务器返回的未知座位状态长名称", available = false, localFavorite = true),
+        )
+        val activity = instrumentation.startActivitySync(
+            Intent(instrumentation.targetContext, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+        ) as MainActivity
+        try {
+            instrumentation.runOnMainSync {
+                activity.setContent {
+                    val density = LocalDensity.current.density
+                    CompositionLocalProvider(LocalDensity provides Density(density, fontScale = 1f)) {
+                        MaterialTheme {
+                            SeatSearchScreen(
+                                state = SeatSearchState(hasSearched = true, resultsComplete = true, seats = seats),
+                                onFilter = { _, _ -> }, onSearch = {}, onNextPage = {}, onPreviousPage = {},
+                                onSelectSeat = { selected.incrementAndGet() },
+                                onToggleFavorite = { favorites.incrementAndGet() }, onBack = {},
+                            )
+                        }
+                    }
+                }
+            }
+            instrumentation.waitForIdleSync()
+            findWithScroll("All four compact result cards must be visible") { findSeatTile("D404-长座位编号") }
+            val cardBounds = assertFourSeatRow(seats.map { it.name }, "standard text scale")
+            val density = instrumentation.targetContext.resources.displayMetrics.density
+            assertTrue("Standard text cards should stay approximately square even with long labels", cardBounds.all { it.height() / density <= 82f })
+            assertAvailabilityBorders(cardBounds, seats.map { it.available })
+            assertTrue("The favorite gesture must be discoverable", hasText("点按选时间 · 长按收藏"))
+            seats.zip(cardBounds).forEach { (seat, card) ->
+                val tile = requireNotNull(findSeatTile(seat.name))
+                assertTrue("The whole tile retains at least a 48dp touch target",
+                    card.width() / density >= 47.9f && card.height() / density >= 47.9f)
+                assertTrue("Long press exposes a labeled accessible favorite action", tile.actionList.any {
+                    it.id == AccessibilityNodeInfo.ACTION_LONG_CLICK &&
+                        it.label?.toString() == if (seat.localFavorite) "取消收藏 ${seat.name}" else "收藏 ${seat.name}"
+                })
+                if (seat == seats.first()) touch(tile, holdMillis = 700) else longClick(tile)
+            }
+            waitFor("Long press must favorite each available or unavailable tile") { favorites.get() == 4 }
+            assertEquals("Long-press favorites must never open reservation times", 0, selected.get())
+            click(requireNotNull(findSeatTile("A101")))
+            waitFor("One available-card click must immediately select its time") { selected.get() == 1 }
+            touch(requireNotNull(findSeatTile("C303")))
+            instrumentation.waitForIdleSync()
+            assertEquals("An unavailable tile must not open reservation times", 1, selected.get())
+            captureSeatCardsIfRequested("-normal")
+        } catch (failure: Throwable) {
+            captureFailure(failure)
+            throw failure
+        } finally {
+            instrumentation.runOnMainSync { activity.finish() }
+            instrumentation.waitForIdleSync()
+        }
+    }
+
+    @Test fun toggleImmediatelyFiltersAllLoadedResultsAndAutomaticallyAppliesToIncomingSeats() {
         val selected = AtomicInteger()
         val favorites = AtomicInteger()
         val searches = AtomicInteger()
         val nextPages = AtomicInteger()
-        val mixedPage = SeatSearchState(hasSearched = true, hasNextPage = true, seats = listOf(
+        val mixedResults = SeatSearchState(hasSearched = true, hasNextPage = true, seats = listOf(
             NativeSeat("fixture-free", "A101", "测试区域", status = "座位空闲", available = true),
             NativeSeat("fixture-used", "B202", "测试区域", status = "正在使用", available = false),
+            NativeSeat("fixture-future", "C303", "大兴校区三层自然科学阅览区域靠窗长名称", power = true, window = true,
+                status = "当前正在使用，可预约其他时段", available = true),
+            NativeSeat("fixture-idle", "D404", "长名称阅览区域", status = "座位空闲", available = false, localFavorite = true),
         ))
-        val screen = mutableStateOf(mixedPage)
+        val screen = mutableStateOf(mixedResults)
         val activity = instrumentation.startActivitySync(
             Intent(instrumentation.targetContext, MainActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
@@ -64,13 +133,8 @@ class SeatFilterUiInstrumentedTest {
                                 state = screen.value,
                                 onFilter = { key, value -> screen.value = screen.value.copy(filters = screen.value.filters + (key to value)) },
                                 onSearch = { searches.incrementAndGet() },
-                                onNextPage = {
-                                    nextPages.incrementAndGet()
-                                    screen.value = mixedPage.copy(page = 1, hasNextPage = true, seats = listOf(
-                                        NativeSeat("fixture-unavailable", "C303", "测试区域", status = "不可用", available = false),
-                                    ))
-                                },
-                                onPreviousPage = { screen.value = mixedPage },
+                                onNextPage = { nextPages.incrementAndGet() },
+                                onPreviousPage = { nextPages.incrementAndGet() },
                                 onSelectSeat = { selected.incrementAndGet() },
                                 onToggleFavorite = { favorites.incrementAndGet() },
                                 onBack = {},
@@ -80,77 +144,90 @@ class SeatFilterUiInstrumentedTest {
                 }
             }
             instrumentation.waitForIdleSync()
-            findWithScroll("Mixed fixture page must show both loaded seats") { findText("本页显示 2 / 已加载 2 个") }
-            val blocked = findWithScroll("The unavailable fixture seat must be visible") { findText("B202") }
-            val freeBounds = Rect().apply { requireNotNull(findDescription("座位 A101")).getBoundsInScreen(this) }
-            val blockedBounds = Rect().apply { requireNotNull(findDescription("座位 B202")).getBoundsInScreen(this) }
+            findWithScroll("Mixed fixture results must show all four loaded seats") { findText("显示 4 / 已加载 4 个") }
+            val blocked = findWithScroll("The unavailable fixture seat must be visible") { findSeatTile("B202") }
             val screenWidthDp = instrumentation.targetContext.resources.configuration.screenWidthDp
-            assertEquals("Large text must keep two seat cards on the same row at ${screenWidthDp}dp", freeBounds.top, blockedBounds.top)
-            assertEquals("Adjacent available and unavailable cards must have the same bottom edge", freeBounds.bottom, blockedBounds.bottom)
-            assertTrue("The second card must appear beside the first without overlap", freeBounds.right < blockedBounds.left)
-            val favorite = requireNotNull(findDescription("收藏 A101"))
-            val favoriteBounds = Rect().apply { (clickableParent(favorite) ?: favorite).getBoundsInScreen(this) }
-            val minimumTouchPixels = (48 * instrumentation.targetContext.resources.displayMetrics.density).toInt()
-            assertTrue("Favorites retain a separate 48dp touch target",
-                favoriteBounds.width() >= minimumTouchPixels && favoriteBounds.height() >= minimumTouchPixels)
-            click(favorite)
-            waitFor("The independent favorite callback must be delivered") { favorites.get() == 1 }
-            assertEquals("The favorite hit target must invoke only its own callback", 1, favorites.get())
+            val rowBounds = assertFourSeatRow(listOf("A101", "B202", "C303", "D404"), "1.6 font scale at ${screenWidthDp}dp")
+            assertTrue("Compact cards must use approximately one quarter of the results width", rowBounds.all {
+                it.width() <= instrumentation.targetContext.resources.displayMetrics.widthPixels / 4
+            })
+            val futureSeat = requireNotNull(findSeatTile("C303"))
+            assertTrue("Full current status and future availability must remain independently accessible",
+                futureSeat.stateDescription.toString().contains("当前正在使用，可预约其他时段，可预约"))
+            assertTrue("Truncated area and compact capability icons retain the full accessible description",
+                futureSeat.stateDescription.toString().contains("大兴校区三层自然科学阅览区域靠窗长名称，有电源，靠窗"))
+            val idleSeat = requireNotNull(findSeatTile("D404"))
+            assertTrue("An idle seat may still be unavailable according to the server",
+                idleSeat.stateDescription.toString().contains("座位空闲，不可预约"))
+            longClick(requireNotNull(findSeatTile("A101")))
+            waitFor("The long-press favorite callback must be delivered") { favorites.get() == 1 }
+            assertEquals("A long press must invoke only its favorite callback", 1, favorites.get())
             assertEquals("Favoriting must not choose a reservation time", 0, selected.get())
+            val unavailableTile = requireNotNull(findSeatTile("B202"))
+            assertTrue("Unavailable seats retain an enabled favorite gesture", unavailableTile.isEnabled && unavailableTile.isLongClickable)
+            longClick(unavailableTile)
+            waitFor("Unavailable-seat favorites must still be actionable") { favorites.get() == 2 }
+            assertEquals("Favoriting an unavailable seat must not select it", 0, selected.get())
             touch(blocked)
             instrumentation.waitForIdleSync()
             assertEquals("An unavailable card body must not select a seat", 0, selected.get())
             assertFalse("Seat cards must not retain a separate time-selection footer", hasText("选时间"))
-            val availabilityAction = findWithScroll("The available label must be visible below the large-text seat header") {
-                findDescription("选择 A101 的使用时间")
-            }
-            val availabilityBounds = Rect().apply { availabilityAction.getBoundsInScreen(this) }
-            assertTrue("The available card remains the large selection target", freeBounds.height() >= minimumTouchPixels)
-            assertTrue("The available label must stay compact beside status text", availabilityBounds.height() < favoriteBounds.height())
-            val unavailableLabel = requireNotNull(findDescription("不可预约 B202"))
-            val unavailableBounds = Rect().apply { unavailableLabel.getBoundsInScreen(this) }
-            assertEquals("Both availability labels must use the same compact height", availabilityBounds.height(), unavailableBounds.height())
             captureSeatCardsIfRequested()
-            click(availabilityAction)
-            waitFor("The available label must choose a time through the existing callback") { selected.get() == 1 }
-            click(findWithScroll("The whole available card must remain selectable") { findDescription("座位 A101") })
+            val availableTile = requireNotNull(findSeatTile("A101"))
+            assertTrue("Available tile exposes a labeled time-selection action", availableTile.actionList.any {
+                it.id == AccessibilityNodeInfo.ACTION_CLICK && it.label?.toString() == "选择 A101 的使用时间"
+            })
+            touch(availableTile)
+            waitFor("One physical tap must choose a time through the existing callback") { selected.get() == 1 }
+            click(findWithScroll("The whole available card must remain selectable") { findSeatTile("A101") })
             waitFor("The available card body must choose a time through the same callback") { selected.get() == 2 }
-            assertEquals("Seat selection must not toggle a favorite", 1, favorites.get())
+            assertEquals("Seat selection must not toggle a favorite", 2, favorites.get())
 
-            val switch = findWithScroll("The immediate page filter must be visible", backwards = true) { filterSwitch() }
+            val switch = findWithScroll("The immediate availability filter must be visible", backwards = true) { filterSwitch() }
             click(switch)
             waitFor("Switch must immediately hide the unavailable seat without querying") {
-                hasText("本页显示 1 / 已加载 2 个") && !hasText("B202")
+                hasText("显示 2 / 已加载 4 个") && !hasText("B202") && !hasText("D404")
             }
             assertEquals("Changing the local filter must not issue a new query", 0, searches.get())
             assertTrue("Filter semantics must report enabled", filterSwitch()?.isChecked == true)
 
-            val next = findWithScroll("Pagination must stay available under the local filter") { findText("下一页") }
-            assertTrue("Next page must remain enabled", (clickableParent(next) ?: next).isEnabled)
-            click(next)
-            waitFor("A newly loaded unavailable page must be filtered immediately") {
-                hasText("本页显示 0 / 已加载 1 个") && hasText("本页没有可预约座位") && !hasText("C303")
+            assertFalse("All results must stay on one screen without a next-page control", hasText("下一页"))
+            assertFalse("All results must stay on one screen without a previous-page control", hasText("上一页"))
+            instrumentation.runOnMainSync {
+                screen.value = mixedResults.copy(hasNextPage = true, seats = mixedResults.seats +
+                    NativeSeat("fixture-incoming-unavailable", "E505", "测试区域", status = "不可用", available = false))
             }
-            assertEquals(1, nextPages.get())
-            val nextAgain = findWithScroll("An empty filtered page must still allow the next page") { findText("下一页") }
-            assertTrue("Filtering all loaded seats must not disable server pagination", (clickableParent(nextAgain) ?: nextAgain).isEnabled)
+            waitFor("An incoming unavailable result must be filtered without dropping earlier results") {
+                hasText("显示 2 / 已加载 5 个") && !hasText("E505")
+            }
+            assertEquals("Automatic loading must not invoke a manual page action", 0, nextPages.get())
 
             instrumentation.runOnMainSync {
-                screen.value = mixedPage.copy(page = 2, seats = listOf(
-                    NativeSeat("fixture-currently-used", "D404", "测试区域", status = "当前正在使用，可预约其他时段", available = true),
-                    NativeSeat("fixture-idle-disabled", "E505", "测试区域", status = "座位空闲", available = false),
+                screen.value = screen.value.copy(hasNextPage = false, resultsComplete = true,
+                    seats = screen.value.seats + listOf(
+                        NativeSeat("fixture-incoming-future", "F606", "测试区域", status = "当前正在使用，可预约其他时段", available = true),
+                        NativeSeat("fixture-idle-disabled", "G707", "测试区域", status = "座位空闲", available = false),
+                    ))
+            }
+            waitFor("The enabled filter must apply to the final aggregate without another query") {
+                hasText("显示 3 / 已加载 7 个")
+            }
+            findWithScroll("A server-available future-time seat must remain visible") { findText("F606") }
+            assertFalse("A disabled seat with an idle label must stay filtered out", hasText("G707"))
+            click(findWithScroll("The filter must remain available after automatic loading", backwards = true) { filterSwitch() })
+            waitFor("Disabling the filter must immediately restore all loaded seats") { hasText("显示 7 / 已加载 7 个") }
+            findWithScroll("The hidden unavailable seat must return without another query") { findText("E505") }
+            click(findWithScroll("The availability filter must remain accessible", backwards = true) { filterSwitch() })
+            instrumentation.runOnMainSync {
+                screen.value = mixedResults.copy(resultsComplete = true, hasNextPage = false, seats = listOf(
+                    NativeSeat("fixture-only-unavailable", "Z999", "测试区域", status = "不可用", available = false),
                 ))
             }
-            waitFor("The enabled filter must immediately apply to subsequent state updates") {
-                hasText("本页显示 1 / 已加载 2 个") && !hasText("E505")
+            waitFor("Filtering every seat must show an accurate empty state") {
+                hasText("显示 0 / 已加载 1 个") && hasText("当前没有可预约座位") && !hasText("Z999")
             }
-            findWithScroll("Server-available future-time seat must remain visible") { findText("D404") }
-            assertFalse("A disabled seat with an idle label must stay filtered out", hasText("E505"))
-            click(findWithScroll("The filter must remain available after paging", backwards = true) { filterSwitch() })
-            waitFor("Disabling the filter must immediately restore all loaded seats") { hasText("本页显示 2 / 已加载 2 个") }
-            findWithScroll("The hidden unavailable seat must return without another query") { findText("E505") }
             assertEquals("No fixture state change may require another search", 0, searches.get())
-            assertEquals("Only the explicit available-label and available-card clicks may select a time", 2, selected.get())
+            assertEquals("Only explicit available-card taps may select a time", 2, selected.get())
         } catch (failure: Throwable) {
             captureFailure(failure)
             throw failure
@@ -198,11 +275,11 @@ class SeatFilterUiInstrumentedTest {
         }.onFailure { failure.addSuppressed(it) }
     }
 
-    private fun captureSeatCardsIfRequested() {
+    private fun captureSeatCardsIfRequested(suffix: String = "") {
         if (InstrumentationRegistry.getArguments().getString("captureSeatCards") != "true") return
         automation.takeScreenshot()?.let { screenshot ->
             try {
-                File(instrumentation.targetContext.filesDir, "seat-filter-two-column-cards.png").outputStream().use {
+                File(instrumentation.targetContext.filesDir, "seat-filter-four-column-cards$suffix.png").outputStream().use {
                     assertTrue(screenshot.compress(Bitmap.CompressFormat.PNG, 100, it))
                 }
             } finally { screenshot.recycle() }
@@ -212,15 +289,56 @@ class SeatFilterUiInstrumentedTest {
             "bounds=$bounds enabled=${node.isEnabled} clickable=${node.isClickable}" +
                 " text=[${node.text}] description=[${node.contentDescription}] state=[${node.stateDescription}]"
         }
-        File(instrumentation.targetContext.filesDir, "seat-filter-two-column-cards.txt").writeText(dump)
+        File(instrumentation.targetContext.filesDir, "seat-filter-four-column-cards$suffix.txt").writeText(dump)
+    }
+
+    private fun assertFourSeatRow(names: List<String>, configuration: String): List<Rect> {
+        val bounds = names.map { name ->
+            Rect().apply { requireNotNull(findSeatTile(name)).getBoundsInScreen(this) }
+        }
+        assertEquals("The fixture must exercise a full four-seat row", 4, bounds.size)
+        bounds.forEach { card ->
+            assertEquals("Four seat cards must share a top edge at $configuration", bounds.first().top, card.top)
+            assertEquals("Four seat cards must share a bottom edge at $configuration", bounds.first().bottom, card.bottom)
+        }
+        bounds.zipWithNext().forEach { (left, right) ->
+            assertTrue("Adjacent cards must remain separate without overlap at $configuration", left.right < right.left)
+        }
+        return bounds
+    }
+
+    private fun assertAvailabilityBorders(bounds: List<Rect>, available: List<Boolean>) {
+        val screenshot = requireNotNull(automation.takeScreenshot())
+        try {
+            val edgeBand = (3 * instrumentation.targetContext.resources.displayMetrics.density).toInt().coerceAtLeast(2)
+            bounds.zip(available).forEach { (card, bookable) ->
+                val colors = (card.left until (card.left + edgeBand).coerceAtMost(card.right)).flatMap { x ->
+                    (card.centerY() - 2..card.centerY() + 2).map { y -> screenshot.getPixel(x, y) }
+                }
+                val hasExpectedColor = colors.any { pixel ->
+                    val red = Color.red(pixel)
+                    val green = Color.green(pixel)
+                    val blue = Color.blue(pixel)
+                    if (bookable) green > red * 1.2f && green > blue * 1.2f
+                    else red > green * 1.3f && red > blue * 1.3f
+                }
+                assertTrue("${if (bookable) "Bookable" else "Unbookable"} seats must have a visible ${if (bookable) "green" else "red"} border", hasExpectedColor)
+            }
+        } finally { screenshot.recycle() }
     }
 
     private fun findDescription(value: String) = nodes().firstOrNull { it.contentDescription?.toString() == value }
 
+    private fun findSeatTile(name: String): AccessibilityNodeInfo? = findDescription("座位 $name")?.let { label ->
+        // Compose exposes the explicit description as a child proxy; the
+        // enclosing clickable tile owns state and labeled gesture actions.
+        clickableParent(label) ?: label
+    }
+
     private fun filterSwitch(): AccessibilityNodeInfo? {
         val current = nodes()
         return current.firstOrNull { it.isCheckable && it.contentDescription?.toString() == "仅看可用" }
-            ?: current.firstOrNull { it.isCheckable && Build.VERSION.SDK_INT >= 30 && it.stateDescription?.toString()?.contains("本页") == true }
+            ?: current.firstOrNull { it.isCheckable && Build.VERSION.SDK_INT >= 30 && it.stateDescription?.toString()?.contains("显示") == true }
     }
 
     private fun waitFor(message: String, predicate: () -> Boolean) {
@@ -261,7 +379,13 @@ class SeatFilterUiInstrumentedTest {
         touch(node)
     }
 
-    private fun touch(node: AccessibilityNodeInfo) {
+    private fun longClick(node: AccessibilityNodeInfo) {
+        assertEquals("Only synthetic native content receives long presses", appPackage, node.packageName?.toString())
+        assertTrue("The verified fixture tile must support long press", node.isEnabled && node.isLongClickable)
+        assertTrue("The accessible long press must invoke its callback", node.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK))
+    }
+
+    private fun touch(node: AccessibilityNodeInfo, holdMillis: Long = 35) {
         val bounds = Rect().apply { node.getBoundsInScreen(this) }
         val window = Rect().apply { automation.rootInActiveWindow?.getBoundsInScreen(this) }
         assertEquals("Only synthetic application nodes may be touched", appPackage, node.packageName?.toString())
@@ -272,7 +396,7 @@ class SeatFilterUiInstrumentedTest {
                 .apply { source = InputDevice.SOURCE_TOUCHSCREEN }
             try { assertTrue("Fixture touch must be delivered", automation.injectInputEvent(event, true)) }
             finally { event.recycle() }
-            if (action == MotionEvent.ACTION_DOWN) SystemClock.sleep(35)
+            if (action == MotionEvent.ACTION_DOWN) SystemClock.sleep(holdMillis)
         }
     }
 }

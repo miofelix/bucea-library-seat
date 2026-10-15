@@ -59,6 +59,8 @@ class LibraryFeatureViewModel internal constructor(
     val search = searchState.asStateFlow()
     private val hubState = MutableStateFlow(LibraryHubState())
     val hub = hubState.asStateFlow()
+    private val favoriteIdsState = MutableStateFlow<Set<String>>(emptySet())
+    val favoriteSeatIds = favoriteIdsState.asStateFlow()
     private val feedbackEvents = Channel<String>(Channel.BUFFERED)
     val feedback: Flow<String> = feedbackEvents.receiveAsFlow()
     private var boundAccountId: String? = null
@@ -71,6 +73,7 @@ class LibraryFeatureViewModel internal constructor(
     private var actionJob: Job? = null
     private var detailsJob: Job? = null
     private val pages = mutableMapOf<Int, SeatPage>()
+    private val pageOffsets = mutableMapOf<Int, Int>()
     private val backendSeats = mutableMapOf<String, LibrarySeat>()
     private var requestedQuery: SeatQuery? = null
     private data class PageRequest(val query: SeatQuery, val index: Int, val offset: Int)
@@ -102,7 +105,8 @@ class LibraryFeatureViewModel internal constructor(
         boundAccountId?.let { repository.releaseSession(it) }
         boundAccountId = id
         authenticated = loggedIn
-        pages.clear(); backendSeats.clear(); requestedQuery = null; failedPageRequest = null
+        favoriteIdsState.value = if (loggedIn && id != null) favorites.seats(id).mapTo(mutableSetOf()) { it.id } else emptySet()
+        pages.clear(); pageOffsets.clear(); backendSeats.clear(); requestedQuery = null; failedPageRequest = null
         requestedRoom = null; optionsReadFailed = false
         selectedDate = null; historyOffset = null; extensionState.value = emptyList()
         mutationState.value = false; lastActionMessage = null
@@ -147,10 +151,10 @@ class LibraryFeatureViewModel internal constructor(
                 val needsRooms = building.isNotBlank() && building != "null"
                 val filters = if (needsRooms) reconciled + ("room" to "null") else reconciled
                 optionsDate = today
-                pages.clear(); requestedQuery = null; selectedDate = null
+                pages.clear(); pageOffsets.clear(); requestedQuery = null; selectedDate = null
                 searchState.update { it.copy(options = if (needsRooms) mapped + ("room" to emptyList()) else mapped,
                     filters = filters, seats = emptyList(), hasSearched = false,
-                    page = 0, hasNextPage = false, selectedSeat = null, startOptions = emptyList(), endOptions = emptyList(),
+                    page = 0, hasNextPage = false, total = null, resultsComplete = false, selectedSeat = null, startOptions = emptyList(), endOptions = emptyList(),
                     selectedStart = null, selectedEnd = null, verificationRequired = false,
                     reservationOutcomeUncertain = false, status = "可用日期与条件已更新，请查询座位") }
                 if (needsRooms) loadRooms(building, previousFilters["room"])
@@ -178,10 +182,10 @@ class LibraryFeatureViewModel internal constructor(
         if (key != "name" && current.options[key].orEmpty().none { it.value == value }) return
         if (key == "room" && (current.roomsLoading || current.roomsError != null)) return
         if (current.filters[key] == value) return
-        searchJob?.cancel(); timesJob?.cancel(); pages.clear(); requestedQuery = null
+        searchJob?.cancel(); timesJob?.cancel(); pages.clear(); pageOffsets.clear(); requestedQuery = null
         failedPageRequest = null
         searchState.update { it.copy(filters = it.filters + (key to value), seats = emptyList(), hasSearched = false,
-            page = 0, hasNextPage = false, selectedSeat = null, error = null, status = null,
+            page = 0, hasNextPage = false, total = null, resultsComplete = false, selectedSeat = null, error = null, status = null,
             loading = false, verificationRequired = false, failedPage = null) }
         if (key == "building") {
             loadRooms(value)
@@ -242,28 +246,65 @@ class LibraryFeatureViewModel internal constructor(
         if (!room.isNullOrBlank() && current.options["room"].orEmpty().none { it.value == room }) return
         if (searchState.value.options.isEmpty()) { loadSearch(); return }
         if (optionsDate != LocalDate.now(ZoneId.of("Asia/Shanghai"))) { loadSearch(force = true); return }
-        pages.clear(); requestedQuery = query()
+        pages.clear(); pageOffsets.clear(); requestedQuery = query()
+        searchState.update { it.copy(seats = emptyList(), hasSearched = true, page = 0,
+            hasNextPage = true, total = null, resultsComplete = false) }
         requestPage(0, 0)
     }
 
+    /** Follow the server's offsets until every result is in one list. Failed reads
+     * retain their exact query/offset and the results already loaded. */
     private fun requestPage(pageIndex: Int, offset: Int, retryQuery: SeatQuery? = null) {
         val currentQuery = retryQuery ?: requestedQuery ?: return
-        val request = PageRequest(currentQuery, pageIndex, offset)
         failedPageRequest = null
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
-            searchState.update { it.copy(loading = true, error = null, status = null, failedPage = null) }
+            var request = PageRequest(currentQuery, pageIndex, offset)
+            searchState.update { it.copy(loading = true, error = null, status = null, failedPage = null,
+                resultsComplete = false, total = null, verificationRequired = false, verificationUserId = "") }
             try {
-                val page = searchRequests.search(currentQuery, offset)
-                currentCoroutineContext().ensureActive()
-                pages[pageIndex] = page
-                page.seats.forEach { backendSeats[it.id] = it }
-                showPage(pageIndex, page)
+                while (true) {
+                    val result = searchRequests.search(currentQuery, request.offset)
+                    currentCoroutineContext().ensureActive()
+                    if (result.verificationRequired) {
+                        // A verification response is not the end of the result set.
+                        failedPageRequest = request
+                        searchState.update { it.copy(hasSearched = true, hasNextPage = true,
+                            status = result.message.ifBlank { "请完成图片验证后继续加载座位" },
+                            verificationRequired = true, verificationUserId = result.verificationUserId,
+                            failedPage = request.index) }
+                        break
+                    }
+                    pages[request.index] = result
+                    pageOffsets[request.index] = request.offset
+                    val loaded = linkedMapOf<String, LibrarySeat>()
+                    pages.toSortedMap().values.forEach { page -> page.seats.forEach { loaded[it.id] = it } }
+                    backendSeats.putAll(loaded)
+                    val favoriteIds = boundAccountId?.let { id -> favorites.seats(id).map { it.id }.toSet() }.orEmpty()
+                    val complete = result.nextOffset == null
+                    searchState.update { it.copy(seats = loaded.values.map { seat ->
+                        NativeSeat(seat.id, seat.label, seat.room, status = seat.status, available = seat.available,
+                            localFavorite = seat.id in favoriteIds)
+                    }, page = request.index, hasSearched = true, hasNextPage = !complete,
+                        total = loaded.size.takeIf { complete }, resultsComplete = complete,
+                        status = result.message.takeIf { it.isNotBlank() && (result.seats.isNotEmpty() || loaded.isEmpty()) },
+                        verificationRequired = false, verificationUserId = "", error = null, failedPage = null) }
+                    if (complete) break
+                    val nextOffset = requireNotNull(result.nextOffset)
+                    if (nextOffset < 0 || nextOffset in pageOffsets.values) {
+                        // Keep the partial results, but never loop on a malformed
+                        // cursor or claim that these are all matching seats.
+                        searchState.update { it.copy(error = "图书馆返回了重复或异常的座位读取位置，请重新查询以获取完整结果") }
+                        break
+                    }
+                    request = PageRequest(currentQuery, request.index + 1, nextOffset)
+                }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 currentCoroutineContext().ensureActive()
                 failedPageRequest = request
-                searchState.update { it.copy(error = searchRequests.userMessage(e), failedPage = pageIndex) }
+                searchState.update { it.copy(error = searchRequests.userMessage(e), failedPage = request.index,
+                    hasNextPage = true, resultsComplete = false, total = null) }
             }
             finally { if (coroutineContext[Job]?.isActive == true) searchState.update { it.copy(loading = false) } }
         }
@@ -273,32 +314,16 @@ class LibraryFeatureViewModel internal constructor(
         status = seat.status, available = seat.available,
         localFavorite = boundAccountId?.let { id -> favorites.seats(id).any { it.id == seat.id } } == true)
 
-    private fun showPage(index: Int, page: SeatPage) {
-        failedPageRequest = null
-        searchState.update { it.copy(seats = page.seats.map(::nativeSeat), page = index, hasSearched = true,
-            hasNextPage = page.nextOffset != null, total = page.seats.size, status = page.message.ifBlank { null },
-            verificationRequired = page.verificationRequired, verificationUserId = page.verificationUserId, error = null, failedPage = null) }
-    }
-
-    fun nextPage() {
-        if (searchState.value.loading) return
-        val next = searchState.value.page + 1
-        pages[next]?.let { showPage(next, it); return }
-        val offset = pages[searchState.value.page]?.nextOffset ?: return
-        requestPage(next, offset)
-    }
-
-    fun previousPage() {
-        if (searchState.value.loading) return
-        val previous = searchState.value.page - 1
-        pages[previous]?.let { showPage(previous, it) }
-    }
+    // Kept for callers from older screen fixtures; results no longer paginate.
+    fun nextPage() = Unit
+    fun previousPage() = Unit
 
     fun toggleFavorite(seat: NativeSeat) {
         val id = boundAccountId ?: return
         val model = backendSeats[seat.id] ?: LibrarySeat(seat.id, seat.name, seat.location, seat.status, seat.available)
         val wasFavorite = favorites.seats(id).any { it.id == seat.id }
         favorites.toggle(id, model)
+        favoriteIdsState.value = favorites.seats(id).mapTo(mutableSetOf()) { it.id }
         searchState.update { it.copy(seats = it.seats.map { shown -> if (shown.id == seat.id) shown.copy(localFavorite = !shown.localFavorite) else shown },
             selectedSeat = it.selectedSeat?.let { shown -> if (shown.id == seat.id) shown.copy(localFavorite = !shown.localFavorite) else shown }) }
         feedbackEvents.trySend(if (wasFavorite) "已取消收藏" else "已收藏座位")
@@ -312,20 +337,28 @@ class LibraryFeatureViewModel internal constructor(
             return
         }
         timesJob?.cancel()
-        selectedDate = searchState.value.filters["onDate"]
-        if (selectedDate.isNullOrBlank()) { loadSearch(); return }
+        val onDate = searchState.value.filters["onDate"].orEmpty()
+        if (onDate.isBlank()) { loadSearch(); return }
+        // Search/options reads can outlive a switch to layout or favorites. Once a
+        // seat has been explicitly chosen, only its time flow may update booking UI.
+        searchJob?.cancel()
+        optionsJob?.cancel()
+        failedPageRequest = null
+        selectedDate = onDate
         backendSeats.putIfAbsent(seat.id, LibrarySeat(seat.id, seat.name, seat.location, seat.status, seat.available))
         searchState.update { it.copy(selectedSeat = seat, startOptions = emptyList(), endOptions = emptyList(), selectedStart = null,
-            selectedEnd = null, reservationBusy = true, error = null, status = null, verificationRequired = false,
+            selectedEnd = null, reservationBusy = true, loading = false, error = null, status = null,
+            verificationRequired = false, verificationUserId = "", failedPage = null,
             reservationOutcomeUncertain = false) }
         timesJob = viewModelScope.launch {
             try {
-                val result = functions.startTimes(account(), seat.id, requireNotNull(selectedDate))
+                val result = functions.startTimes(account(), seat.id, onDate)
+                currentCoroutineContext().ensureActive()
                 searchState.update { it.copy(startOptions = result.options.map { option -> SeatOption(option.value, option.label) },
                     status = result.message.ifBlank { null }, verificationRequired = result.verificationRequired,
                     verificationUserId = result.verificationUserId) }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { searchState.update { it.copy(error = repository.userMessage(e)) } }
+            catch (e: Exception) { currentCoroutineContext().ensureActive(); searchState.update { it.copy(error = repository.userMessage(e)) } }
             finally { if (coroutineContext[Job]?.isActive == true) searchState.update { it.copy(reservationBusy = false) } }
         }
     }
@@ -334,16 +367,18 @@ class LibraryFeatureViewModel internal constructor(
         val state = searchState.value
         val seat = state.selectedSeat ?: return
         if (state.reservationBusy || state.startOptions.none { it.value == value }) return
+        val onDate = selectedDate ?: return
         timesJob?.cancel()
         searchState.update { it.copy(selectedStart = value, selectedEnd = null, endOptions = emptyList(), reservationBusy = true, error = null) }
         timesJob = viewModelScope.launch {
             try {
-                val result = functions.endTimes(account(), seat.id, requireNotNull(selectedDate), value)
+                val result = functions.endTimes(account(), seat.id, onDate, value)
+                currentCoroutineContext().ensureActive()
                 searchState.update { it.copy(endOptions = result.options.map { option -> SeatOption(option.value, option.label) },
                     status = result.message.ifBlank { null }, verificationRequired = result.verificationRequired,
                     verificationUserId = result.verificationUserId) }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { searchState.update { it.copy(error = repository.userMessage(e)) } }
+            catch (e: Exception) { currentCoroutineContext().ensureActive(); searchState.update { it.copy(error = repository.userMessage(e)) } }
             finally { if (coroutineContext[Job]?.isActive == true) searchState.update { it.copy(reservationBusy = false) } }
         }
     }
@@ -512,7 +547,7 @@ class LibraryFeatureViewModel internal constructor(
         if (resumeSearch) {
             val current = searchState.value
             when {
-                current.selectedSeat == null -> searchSeats()
+                current.selectedSeat == null -> retrySearch()
                 current.startOptions.isEmpty() -> selectSeat(current.selectedSeat)
                 current.endOptions.isEmpty() && current.selectedStart != null -> selectStart(current.selectedStart)
             }
@@ -580,11 +615,41 @@ class LibraryFeatureViewModel internal constructor(
         val id = boundAccountId ?: return
         val existed = favorites.seats(id).any { it.id == item.id }
         favorites.remove(id, item.id)
+        favoriteIdsState.value = favorites.seats(id).mapTo(mutableSetOf()) { it.id }
         if (existed) feedbackEvents.trySend("已取消收藏")
         refreshHub()
     }
     fun favoriteSeat(item: HubFavorite): NativeSeat = nativeSeat(backendSeats[item.id] ?: LibrarySeat(item.id, item.name, item.location,
         if (item.local) "收藏座位" else "常用座位", true))
+
+    /** Fetch the current account's valid dates; choosing a favorite never changes destinations. */
+    fun prepareFavoriteBooking(item: HubFavorite) {
+        if (searchState.value.reservationBusy) return
+        pendingFavorite = null
+        searchJob?.cancel()
+        failedPageRequest = null
+        dismissReservation()
+        searchState.update { it.copy(loading = optionsJob?.isActive == true,
+            verificationRequired = false, verificationUserId = "") }
+        backendSeats.putIfAbsent(item.id, LibrarySeat(item.id, item.name, item.location,
+            if (item.local) "收藏座位" else "常用座位", true))
+        loadSearch()
+    }
+
+    fun selectFavoriteDate(item: HubFavorite, onDate: String): Boolean {
+        val state = searchState.value
+        if (state.loading || state.reservationBusy || state.error != null || optionsJob?.isActive == true ||
+            state.options["onDate"].orEmpty().none { it.value == onDate }) return false
+        if (optionsDate != LocalDate.now(ZoneId.of("Asia/Shanghai"))) {
+            loadSearch(force = true)
+            return false
+        }
+        setFilter("onDate", onDate)
+        // A saved/search result's availability belongs to its original date. Server time
+        // options decide whether this favorite can be booked on the date chosen here.
+        selectSeat(favoriteSeat(item).copy(available = true))
+        return searchState.value.selectedSeat?.id == item.id
+    }
 
     private fun hubAction(id: String): HubAction = when (id) {
         "checkIn" -> HubAction(id, "签到", "签到需要连接图书馆内部 Wi-Fi。请到馆并连接后，为当前预约签到。")
