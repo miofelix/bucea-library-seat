@@ -56,7 +56,7 @@ Android 更新清单为 `https://download.miofelix.com/bucea-library-seat/update
 
 本次仅修改 App 源码的更新地址，未重新构建、替换或发布现有 `v1.0.0` APK。将该 Release 同步到 R2 不会改变其内置地址，新更新地址需在后续 App 构建发布后生效；本次不提供旧地址兼容。
 
-当前 R2 bucket 尚未创建。先创建 bucket、绑定下载域名、配置全部凭据并关闭 Pages 的 Git 自动生产部署；首次手动 tag 同步会在 R2 上传和公开检查成功后自动部署官网。Actions 配置和公网验收完成前，不把“代码已实现”写成“分发服务已启用”。
+R2 bucket 使用 `miofelix-software-releases`，下载域名为 `download.miofelix.com`。Pages 项目为 `bucea-library-seat-website`，采用 Direct Upload，由 Actions 统一部署；部署凭据使用账户级 **Pages → Write** token。2026-10-16 已成功同步 `v1.0.0` 并部署官网，`library.miofelix.com` 已活动且启用 SSL，五个 APK 的公开完整下载与 SHA-256 校验通过。实际配置和上线结果见 [UPDATES.md](UPDATES.md)。
 
 每次发布检查 Actions 结果，并从固定公网地址核对清单版本、所有 APK 的大小与摘要。HEAD、ETag 和抽样 Range 不计为完整下载；GitHub 附件读回或 ADB 安装不计为新 R2 来源的真实 Android 更新事务。
 

@@ -2,7 +2,7 @@
 
 北京建筑大学图书馆的非官方 Android 客户端，让登录、选座和预约更方便。全部界面采用原生「留白」设计，以简洁、清爽和易用为优先。
 
-[查看宣传主页](https://library.miofelix.com/) · [下载正式版 v1.0.0](https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.0)
+[查看宣传主页](https://library.miofelix.com/) · [下载正式版 v1.0.0](https://library.miofelix.com/#download) · [GitHub 备用下载](https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.0)
 
 多数现代手机选择 `arm64-v8a` 包（约 33.8 MB）；不确定架构时选择无后缀的通用包（约 55.5 MB）。同时提供 `armeabi-v7a`、`x86` 和 `x86_64`，各包均可独立安装。体积优化与取舍见 [APK 大小分析](docs/APK_SIZE.md)。
 
@@ -28,7 +28,7 @@
 
 从 0.3.4 起支持应用内更新：打开“设置”，展开顶部“应用更新”后点击“手动检查更新”，确认后下载并由系统安装。检查更新无需连接校园网。旧版需先手动安装含更新模块的版本。构建与签名在开发机完成，GitHub Releases 保存发布成品，GitHub Actions 负责将 APK 与更新清单发布到 Cloudflare R2，官网由 Cloudflare Pages 托管。首次启用、域名切换和服务验证见 [更新分发](docs/UPDATES.md) 与 [官网部署](docs/WEBSITE.md)。
 
-本次分发迁移只修改 App 源码中的更新地址，未重新构建或替换现有 v1.0.0 APK；新地址将在后续 App 构建发布后生效。R2 首次同步可先提供官网下载。
+官网已启用 Cloudflare R2 下载，五种 APK 均从 `download.miofelix.com` 获取。分发使用 bucket `miofelix-software-releases`、项目目录 `bucea-library-seat/` 和 Pages 项目 `bucea-library-seat-website`，完整下载及 SHA-256 验证已通过，记录见 [更新分发](docs/UPDATES.md)。本次未重新构建或替换现有 v1.0.0 APK，其内置更新地址保持原样；源码中的新更新地址将在后续 App 构建发布后生效。
 
 开发作者：樊彧。欢迎在 [GitHub Issues](https://github.com/miofelix/bucea-library-seat/issues) 提交问题与建议。
 

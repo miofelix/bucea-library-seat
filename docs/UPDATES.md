@@ -12,9 +12,9 @@ Android APK 在保存原签名密钥的开发机上构建、验证并发布到 G
 
 清单和 APK 直接返回内容，不经过官网跳转；正常 GET 返回 200，Range 请求返回 206。Cloudflare Pages 仅托管网页，APK 留在 R2。
 
-当前 R2 bucket 尚未创建。本文描述已实现的自动化与后续启用步骤；官网源码保留 GitHub Release 下载入口，在 R2 准备完成前继续可用。先创建 bucket、配置全部凭据并绑定下载域名，再运行首次同步；该 Release 工作流在 R2 上传和公开检查成功后直接构建并部署官网。实际启用以 Actions 日志和下文的公开地址检查为准。此前服务的验收保留在 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md)，其中旧服务器与端口记录均属历史。
+R2 和官网已于 2026-10-16 启用。bucket 为 `miofelix-software-releases`，`download.miofelix.com` 自定义域名绑定处于活动状态。官网使用 Direct Upload Pages 项目 `bucea-library-seat-website`，生产分支为 `main`，不连接 Git 仓库；`library.miofelix.com` 已活动且启用 SSL。三项仓库 variables 和三项 secrets 已配置，首次上传、完整下载与官网上线结果见下文验证记录。官网源码保留 GitHub Release 备用下载入口；正式构建由 R2 元数据生成下载链接。此前服务的验收保留在 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md)，其中旧服务器与端口记录均属历史。
 
-本次只修改 App 源码中的下载域名、清单地址与 URL 校验，未重新打包、替换或发布现有 `v1.0.0` APK。现有 Release 字节及其内置的旧更新地址保持原样；同步 `v1.0.0` 到 R2 可以先启用官网 APK 下载，但不会改写 APK 内的更新地址。新地址将在后续构建发布的 App 中生效，本次不提供旧地址兼容。
+本次只修改 App 源码中的下载域名、清单地址与 URL 校验，未重新打包、替换或发布现有 `v1.0.0` APK。现有 Release 字节及其内置的旧更新地址保持原样；同步 `v1.0.0` 到 R2 已启用官网 APK 下载，但不会改写 APK 内的更新地址。新地址将在后续构建发布的 App 中生效，本次不提供旧地址兼容。
 
 ## Release 格式
 
@@ -67,27 +67,28 @@ R2 S3 API endpoint 为 `https://<CLOUDFLARE_ACCOUNT_ID>.r2.cloudflarestorage.com
 
 ### 2. 创建 R2 对象读写凭据
 
-1. 在 R2 概览中打开 **管理 R2 API 令牌（Manage R2 API Tokens）**，创建令牌，名称使用 **BUCEA Library Seat GitHub Actions R2 Release Publisher**。
+1. 在 R2 概览中打开 **管理 R2 API 令牌（Manage R2 API Tokens）**，创建账户级令牌，名称使用 **BUCEA Library Seat GitHub Actions R2 Release Publisher**。
 2. 权限选择 **对象读和写（Object Read & Write）**；范围选择 **仅应用于特定存储桶（Apply to specific buckets only）**，只勾选上一步的 bucket。
 3. 创建后保存 **Access Key ID** 和 **Secret Access Key**。它们分别用于 GitHub 的 `CLOUDFLARE_R2_ACCESS_KEY_ID` 和 `CLOUDFLARE_R2_SECRET_ACCESS_KEY`；Secret Access Key 只在创建完成时显示。
 4. 不将 R2 S3 凭据填写为 Pages API token，也不把凭据写进仓库文件或命令行参数。
 
-### 3. 获取 Pages 项目名称并创建 Pages token
+### 3. 创建 Pages 项目和账户级部署 token
 
-1. 进入 **Workers 和 Pages（Workers & Pages）**，打开已托管官网的 Pages 项目，记录**项目名称**。它是项目标识，不是 `library.miofelix.com` 域名。
-2. 在 Cloudflare 个人资料的 **API 令牌（API Tokens）** 中点击 **创建令牌 → 自定义令牌（Create Custom Token）**，名称使用 **BUCEA Library Seat GitHub Actions Pages Production Deployment**。
-3. 添加权限 **账户（Account）→ Cloudflare Pages → 编辑（Edit）**，账户资源限定到托管官网的这个账户。
-4. 创建后将 token 保存为 GitHub 的 `CLOUDFLARE_PAGES_DEPLOY_API_TOKEN`。它负责 Pages 部署，R2 对象上传仍使用上一步的 S3 凭据。
+1. 在 **管理帐户 → 帐户 API 令牌 → 创建令牌** 中创建自定义令牌，名称使用 **BUCEA Library Seat GitHub Actions Pages Production Deployment**。使用账户级令牌，使自动化凭据由账户管理。
+2. 自定义策略选择托管官网的目标账户（本次为 `fanyu`），权限选择 **Pages → Write**；创建前的审核摘要应显示 **Pages Write**。
+3. 创建后将 token 保存为 GitHub 的 `CLOUDFLARE_PAGES_DEPLOY_API_TOKEN`。它负责 Pages 部署，R2 对象上传仍使用上一步的 S3 凭据。保存后用令牌验证接口检查令牌有效性，再运行发布工作流。
+4. 通过控制台或 Pages API 创建 **上传资源（Direct Upload）** 类型的 `bucea-library-seat-website`，生产分支使用 `main`。不连接 Git 仓库，后续部署由 GitHub Actions 的 Wrangler 完成。项目名称是项目标识，不是 `library.miofelix.com` 域名。
+5. 首次成功部署后，在项目的 **自定义域（Custom domains）** 中添加 `library.miofelix.com`，等待 DNS 与证书状态变为活动。
 
 ### 4. 配置 GitHub Actions
 
 打开仓库 **Settings → Secrets and variables → Actions**。在 **Variables** 页签创建以下 repository variables：
 
-| 名称                                 | 值                                                    |
-| ------------------------------------ | ----------------------------------------------------- |
-| `CLOUDFLARE_ACCOUNT_ID`              | Cloudflare Account ID                                 |
-| `CLOUDFLARE_R2_RELEASES_BUCKET_NAME` | 创建的 bucket 名称，建议 `miofelix-software-releases` |
-| `CLOUDFLARE_PAGES_PROJECT_NAME`      | 已有 Pages 项目名称                                   |
+| 名称                                 | 值                           |
+| ------------------------------------ | ---------------------------- |
+| `CLOUDFLARE_ACCOUNT_ID`              | Cloudflare Account ID        |
+| `CLOUDFLARE_R2_RELEASES_BUCKET_NAME` | `miofelix-software-releases` |
+| `CLOUDFLARE_PAGES_PROJECT_NAME`      | `bucea-library-seat-website` |
 
 在 **Secrets** 页签创建以下 repository secrets：
 
@@ -103,11 +104,11 @@ GitHub 的 `GITHUB_TOKEN` 由 Actions 提供，用于读取 Release，无需手�
 
 ### 5. 首次同步并部署官网
 
-R2 下载域名和证书应已生效，三项 variables 与三项 secrets 均已配置。按 [WEBSITE.md](WEBSITE.md) 关闭现有 Pages 项目的 Git 自动生产部署，保留现有项目及官网域名，由 Actions 统一部署。
+R2 下载域名和证书应已生效，三项 variables 与三项 secrets 均已配置。Pages 使用不连接 Git 仓库的 Direct Upload 项目，由 Actions 统一部署，详见 [WEBSITE.md](WEBSITE.md)。
 
 1. 打开仓库 **Actions → Publish release to Cloudflare → Run workflow**，选择 `main`，填写已发布的 tag（例如 `v1.0.0`），同步已有 Release。
 2. 检查 `publish` job 的附件校验、R2 上传和公开地址检查。对象全部位于 `bucea-library-seat/` 下，包括 `releases/<tag>/<name>`、`updates/latest.json` 和 `releases/latest.json`；公开检查失败会阻止后续官网部署。
-3. `publish` 成功后，`website` job 自动读取最新 R2 元数据，构建、检查下载地址并部署到现有 Pages 项目。无需另行手动启用部署。
+3. `publish` 成功后，`website` job 自动读取最新 R2 元数据，构建、检查下载地址并部署到 `bucea-library-seat-website`。首次部署后绑定官网自定义域名，后续发布直接更新该项目。
 4. 打开 <https://library.miofelix.com/>，核对版本、大小与下载链接，完整下载 APK 并核对摘要；R2 URL 直接返回内容，不重定向到 `r2.dev`、S3 endpoint 或官网。
 5. 后续构建发布包含新地址的 App 后，执行真实 Android 更新检查与下载验收。首次同步现有 `v1.0.0` 只验证分发，不能证明该旧 APK 已切换更新地址。
 
@@ -136,6 +137,19 @@ python3 tools/publish_cloudflare.py \
 对下载域名执行 GET / HEAD，检查清单 JSON 的包名、版本、通用 APK URL、字节数和摘要；下载通用包和各分架构包，核对 `SHA256SUMS`。首段、续段和末段 Range 应返回 206 且字节正确，条件请求应符合实际返回的 ETag / Last-Modified。检查响应没有 3xx、登录页或 HTML 挑战页。
 
 抽样 Range 和 HEAD 不等于完整下载；完整文件校验也不等于 Android 安装成功。新架构的公网检查、确认下载、断点续传与系统安装需要分别记录实际结果，不能复用历史树莓派验收作为 R2 上线结果。
+
+### 2026-10-16 首次上线记录
+
+| 验证项           | 结果                                                                                                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 仓库配置         | 三项 variables 与三项 secrets 已配置；R2 令牌仅有指定 bucket 的 Object Read & Write，Pages 令牌为账户级 Pages Write。                                                                       |
+| Release 同步     | [`38788641625`](https://github.com/miofelix/bucea-library-seat/actions/runs/38788641625) 成功；`publish` 与 `website` 两个 job 均通过，Pages 部署 9 个文件。                                |
+| Pages 部署       | [本次部署](https://2a235de8.bucea-library-seat-website.pages.dev) 成功；官网显示 `v1.0.0`，五个 APK 下载链接均指向 `download.miofelix.com/bucea-library-seat/releases/v1.0.0/`。            |
+| 官网域名         | `library.miofelix.com` 状态活动且 SSL 已启用；自动创建的 CNAME 指向 `bucea-library-seat-website.pages.dev`，公开 GET 返回 `200`。浏览器重载后，图标与座位布局 SVG 均返回 `200` 且正常加载。 |
+| 清单             | 公开清单为 `versionCode: 14`、`versionName: 1.0.0`、`packageName: cn.edu.bucea.library`，元数据中的五个 APK 摘要均与 GitHub Release 一致。                                                  |
+| 完整下载         | 从公开下载域名完整 GET 五个 APK，共 `192704714` 字节；各包字节数与 SHA-256 全部匹配发布元数据。                                                                                             |
+| HEAD 与 Range    | 五个 APK 的 HEAD 长度正确；首段 Range 返回 `206` 和 `1024` 字节，内容含正确 ZIP 魔数。                                                                                                      |
+| Android 更新事务 | 本次未执行来自 R2 的真实 Android 更新下载与安装；现有 `v1.0.0` APK 的内置更新地址未改变。                                                                                                   |
 
 ## Android 行为
 
