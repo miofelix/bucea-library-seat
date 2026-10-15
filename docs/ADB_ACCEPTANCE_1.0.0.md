@@ -25,7 +25,21 @@ The universal asset is **BUCEA-Library-Seat-v1.0.0.apk**. Four complete independ
 
 The original universal APK was 102,563,251 bytes. Lossless native-library compression reduces the universal APK to approximately **55.53 MB**, and splitting plus compression reduces ARM64 to approximately **33.81 MB**. All twelve native-library entries and both OCR models are byte-identical after decompression to the prior build; the final archives declare `extractNativeLibs=true` and DEFLATE their native libraries. Android extracts only the device's ABI during installation. The installed-storage tradeoff, model investigation and further optimization options are detailed in [APK_SIZE.md](APK_SIZE.md). ARM32/x86/x86_64 are structurally inspected, not claimed as runtime-tested on this ARM64 phone.
 
-The final committed source, APK hashes, installation readback and GitHub asset verification are recorded below after preparation/publication; released assets are never overwritten.
+The release source is commit **`567d8caa27e7947e923b5c40f6cb368157726e1c`**. All five APKs were staged again from that commit. ZIP-entry comparisons against the tested compressed packages show that only `META-INF/version-control-info.textproto` changes; every APK's stamp contains this source SHA.
+
+| APK | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `BUCEA-Library-Seat-v1.0.0.apk` | 55,527,607 | `cb0b622f5e4bb15c8278b97a1f7562d0c23d16d79cf435084f60e982a546e19e` |
+| `BUCEA-Library-Seat-v1.0.0-arm64-v8a.apk` | 33,811,128 | `e0101402c61a59815b12a306d6d3ffb39cbe9f37831aad8ac3ef7b060069e235` |
+| `BUCEA-Library-Seat-v1.0.0-armeabi-v7a.apk` | 33,245,934 | `9e8c53c710c0603b8992b68bce9cf8906bb3885824212cb8eb0fc44164c3a85c` |
+| `BUCEA-Library-Seat-v1.0.0-x86.apk` | 35,066,066 | `3666b1f167aa05b47cbf34edfca53b4c955e6c6c745cf20987c4a6b935b8f411` |
+| `BUCEA-Library-Seat-v1.0.0-x86_64.apk` | 35,053,979 | `6b9fd8ad57bd46bacc6aa4767bff647b5765f5abe91b54e49ad33fbf0a000e75` |
+
+Both the final universal and ARM64 packages were installed with ADB, pulled back from the installed `base.apk`, and matched these exact byte counts and hashes. The phone is left on the non-debuggable ARM64 Release. The salted preservation check passed on the identical compressed code 14 implementation before the final Git-stamp-only rebuild; a final attempt to reinstall the previously removed SDK-only harness returned installer error `-99`, so no later harness run is claimed. The ordinary test and harness packages were removed, and system font scale remains 1.0.
+
+[**v1.0.0 is publicly published as a stable release**](https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.0), GitHub Release ID **413811919**. Independent post-publication readback verified `draft=false`, `prerelease=false`, all seven exact names, sizes and SHA-256 digests. GitHub's latest stable endpoint selects v1.0.0, and its tag points to source commit `567d8caa27e7947e923b5c40f6cb368157726e1c`. The universal APK asset ID is **643892042**, and ARM64 is **643892051**. The earlier rejected-name draft remained unpublished and was removed before creating this final release.
+
+A complete post-publication GitHub download of `BUCEA-Library-Seat-v1.0.0-arm64-v8a.apk` returned **33,811,128 bytes** with SHA-256 `e0101402c61a59815b12a306d6d3ffb39cbe9f37831aad8ac3ef7b060069e235`, matching the staged and installed ARM64 package. Downloaded `SHA256SUMS` and `update.json` also match the staged metadata byte-for-byte. This proves the GitHub attachment download, not the deferred mirror or an Android updater transaction.
 
 Mirror deployment and synchronization are **deferred at the user's request**. The Raspberry Pi Tailscale key expired and its known SSH routes were unreachable. The public mirror remains on 0.3.7/code 12 until multi-APK checksum compatibility is deployed and synchronization occurs. This release's ADB installation does not establish a public updater transaction.
 

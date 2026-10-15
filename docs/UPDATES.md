@@ -9,27 +9,29 @@
 
 ## 发布格式
 
-每个发布必须在同一 Release 内上传 APK、`SHA256SUMS` 和 `update.json`。旧 Release 缺少清单会被跳过。示例：
+每个发布必须在同一 Release 内上传通用 APK、`SHA256SUMS` 和 `update.json`。1.0.0 同时提供四种完整分架构 APK，共七个附件；镜像与应用内更新仍分发通用包，分架构包可从 Release 手动安装。旧 Release 缺少清单会被跳过。通用字段示例：
 
 ```json
 {
   "schemaVersion": 1,
   "packageName": "cn.edu.bucea.library",
-  "versionCode": 8,
-  "versionName": "0.3.4",
+  "versionCode": 14,
+  "versionName": "1.0.0",
   "minSdk": 26,
   "notes": "本次更新说明",
   "apk": {
-    "name": "BUCEA-Library-Seat-v0.3.4-beta.1.apk",
-    "size": 102426255,
+    "name": "BUCEA-Library-Seat-v1.0.0.apk",
+    "size": 55527607,
     "sha256": "构建任务生成的64位小写十六进制摘要"
   }
 }
 ```
 
-大小和摘要以实际生成的清单为准。清单与 APK 元数据来自 `aapt dump badging`，发布前由 `apksigner` 验证签名，并拒绝 `debuggable=true` 的 APK。`SHA256SUMS` 是一行 `<摘要><两个空格><APK文件名>`。
+大小和摘要以实际生成的清单为准。清单与 APK 元数据来自 `aapt dump badging`，发布前由 `apksigner` 验证签名，并拒绝 `debuggable=true` 的 APK。每个 APK 在 `SHA256SUMS` 中对应一行 `<摘要><两个空格><APK文件名>`；1.0.0 共五行。源清单的可选 `apkVariants` 按 `arm64-v8a`、`armeabi-v7a`、`x86`、`x86_64` 顺序列出四包的 `abi`、`name`、`size`、`sha256` 和 `minSdk`；暂存与发布工具要求四种同时存在或全部省略，并验证全部五包。
 
-从 0.3.8 起，GitHub Release 中的 APK、源 `update.json` 的 `apk.name` 与 UTF-8 `SHA256SUMS` 统一使用 `北建大图书馆选座-vx.x.x.apk`。测试版后缀只用于 Release 标签。新版镜像先按中文原名定位附件并校验，再将公开清单的 `apk.name` 转为旧客户端支持的 ASCII 兼容名（例如 `BUCEA-Library-Seat-v0.3.8.apk`），并在 `apk.displayName` 保留中文附件名。实际下载仍使用原附件的资产 ID、大小及 SHA-256；历史英文附件继续按原规则处理。镜像须部署包含该兼容处理的新脚本后才能选择中文附件，本次用户明确将镜像部署留待稍后处理。
+从 1.0.0 起，GitHub Release、源清单与校验文件统一使用 `BUCEA-Library-Seat-vx.x.x.apk`，分架构包在版本后增加对应 ABI 后缀；测试版后缀只用于 Release 标签。此前中文命名仅用于未发布候选，GitHub 会清理中文文件名，用户已明确改用英文格式。镜像保留历史英文和中文源名称的兼容处理；中文源可额外提供 `apk.displayName`，公开更新协议继续使用 ASCII `apk.name`。
+
+镜像校验全部已声明附件的元数据和五行校验文件，但只下载、缓存并公开通用包；四种分架构包不进入应用内架构选择流程。部署旧脚本时只接受单行校验文件，必须更新同步器后才能接收 1.0.0。本次镜像部署按用户要求暂缓，GitHub Release 已发布，镜像尚未同步本版。
 
 镜像公开清单补充 `prerelease`、`releaseTag`、`releaseId`、`apk.assetId`、`apk.url`。预发布标记取自 GitHub；公开下载地址只使用项目 HTTPS 域名。
 
@@ -71,4 +73,4 @@ DownloadManager 无法逐跳限制重定向，所以初始 URL 严格限定本�
 
 ## 接续与验证
 
-树莓派部署和接续提示词见 [RASPBERRY_PI_HANDOFF.md](RASPBERRY_PI_HANDOFF.md)，本轮 MacBook 验证及实机待验项见 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md)。首个含更新模块的版本必须手动安装；本次代码没有上传 Release 或修改远端服务。
+树莓派部署和接续提示词见 [RASPBERRY_PI_HANDOFF.md](RASPBERRY_PI_HANDOFF.md)，验证记录见 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md) 和 [1.0.0 验收](ADB_ACCEPTANCE_1.0.0.md)。1.0.0 已发布七个 GitHub 附件并完成 ARM64 真机安装；镜像部署仍待后续处理。首次使用更新模块的旧版本需要手动安装。

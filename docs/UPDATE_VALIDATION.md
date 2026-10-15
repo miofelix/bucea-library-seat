@@ -1,6 +1,6 @@
 # 更新功能验证 — 2026-10-15
 
-本次准备发布正式版 **v1.0.0 / versionCode 14**，包含紧凑座位卡片、全部结果连续展示、布局列表筛选与收藏页直接预约；本版重新执行的构建、安装、发布工具和公开更新源验证状态见 [ADB_ACCEPTANCE_1.0.0.md](ADB_ACCEPTANCE_1.0.0.md)。此前 code 13 的实现验收保留在 [ADB_ACCEPTANCE_0.3.8.md](ADB_ACCEPTANCE_0.3.8.md)，code 12 的分阶段界面验收保留在 [ADB_ACCEPTANCE_UI_2026-10-15.md](ADB_ACCEPTANCE_UI_2026-10-15.md)，不计作 code 14 重新执行的结果。本次镜像部署与同步按用户要求暂缓；GitHub 发布及 ADB 覆盖安装不计作真实公网更新事务。先前已发布的 0.3.7 附件与镜像检查见 [ADB_ACCEPTANCE_0.3.7.md](ADB_ACCEPTANCE_0.3.7.md)；校园访问故障与修复见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)。真实公网更新结果见 [ADB_ACCEPTANCE_0.3.6.md](ADB_ACCEPTANCE_0.3.6.md) 和 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)，引导版本设备测试见 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md)。以下旧版本记录保留各自实际测试结果。
+已发布正式版 [**v1.0.0 / versionCode 14**](https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.0)，包含紧凑座位卡片、全部结果连续展示、布局列表筛选与收藏页直接预约，并提供压缩后的通用包和四种架构包；本版重新执行的构建、安装、发布工具和七个公开附件的验证状态见 [ADB_ACCEPTANCE_1.0.0.md](ADB_ACCEPTANCE_1.0.0.md)。此前 code 13 的实现验收保留在 [ADB_ACCEPTANCE_0.3.8.md](ADB_ACCEPTANCE_0.3.8.md)，code 12 的分阶段界面验收保留在 [ADB_ACCEPTANCE_UI_2026-10-15.md](ADB_ACCEPTANCE_UI_2026-10-15.md)，不计作 code 14 重新执行的结果。本次镜像部署与同步按用户要求暂缓；GitHub 发布及 ADB 覆盖安装不计作真实公网更新事务。先前已发布的 0.3.7 附件与镜像检查见 [ADB_ACCEPTANCE_0.3.7.md](ADB_ACCEPTANCE_0.3.7.md)；校园访问故障与修复见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)。真实公网更新结果见 [ADB_ACCEPTANCE_0.3.6.md](ADB_ACCEPTANCE_0.3.6.md) 和 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)，引导版本设备测试见 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md)。以下旧版本记录保留各自实际测试结果。
 
 ## 0.3.6 公开更新源验收
 

@@ -2,11 +2,13 @@
 
 ## 接续范围
 
-MacBook 已完成代码、离线测试和 Android 构建，现在可以转到树莓派。树莓派只部署独立 Python HTTP 服务和 GitHub Release 同步定时器，不需要 JDK、Gradle、Android SDK、签名密钥或额外 Web 服务器。
+截至 2026-10-15，MacBook 已发布 **v1.0.0 / code 14** 正式版，完成构建、144 项设备测试及通用/ARM64 包覆盖安装核对。包含通用包、四种分架构包和两份元数据。树莓派本次部署按用户要求暂缓；其 Tailscale 节点密钥过期，已知 SSH 路径不可达，需先恢复访问。上次确认的镜像版本为 0.3.7 / code 12。详细证据见 [ADB_ACCEPTANCE_1.0.0.md](ADB_ACCEPTANCE_1.0.0.md)。
+
+树莓派只部署独立 Python HTTP 服务和 GitHub Release 同步定时器，不需要 JDK、Gradle、Android SDK、签名密钥或额外 Web 服务器。恢复访问后更新当前同步器，使其接受五包元数据和五行校验文件；它仍只缓存通用 APK。不要重新发布 1.0.0 或替换公开附件。
 
 **域名和 CF Tunnel 由用户配置。** 部署任务只负责把服务运行在树莓派端口上，并报告实际监听地址、端口和验证结果。Android 和公开清单使用固定域名 `https://bucea-library-seat.miofelix.com`。
 
-当前没有执行 Git push、GitHub Release 发布或树莓派部署。旧 Release 没有 `update.json` 时会全部跳过，因此首次部署返回 503 是预期状态。服务准备好后回 MacBook 发布包含三个附件的版本；Android 设备验收仍单独待办。
+以下命令保留首次部署参考。现有服务已运行时，应先检查实际用户、目录和 unit，再只更新本应用脚本；不要重复创建服务或改动其他站点。旧 Release 缺少 `update.json` 会跳过，无完整源且无缓存时返回 503。
 
 ## 把代码带过去
 
