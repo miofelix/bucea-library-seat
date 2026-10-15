@@ -12,7 +12,6 @@ const mapSeatStyles = {
   reserved: { label: "已预约", marker: "约", color: "#94600a" },
   away: { label: "暂离", marker: "离", color: "#754ba5" },
   unavailable: { label: "不可用", marker: "停", color: "#586471" },
-  unknown: { label: "未知状态", marker: "?", color: "#626c79" },
   local: { label: "仅限现场", marker: "现", color: "#2756a4" },
 };
 const illustratedMapSeats = [
@@ -35,7 +34,7 @@ const illustratedMapSeats = [
   "free",
   "away",
   "free",
-  "unknown",
+  "occupied",
   "reserved",
   "free",
   "occupied",
