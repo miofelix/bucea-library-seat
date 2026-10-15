@@ -98,7 +98,10 @@ fun NativeMapScreen(
     val chipColors = FilterChipDefaults.filterChipColors(containerColor = Color.White,
         labelColor = Muted, selectedContainerColor = SoftAccent, selectedLabelColor = Accent,
         selectedLeadingIconColor = Accent)
-    LazyColumn(modifier.fillMaxSize().background(Paper), contentPadding = PaddingValues(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    LazyColumn(modifier.fillMaxSize().background(Paper), contentPadding = PaddingValues(
+        start = LibrarySpacing.pageHorizontal, end = LibrarySpacing.pageHorizontal,
+        top = LibrarySpacing.pageVertical, bottom = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
         if (showHeader) item {
             LibraryPageHeader(title = if (state.directRegionView) roomName else "布局选座",
                 subtitle = if (state.directRegionView) listOfNotNull(
@@ -126,7 +129,7 @@ fun NativeMapScreen(
         }
         if (!state.directRegionView) item {
             Card(shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
-                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         state.options.dates.forEach { date -> FilterChip(selected = state.filters["onDate"] == date.value,
                             onClick = { onFilter("onDate", date.value) }, enabled = !state.loading,
@@ -151,7 +154,7 @@ fun NativeMapScreen(
         }
         state.error?.let { error -> item {
             Surface(color = Color(0xFFF8EAE4), shape = RoundedCornerShape(14.dp)) {
-                Column(Modifier.fillMaxWidth().padding(15.dp)) {
+                Column(Modifier.fillMaxWidth().padding(12.dp)) {
                     Text(error, color = Color(0xFF8E473A), fontSize = 13.sp)
                     TextButton(onClick = onRefresh, enabled = !state.loading) { Text("重试") }
                 }
@@ -163,8 +166,8 @@ fun NativeMapScreen(
         }
         state.layout?.let { layout ->
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (!state.directRegionView) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
+                    if (!state.directRegionView) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
                         LibrarySectionTitle(roomName, Modifier.weight(1f))
                         Text("${layout.cells.count { it.seat?.available == true }} 个可选座位", color = Muted, fontSize = 12.sp)
                     }
@@ -189,11 +192,11 @@ fun NativeMapScreen(
                     val seat = cell.seat!!
                     val style = cellStyle(cell)
                     Card(onClick = { selected = cell }, enabled = !state.loading, shape = RoundedCornerShape(17.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
-                        Row(Modifier.fillMaxWidth().heightIn(min = 82.dp).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Row(Modifier.fillMaxWidth().heightIn(min = 72.dp).padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Surface(color = style.fill, shape = RoundedCornerShape(10.dp)) {
                                 Icon(Icons.Outlined.Chair, null, tint = Color.White, modifier = Modifier.padding(8.dp).size(24.dp))
                             }
-                            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                            Column(Modifier.weight(1f).padding(start = 10.dp)) {
                                 Text(seat.label, color = Ink, fontWeight = FontWeight.SemiBold)
                                 Text("第 ${cell.row + 1} 行 · 第 ${cell.column + 1} 列", color = Muted, fontSize = 11.sp)
                                 Text(SeatPresentationPolicy.availabilityLabel(seat.available && !cell.localOnly), color = Ink, fontSize = 11.sp)
@@ -206,9 +209,9 @@ fun NativeMapScreen(
                     }
                 }
             } else item {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
                     if (state.directRegionView) NativeRoomCanvas(layout, !state.loading, selected?.seat?.id) { selected = it }
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(13.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         (SeatVisualState.entries.map(::mapSeatStyle) + MapLocalOnly).forEach { style ->
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Box(Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)).background(style.fill), contentAlignment = Alignment.Center) {
@@ -238,7 +241,7 @@ fun NativeMapScreen(
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp))
                         .background(if (active) SoftAccent else Color.Transparent)
                         .selectable(selected = active, role = Role.RadioButton, onClick = { choosing = null; onFilter(key, option.value) })
-                        .heightIn(min = 56.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        .heightIn(min = 48.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(option.label, Modifier.weight(1f), color = if (active) Accent else Ink, fontSize = 14.sp)
                         RadioButton(selected = active, onClick = null)
                     }
@@ -276,11 +279,11 @@ fun NativeMapScreen(
 @Composable
 private fun MapFilterField(title: String, value: String, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
     Column(modifier.clip(RoundedCornerShape(13.dp)).background(Paper)
-        .clickable(enabled = enabled, role = Role.Button, onClick = onClick).heightIn(min = 68.dp).padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(title, color = Muted, fontSize = 11.sp)
+        .clickable(enabled = enabled, role = Role.Button, onClick = onClick).heightIn(min = 60.dp).padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(title, color = Muted, fontSize = 11.sp, lineHeight = 14.sp)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(value, Modifier.weight(1f), color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+            Text(value, Modifier.weight(1f), color = Ink, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium,
                 maxLines = 2, overflow = TextOverflow.Ellipsis)
             Icon(Icons.Outlined.ExpandMore, null, Modifier.size(17.dp), tint = if (enabled) Accent else Muted)
         }

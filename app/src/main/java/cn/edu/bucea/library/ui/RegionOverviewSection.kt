@@ -61,7 +61,7 @@ internal fun RegionOverviewSection(state: RegionOverviewState, onRefresh: () -> 
     onVerify: () -> Unit, authenticated: Boolean, enabled: Boolean, modifier: Modifier = Modifier,
     onRegion: (RegionSeatOverview) -> Unit = {}) {
     var expanded by rememberSaveable { mutableStateOf(true) }
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {

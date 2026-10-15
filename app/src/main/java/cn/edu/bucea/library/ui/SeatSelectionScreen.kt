@@ -33,7 +33,8 @@ fun SeatSelectionScreen(
             onRefresh = onRefresh,
             refreshDescription = if (layoutSelected) "刷新座位地图" else "刷新座位筛选",
             refreshEnabled = refreshEnabled,
-            modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 12.dp),
+            modifier = Modifier.padding(start = LibrarySpacing.pageHorizontal, end = LibrarySpacing.pageHorizontal,
+                top = LibrarySpacing.pageVertical, bottom = 10.dp),
         )
         LibrarySegmentedTabs(
             labels = listOf("自选座位", "布局选座"),
@@ -44,7 +45,7 @@ fun SeatSelectionScreen(
                     onSelectLayout(index == 1)
                 }
             },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = LibrarySpacing.pageHorizontal),
             enabled = enabled,
         )
         Box(Modifier.fillMaxWidth().weight(1f)) {

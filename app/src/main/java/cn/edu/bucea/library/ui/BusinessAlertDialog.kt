@@ -65,10 +65,10 @@ fun BusinessSelectionSheet(
         shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
         containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
         Column(Modifier.fillMaxWidth().heightIn(max = LocalConfiguration.current.screenHeightDp.dp * .9f)
-            .imePadding().padding(horizontal = 24.dp).padding(bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            .imePadding().padding(horizontal = LibrarySpacing.pageHorizontal).padding(bottom = LibrarySpacing.pageVertical),
+            verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                horizontalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
                 if (icon != null) icon()
                 Box(Modifier.weight(1f)) { ProvideTextStyle(MaterialTheme.typography.titleLarge) { title?.invoke() } }
                 IconButton(onClick = onDismissRequest, modifier = Modifier.size(48.dp)) {

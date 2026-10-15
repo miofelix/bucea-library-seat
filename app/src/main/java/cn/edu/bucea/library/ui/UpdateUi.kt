@@ -41,13 +41,13 @@ import java.util.Locale
 
 @Composable
 fun UpdateSettings(state: UpdateUiState, installedVersion: String, updates: UpdateCoordinator) {
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
         Text("当前版本 $installedVersion", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
         Text("无需连接校园网，可随时手动检查新版本。发现更新后，确认才会开始下载。",
             color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
         Button(onClick = { updates.check(manual = true) }, enabled = !state.checking,
             modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White)) {
             if (state.checking) CircularProgressIndicator(Modifier.size(18.dp), color = Color.White, strokeWidth = 2.dp)
             else Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(20.dp))
@@ -56,7 +56,7 @@ fun UpdateSettings(state: UpdateUiState, installedVersion: String, updates: Upda
         }
         state.message?.let { message ->
             Surface(color = Paper, shape = RoundedCornerShape(14.dp)) {
-                Text(message, Modifier.fillMaxWidth().padding(14.dp), color = Ink, fontSize = 13.sp, lineHeight = 21.sp)
+                Text(message, Modifier.fillMaxWidth().padding(12.dp), color = Ink, fontSize = 13.sp, lineHeight = 21.sp)
             }
         }
         if (state.task != null) {
@@ -81,9 +81,9 @@ fun UpdateDialogs(state: UpdateUiState, allowed: Boolean, updates: UpdateCoordin
             shape = RoundedCornerShape(24.dp), containerColor = Color.White, tonalElevation = 0.dp,
             title = { Text("更新 ${task.manifest.displayVersion}", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.SemiBold) },
             text = {
-                Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
                     Surface(color = SoftAccent, shape = RoundedCornerShape(14.dp)) {
-                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(phaseLabel(task.phase), color = Accent, fontSize = 14.sp, fontWeight = FontWeight.Medium, lineHeight = 22.sp)
                             Text(formatUpdateSize(task.manifest.size), color = Muted, fontSize = 12.sp)
                         }
@@ -99,7 +99,7 @@ fun UpdateDialogs(state: UpdateUiState, allowed: Boolean, updates: UpdateCoordin
                         UpdatePhase.READY -> Text("文件已校验。点击安装后由系统确认；取消安装后可再次尝试。", color = Muted, fontSize = 13.sp, lineHeight = 22.sp)
                         UpdatePhase.FAILED -> {
                             Surface(color = MaterialTheme.colorScheme.error.copy(alpha = .07f), shape = RoundedCornerShape(14.dp)) {
-                                Text(task.error ?: "更新失败，请重试", Modifier.fillMaxWidth().padding(14.dp), color = MaterialTheme.colorScheme.error, fontSize = 13.sp, lineHeight = 21.sp)
+                                Text(task.error ?: "更新失败，请重试", Modifier.fillMaxWidth().padding(12.dp), color = MaterialTheme.colorScheme.error, fontSize = 13.sp, lineHeight = 21.sp)
                             }
                         }
                     }
@@ -121,9 +121,9 @@ fun UpdateDialogs(state: UpdateUiState, allowed: Boolean, updates: UpdateCoordin
         AlertDialog(onDismissRequest = { updates.defer(manifest) },
             shape = RoundedCornerShape(24.dp), containerColor = Color.White, tonalElevation = 0.dp,
             title = { Text("发现新版本 ${manifest.displayVersion}", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.SemiBold) },
-            text = { Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            text = { Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
                 Surface(color = Paper, shape = RoundedCornerShape(14.dp)) {
-                    Text("下载大小：${formatUpdateSize(manifest.size)}", Modifier.fillMaxWidth().padding(14.dp), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text("下载大小：${formatUpdateSize(manifest.size)}", Modifier.fillMaxWidth().padding(12.dp), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 }
                 if (manifest.prerelease) Text("这是测试版，可能包含尚在验证的功能。", color = Muted, fontSize = 13.sp, lineHeight = 21.sp)
                 Text(manifest.notes, color = Ink, fontSize = 14.sp, lineHeight = 23.sp)
@@ -137,7 +137,7 @@ fun UpdateDialogs(state: UpdateUiState, allowed: Boolean, updates: UpdateCoordin
 @Composable
 private fun UpdatePrimaryAction(label: String, onClick: () -> Unit) {
     Button(onClick = onClick, modifier = Modifier.heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp),
-        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White)) {
         Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
@@ -146,7 +146,7 @@ private fun UpdatePrimaryAction(label: String, onClick: () -> Unit) {
 @Composable
 private fun UpdateSecondaryAction(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     OutlinedButton(onClick = onClick, modifier = modifier.heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Line), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+        border = BorderStroke(1.dp, Line), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = Accent, containerColor = Color.White)) {
         Text(label, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }

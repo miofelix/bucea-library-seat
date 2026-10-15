@@ -68,12 +68,12 @@ fun PasswordChangeDialog(state: NativeAccountUiState, onSubmit: (String, String,
         },
         title = { Text("修改图书馆密码", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.SemiBold) },
         text = {
-            Column(Modifier.fillMaxWidth().heightIn(max = maximumHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(Modifier.fillMaxWidth().heightIn(max = maximumHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
                 Text(state.accountLabel, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Muted)
                 if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Accent, trackColor = SoftAccent)
                 state.error?.takeIf { it.isNotBlank() }?.let { message ->
                     Surface(color = MaterialTheme.colorScheme.error.copy(alpha = .07f), shape = RoundedCornerShape(14.dp)) {
-                        Text(message, Modifier.fillMaxWidth().padding(14.dp), color = MaterialTheme.colorScheme.error, fontSize = 13.sp, lineHeight = 21.sp)
+                        Text(message, Modifier.fillMaxWidth().padding(12.dp), color = MaterialTheme.colorScheme.error, fontSize = 13.sp, lineHeight = 21.sp)
                     }
                 }
                 state.message?.takeIf { it.isNotBlank() && it != state.error }?.let { message ->
@@ -95,14 +95,14 @@ fun PasswordChangeDialog(state: NativeAccountUiState, onSubmit: (String, String,
             if (state.passwordChanged || state.outcomeUncertain) Button(
                 onClick = onDismiss, enabled = !state.busy,
                 modifier = Modifier.heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White),
             ) { Text("返回账号管理", fontSize = 14.sp, fontWeight = FontWeight.Medium) }
             else Button(
                 onClick = { onSubmit(current, new, confirmation) },
                 enabled = !state.busy && current.isNotBlank() && new.isNotBlank() && new == confirmation && current != new,
                 modifier = Modifier.heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White),
             ) {
                 Text(if (state.busy) "正在修改…" else "修改密码", fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -157,9 +157,9 @@ fun SignOutDialog(accountLabel: String, busy: Boolean, onConfirm: () -> Unit, on
         },
         title = { Text("退出图书馆登录", color = Ink, fontSize = 20.sp, fontWeight = FontWeight.SemiBold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
                 Surface(color = Paper, shape = RoundedCornerShape(14.dp)) {
-                    Text(accountLabel, Modifier.fillMaxWidth().padding(14.dp), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text(accountLabel, Modifier.fillMaxWidth().padding(12.dp), color = Ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                 }
                 Text("退出后清除该账号的登录会话，并停止自动恢复登录。账号仍保存在本机，可重新登录。", color = Muted, fontSize = 14.sp, lineHeight = 23.sp)
                 if (busy) LinearProgressIndicator(Modifier.fillMaxWidth(), color = Accent, trackColor = SoftAccent)
@@ -167,7 +167,7 @@ fun SignOutDialog(accountLabel: String, busy: Boolean, onConfirm: () -> Unit, on
         },
         confirmButton = {
             Button(onClick = onConfirm, enabled = !busy, modifier = Modifier.heightIn(min = 48.dp),
-                shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                shape = RoundedCornerShape(12.dp), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White)) {
                 Text(if (busy) "正在退出…" else "退出登录", fontSize = 14.sp, fontWeight = FontWeight.Medium)
             }

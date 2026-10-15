@@ -43,6 +43,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+/** Shared spacing keeps content density consistent across pages and sheets. */
+internal object LibrarySpacing {
+    val pageHorizontal = 16.dp
+    val pageVertical = 16.dp
+    val sectionGap = 12.dp
+    val cardPadding = 16.dp
+    val itemGap = 10.dp
+}
+
 /** Compact section tabs shared by seat selection and the personal library. */
 @Composable
 internal fun LibrarySegmentedTabs(
@@ -86,10 +95,10 @@ internal fun LibraryPageHeader(
     refreshEnabled: Boolean = true,
 ) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (onBack != null) LibraryIconButton(Icons.AutoMirrored.Outlined.ArrowBack, "返回", onBack)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            if (eyebrow != null && onBack == null) Text(eyebrow, color = Accent, fontSize = 10.sp, letterSpacing = 1.2.sp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (eyebrow != null && onBack == null) Text(eyebrow, color = Accent, fontSize = 10.sp, lineHeight = 14.sp, letterSpacing = 1.2.sp)
             Text(title, style = MaterialTheme.typography.headlineMedium, color = Ink, modifier = Modifier.semantics { heading() })
             if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Muted)
         }
@@ -111,7 +120,8 @@ internal fun LibraryIconButton(icon: ImageVector, description: String, onClick: 
 @Composable
 internal fun LibrarySectionTitle(title: String, modifier: Modifier = Modifier,
     actionLabel: String? = null, onAction: (() -> Unit)? = null, actionEnabled: Boolean = true) {
-    Row(modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+    val hasAction = actionLabel != null && onAction != null
+    Row(modifier.fillMaxWidth().heightIn(min = if (hasAction) 48.dp else 24.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, style = MaterialTheme.typography.titleSmall, color = Ink, modifier = Modifier.weight(1f).semantics { heading() })
         if (actionLabel != null && onAction != null) TextButton(onClick = onAction, enabled = actionEnabled) { Text(actionLabel, fontSize = 12.sp) }
     }
@@ -120,20 +130,20 @@ internal fun LibrarySectionTitle(title: String, modifier: Modifier = Modifier,
 @Composable
 internal fun LibraryCard(modifier: Modifier = Modifier, highlighted: Boolean = false,
     content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(22.dp),
+    Surface(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp),
         color = Color.White, border = BorderStroke(1.dp, if (highlighted) lerp(Line, Accent, .28f) else Line),
         tonalElevation = 0.dp, shadowElevation = 0.dp) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+        Column(Modifier.padding(LibrarySpacing.cardPadding), verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap), content = content)
     }
 }
 
 @Composable
 internal fun LibraryEmptyState(title: String, message: String, modifier: Modifier = Modifier,
     icon: ImageVector = Icons.Outlined.AutoStories, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
-    Column(modifier.fillMaxWidth().padding(vertical = 24.dp, horizontal = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(56.dp).clip(CircleShape).background(SoftAccent), contentAlignment = Alignment.Center) {
-            Icon(icon, null, Modifier.size(26.dp), tint = Accent)
+    Column(modifier.fillMaxWidth().padding(vertical = 16.dp, horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(Modifier.size(48.dp).clip(CircleShape).background(SoftAccent), contentAlignment = Alignment.Center) {
+            Icon(icon, null, Modifier.size(24.dp), tint = Accent)
         }
         Spacer(Modifier.height(2.dp))
         Text(title, style = MaterialTheme.typography.titleLarge, color = Ink, textAlign = TextAlign.Center)

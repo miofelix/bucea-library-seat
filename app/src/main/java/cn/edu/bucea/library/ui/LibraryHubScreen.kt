@@ -149,8 +149,8 @@ fun LibraryHubScreen(
 
     LazyColumn(
         modifier = modifier.fillMaxSize().background(Paper),
-        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(horizontal = LibrarySpacing.pageHorizontal, vertical = LibrarySpacing.pageVertical),
+        verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap),
     ) {
         item(key = "heading") {
             LibraryPageHeader("我的图书馆", subtitle, onRefresh = onRefresh, refreshDescription = "刷新预约与座位", refreshEnabled = !state.loading)
@@ -179,7 +179,7 @@ fun LibraryHubScreen(
             }
             if (state.requiresLibraryWifi || state.currentStatus == "LOC_RESTRICT") item(key = "wifi") {
                 Surface(color = SoftAccent, shape = RoundedCornerShape(16.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Outlined.Wifi, null, tint = Accent, modifier = Modifier.size(20.dp))
                             Text("签到需连接图书馆 Wi-Fi", color = Ink, fontWeight = FontWeight.Medium, fontSize = 13.sp)
@@ -272,7 +272,7 @@ fun LibraryHubScreen(
             onDismissRequest = onDismissRecord,
             title = { Text(record.title.ifBlank { "记录详情" }) },
             text = {
-                Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
                     if (state.detailsLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
                     record.status.takeIf { it.isNotBlank() }?.let { HubStatusPill(it) }
                     state.detailsError?.let { error ->
@@ -388,7 +388,7 @@ internal fun HubCurrentReservation(state: LibraryHubState, onRefresh: () -> Unit
     }
     val primaryAction = state.actions.firstOrNull { !it.destructive }
     LibraryCard(highlighted = true) {
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Outlined.CalendarMonth, null, tint = Muted, modifier = Modifier.size(18.dp))
                 Text("当前预约", color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
@@ -396,8 +396,8 @@ internal fun HubCurrentReservation(state: LibraryHubState, onRefresh: () -> Unit
             }
             if (seat != null) {
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(seat, color = Accent, fontSize = 34.sp, fontWeight = FontWeight.SemiBold)
-                    Text("号座位", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 7.dp))
+                    Text(seat, color = Accent, fontSize = 30.sp, fontWeight = FontWeight.SemiBold)
+                    Text("号座位", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 5.dp))
                 }
             } else {
                 Text(currentStatusLabel(state.currentStatus), color = Ink, fontSize = 18.sp, fontWeight = FontWeight.Medium, lineHeight = 26.sp)
@@ -494,7 +494,7 @@ private fun HubRecordCard(record: HubRecord, enabled: Boolean, onClick: () -> Un
     // Keep the changing status outside a merged clickable label. The title and
     // details affordance remain separate touch targets for readers and touch users.
     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
-        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (timeline) {
                 val date = record.schedule.date?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
                 val label = date?.let { "${it.year}年${it.monthValue}月${it.dayOfMonth}日" }

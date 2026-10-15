@@ -33,12 +33,12 @@ import cn.edu.bucea.library.AppThemeColor
 
 @Composable
 internal fun ThemeColorPicker(selectedColor: AppThemeColor, onSelect: (AppThemeColor) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
         Text("当前：${selectedColor.label} · 默认建大紫", color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
         FlowRow(
             modifier = Modifier.selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             AppThemeColor.entries.forEach { themeColor ->
                 val isSelected = themeColor == selectedColor
@@ -52,7 +52,7 @@ internal fun ThemeColorPicker(selectedColor: AppThemeColor, onSelect: (AppThemeC
                     border = BorderStroke(if (isSelected) 1.5.dp else 1.dp, if (isSelected) Accent else Line),
                 ) {
                     Row(
-                        modifier = Modifier.heightIn(min = 52.dp).padding(horizontal = 14.dp, vertical = 12.dp),
+                        modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {

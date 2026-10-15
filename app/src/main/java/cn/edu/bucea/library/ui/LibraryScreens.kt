@@ -105,8 +105,9 @@ private const val OfficialLibraryUrl = "https://lib.bucea.edu.cn/"
 @Composable
 internal fun FeatureLoginPrompt(state: LibraryUiState, modifier: Modifier, onLogin: () -> Unit,
     onCheckCampus: () -> Unit, onAccounts: () -> Unit) {
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())
+        .padding(horizontal = LibrarySpacing.pageHorizontal, vertical = LibrarySpacing.pageVertical),
+        verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
         LibraryPageHeader("欢迎来到图书馆", "为专注，找一个好位置。")
         CampusAccessNotice(state, onCheckCampus)
         LibraryEmptyState("登录后使用图书馆功能", "保存图书馆账号，即可选座和查看预约。", icon = Icons.Outlined.Person)
@@ -130,13 +131,14 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
         ?: account?.label?.takeIf(String::isNotBlank) ?: "同学"
     val greeting = when (LocalTime.now().hour) { in 5..10 -> "早上好"; in 11..13 -> "中午好"; in 14..17 -> "下午好"; else -> "晚上好" }
     var noticesExpanded by rememberSaveable { mutableStateOf(false) }
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())
+        .padding(horizontal = LibrarySpacing.pageHorizontal, vertical = LibrarySpacing.pageVertical),
+        verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(LocalDate.now().format(DateTimeFormatter.ofPattern("M 月 d 日 · EEEE", Locale.CHINA)), color = Accent,
-                    fontSize = 10.sp, letterSpacing = 1.sp)
+                    fontSize = 10.sp, lineHeight = 14.sp, letterSpacing = 1.sp)
                 Text(if (state.authenticated) "$greeting，$name" else "给专注，留一席。",
                     style = MaterialTheme.typography.headlineMedium, color = Ink)
                 Text("北建大图书馆 · 今天也给专注留一点时间。", style = MaterialTheme.typography.bodySmall, color = Muted)
@@ -205,7 +207,7 @@ private fun HomeOverviewCard(state: LibraryUiState, onRefresh: () -> Unit) {
         else -> "最新同步"
     }
     val configuration = LocalConfiguration.current
-    val stackedMetrics = configuration.screenWidthDp < 360 || configuration.fontScale > 1.25f
+    val stackedMetrics = configuration.screenWidthDp < 340 || configuration.fontScale > 1.25f
         || values.any { it != null && it.toString().length > 5 }
     val metricColors = listOf(MaterialTheme.colorScheme.tertiary, Color(0xFF868993), Color(0xFFB28A32))
     LibraryCard {
@@ -221,10 +223,10 @@ private fun HomeOverviewCard(state: LibraryUiState, onRefresh: () -> Unit) {
             modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }) {
             Box(Modifier.size(6.dp).clip(CircleShape).background(
                 when { state.busy -> Accent; !hasData -> Muted; state.overviewStale -> metricColors[2]; else -> Color(0xFF176B48) }))
-            Text(status, color = if (state.overviewStale && hasData) Color(0xFF8C631B) else Muted, fontSize = 11.sp)
+            Text(status, color = if (state.overviewStale && hasData) Color(0xFF8C631B) else Muted, fontSize = 11.sp, lineHeight = 16.sp)
         }
         if (stackedMetrics) {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
                 HomeOverviewMetric("空闲座位", values[0], metricColors[0], true, Modifier.fillMaxWidth(), horizontal = true)
                 HomeOverviewMetric("正在使用", values[1], metricColors[1], false, Modifier.fillMaxWidth(), horizontal = true)
                 HomeOverviewMetric("等待签到", values[2], metricColors[2], false, Modifier.fillMaxWidth(), horizontal = true)
@@ -259,18 +261,18 @@ private fun HomeOverviewMetric(title: String, value: Int?, markerColor: Color, p
     modifier: Modifier, horizontal: Boolean = false) {
     val number = value?.toString() ?: "—"
     val valueColor = if (prominent && value != null) Accent else if (value == null) Muted else Ink
-    val fontSize = if (horizontal) 26.sp else if (prominent) 38.sp else 25.sp
+    val fontSize = if (horizontal) 26.sp else if (prominent) 34.sp else 25.sp
     if (horizontal) Row(modifier.semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(Modifier.size(6.dp).clip(CircleShape).background(markerColor))
         Text(title, color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
         Text(number, color = valueColor, fontSize = fontSize, fontWeight = FontWeight.SemiBold)
     } else Column(modifier.semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(number, color = valueColor, fontSize = fontSize, lineHeight = if (prominent) 42.sp else 32.sp,
+        Text(number, color = valueColor, fontSize = fontSize, lineHeight = if (prominent) 38.sp else 32.sp,
             fontWeight = FontWeight.SemiBold)
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             Box(Modifier.size(5.dp).clip(CircleShape).background(markerColor))
-            Text(title, color = Muted, fontSize = 11.sp)
+            Text(title, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
         }
     }
 }
@@ -279,14 +281,14 @@ private fun HomeOverviewMetric(title: String, value: Int?, markerColor: Color, p
 private fun HomeShortcut(title: String, detail: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier, enabled: Boolean) {
     Surface(onClick = onClick, enabled = enabled, modifier = modifier, color = Color.White,
         border = BorderStroke(1.dp, Line), shape = RoundedCornerShape(14.dp)) {
-        Row(Modifier.heightIn(min = 68.dp).padding(12.dp), verticalAlignment = Alignment.CenterVertically,
+        Row(Modifier.heightIn(min = 60.dp).padding(LibrarySpacing.itemGap), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(SoftAccent), contentAlignment = Alignment.Center) {
                 Icon(icon, null, tint = Accent, modifier = Modifier.size(20.dp))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(title, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                Text(detail, color = Muted, fontSize = 11.sp)
+                Text(title, color = Ink, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium)
+                Text(detail, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
             }
         }
     }
@@ -318,8 +320,9 @@ internal fun AccountsScreen(state: LibraryUiState, modifier: Modifier, onSave: (
     LaunchedEffect(editingAccountId, state.accounts) {
         if (editingAccountId != null && editing == null) showEditor = false
     }
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())
+        .padding(horizontal = LibrarySpacing.pageHorizontal, vertical = LibrarySpacing.pageVertical),
+        verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
         LibraryPageHeader("账号管理", "你的登录信息，仅保存在本机。")
         CampusAccessNotice(state, onCheckCampus)
         if (active != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -369,7 +372,7 @@ private fun AccountCard(account: AccountSummary, selected: Boolean, busy: Boolea
         shape = RoundedCornerShape(18.dp), color = if (selected) SoftAccent else Color.White,
         border = BorderStroke(1.dp, if (selected) Accent.copy(alpha = .20f) else Line)) {
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val separateActions = maxWidth < 320.dp || largeText
+            val separateActions = maxWidth < 300.dp || largeText
             Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -429,7 +432,7 @@ private fun AccountEditor(account: AccountSummary?, busy: Boolean, onDismiss: ()
     var label by rememberSaveable(account?.id) { mutableStateOf(account?.label.orEmpty()) }
     var visible by remember { mutableStateOf(false) }
     BusinessSelectionSheet(onDismissRequest = onDismiss, title = { Text(if (account == null) "添加图书馆账号" else "编辑账号") }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
             Text(if (account == null) "使用与图书馆网站相同的账号和密码。" else "备注可直接保存；如需更新密码，请填写新密码。",
                 color = Muted, style = MaterialTheme.typography.bodySmall)
             OutlinedTextField(username, { username = it.trim() }, label = { Text("学号 / 账号") }, singleLine = true,
@@ -458,8 +461,9 @@ internal fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLog
     var showAbout by rememberSaveable { mutableStateOf(false) }
     var updatesExpanded by rememberSaveable { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
-    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())
+        .padding(horizontal = LibrarySpacing.pageHorizontal, vertical = LibrarySpacing.pageVertical),
+        verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
         LibraryPageHeader("设置", "简单一点，刚刚好。")
         SettingsGroup {
             SettingsEntry(Icons.Outlined.Refresh, "应用更新", "检查并管理新版本", onClick = { updatesExpanded = !updatesExpanded }, expanded = updatesExpanded)
@@ -499,17 +503,17 @@ internal fun SettingsScreen(state: LibraryUiState, modifier: Modifier, onAutoLog
 @Composable
 private fun SettingsGroup(content: @Composable () -> Unit) {
     Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), color = Color.White,
-        border = BorderStroke(1.dp, Line)) { Column(Modifier.padding(horizontal = 16.dp)) { content() } }
+        border = BorderStroke(1.dp, Line)) { Column(Modifier.padding(horizontal = LibrarySpacing.cardPadding)) { content() } }
 }
 
 @Composable
 private fun SettingsEntry(icon: ImageVector, title: String, detail: String, onClick: () -> Unit,
     enabled: Boolean = true, trailing: (@Composable () -> Unit)? = null, expanded: Boolean? = null) {
     Row(Modifier.fillMaxWidth().semantics { if (expanded != null) stateDescription = if (expanded) "已展开" else "已收起" }
-        .clickable(enabled = enabled, role = Role.Button, onClick = onClick).heightIn(min = 76.dp).padding(vertical = 14.dp),
+        .clickable(enabled = enabled, role = Role.Button, onClick = onClick).heightIn(min = 64.dp).padding(vertical = LibrarySpacing.itemGap),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(icon, null, tint = Accent, modifier = Modifier.size(20.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(title, color = Ink, style = MaterialTheme.typography.titleSmall)
             Text(detail, color = Muted, style = MaterialTheme.typography.bodySmall)
         }
@@ -521,9 +525,10 @@ private fun SettingsEntry(icon: ImageVector, title: String, detail: String, onCl
 
 @Composable
 private fun PreferenceRow(title: String, detail: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = onChange).padding(vertical = 14.dp),
+    Row(Modifier.fillMaxWidth().toggleable(checked, role = Role.Switch, onValueChange = onChange)
+        .heightIn(min = 64.dp).padding(vertical = LibrarySpacing.itemGap),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(title, color = Ink, style = MaterialTheme.typography.titleSmall)
             Text(detail, color = Muted, style = MaterialTheme.typography.bodySmall)
         }
@@ -535,7 +540,7 @@ private fun PreferenceRow(title: String, detail: String, checked: Boolean, onCha
 private fun AboutSheet(onDismiss: () -> Unit) {
     val uriHandler = LocalUriHandler.current
     BusinessSelectionSheet(onDismissRequest = onDismiss, title = { Text("关于这个客户端") }, text = {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
             Text("为建大同学准备的图书馆入口", style = MaterialTheme.typography.titleMedium, color = Ink)
             Text("更方便地选座、查看地图和管理预约。此应用为第三方客户端。", style = MaterialTheme.typography.bodySmall, color = Muted)
             Text("开发作者：樊彧", color = Ink, fontSize = 14.sp)
@@ -560,10 +565,10 @@ internal fun CommunityGroupEntry(
         onLongClickLabel = "复制 QQ 群号",
         onClick = onOpen ?: { openCommunityGroup(context) },
         onLongClick = onCopy ?: { copyCommunityGroup(context) },
-    ).heightIn(min = 76.dp).padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically,
+    ).heightIn(min = 64.dp).padding(vertical = LibrarySpacing.itemGap), verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(Icons.Outlined.Groups, null, tint = Accent, modifier = Modifier.size(20.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text("QQ 交流群：$CommunityGroup", color = Ink, style = MaterialTheme.typography.titleSmall)
             Text("点击打开 QQ · 长按复制", color = Muted, style = MaterialTheme.typography.bodySmall)
         }
@@ -580,7 +585,7 @@ private fun CampusAccessNotice(state: LibraryUiState, onCheckCampus: () -> Unit)
     Surface(modifier = Modifier.fillMaxWidth().semantics { liveRegion = if (unavailable) LiveRegionMode.Assertive else LiveRegionMode.Polite },
         color = if (unavailable) MaterialTheme.colorScheme.errorContainer.copy(alpha = .35f) else SoftAccent,
         shape = RoundedCornerShape(18.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.padding(LibrarySpacing.cardPadding), verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                 Icon(Icons.Outlined.Wifi, null, tint = if (unavailable) MaterialTheme.colorScheme.error else Accent, modifier = Modifier.size(20.dp))
                 Text(when { unavailable -> "暂时无法访问图书馆"; checking -> "正在检测校园网"; else -> "登录需要校园网" },
