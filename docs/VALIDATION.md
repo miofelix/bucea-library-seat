@@ -1,6 +1,6 @@
-# Validation — 2026-10-14
+# Validation — 2026-10-15
 
-The current release is **0.3.7 / versionCode 12**, with version-specific evidence in [ADB_ACCEPTANCE_0.3.7.md](ADB_ACCEPTANCE_0.3.7.md). It adds matching theme icons, the selected homepage design, automatic regional seat counts, compact two-column cards, and corrections to verification detection and reservation-state classification. Earlier public-update evidence remains in the versioned 0.3.6, 0.3.5 and 0.3.4 acceptance records below.
+The release being prepared is **0.3.8 / versionCode 13**, covering denser layouts, shared section tabs, seat-filter ordering and retries, navigation state, separate notice rows and the official-library link. Its build, device and publication results are recorded in [ADB_ACCEPTANCE_0.3.8.md](ADB_ACCEPTANCE_0.3.8.md) as verification completes. The preceding UI stages were tested on 0.3.7 / code 12 and remain separately documented in [ADB_ACCEPTANCE_UI_2026-10-15.md](ADB_ACCEPTANCE_UI_2026-10-15.md); their results are not reassigned to code 13. The published 0.3.7 checkpoint is in [ADB_ACCEPTANCE_0.3.7.md](ADB_ACCEPTANCE_0.3.7.md), and earlier public-update evidence remains in the versioned records below.
 
 ## 0.3.6 release checkpoint
 

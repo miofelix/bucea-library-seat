@@ -1,6 +1,6 @@
-# 更新功能验证 — 2026-10-14
+# 更新功能验证 — 2026-10-15
 
-当前 Release 为 **v0.3.6-beta.1 / versionCode 11**，包含校园连接失败后返回应用时的自动重检修复。更新实现保持已验证的行为，当前发布工具重新通过 **38 项 Python 测试**。本版构建、安装与公开更新源验证见 [ADB_ACCEPTANCE_0.3.6.md](ADB_ACCEPTANCE_0.3.6.md)；校园访问故障与修复验收见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)。先前真实公网更新结果见 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)，引导版本的设备测试见 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md)。以下旧版本记录保留各自实际测试结果。
+本次准备发布 **v0.3.8-beta.1 / versionCode 13**，更新界面密度、筛选交互与页面状态恢复；本版构建、安装、发布工具和公开更新源的验证状态见 [ADB_ACCEPTANCE_0.3.8.md](ADB_ACCEPTANCE_0.3.8.md)。版本递增前在 code 12 上完成的界面验收保留在 [ADB_ACCEPTANCE_UI_2026-10-15.md](ADB_ACCEPTANCE_UI_2026-10-15.md)，不计作本版重新执行的结果。先前已发布的 0.3.7 附件与镜像检查见 [ADB_ACCEPTANCE_0.3.7.md](ADB_ACCEPTANCE_0.3.7.md)；校园访问故障与修复见 [CAMPUS_ACCESS_DIAGNOSIS.md](CAMPUS_ACCESS_DIAGNOSIS.md)。真实公网更新结果见 [ADB_ACCEPTANCE_0.3.6.md](ADB_ACCEPTANCE_0.3.6.md) 和 [ADB_ACCEPTANCE_0.3.5.md](ADB_ACCEPTANCE_0.3.5.md)，引导版本的设备测试见 [ADB_ACCEPTANCE_0.3.4.md](ADB_ACCEPTANCE_0.3.4.md)。以下旧版本记录保留各自实际测试结果。
 
 ## 0.3.6 公开更新源验收
 

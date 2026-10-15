@@ -2,7 +2,7 @@
 
 北京建筑大学图书馆的非官方 Android 客户端，让登录、选座和预约更方便。全部界面采用原生「留白」设计，以简洁、清爽和易用为优先。
 
-[下载测试版 v0.3.7-beta.1](https://github.com/miofelix/bucea-library-seat/releases/tag/v0.3.7-beta.1)
+[下载测试版 v0.3.8-beta.1](https://github.com/miofelix/bucea-library-seat/releases/tag/v0.3.8-beta.1)
 
 支持 Android 8.0 及以上。使用前请连接可访问图书馆的校园网；签到需要连接图书馆内部 Wi-Fi。
 
@@ -28,4 +28,4 @@
 
 QQ 交流群：**1109482748**。欢迎加入交流群分享体验、反馈问题，也欢迎安利给同学一起使用。
 
-[本次 ADB 验收](docs/ADB_ACCEPTANCE_0.3.7.md) · [校园访问检查记录](docs/CAMPUS_ACCESS_DIAGNOSIS.md) · [详细验证记录](docs/VALIDATION.md)
+[本次 ADB 验收](docs/ADB_ACCEPTANCE_0.3.8.md) · [界面优化验收](docs/ADB_ACCEPTANCE_UI_2026-10-15.md) · [校园访问检查记录](docs/CAMPUS_ACCESS_DIAGNOSIS.md) · [详细验证记录](docs/VALIDATION.md)
