@@ -40,7 +40,7 @@ TIME_LABEL = re.compile(r"(?:[01]\d|2[0-3]):[0-5]\d\Z")
 SAFE_LABELS = {
     "首页", "选座", "我的", "账号", "查找可用座位", "下一步", "修改时间", "取消",
     "我的预约", "收藏座位", "常用座位", "违约记录", "返回首页",
-    "布局选座", "地图", "列表", "关闭", "适应区域", "修改图书馆密码",
+    "自选座位", "布局选座", "地图", "列表", "关闭", "适应区域", "修改图书馆密码",
     "时间、电源与靠窗", "收起筛选条件", "场馆", "阅览区域", "使用时长",
     "开始时间", "结束时间", "选择开始时间", "选择结束时间", "电源", "靠窗",
 }
@@ -310,10 +310,14 @@ class NativeSmoke:
         self.require_unlocked()
         self.adb("shell", "am", "start", "-n", COMPONENT)
         self.phase = "原生选座"
-        # Restore the top of the feature screen after a previous smoke run. A
-        # retained modal must be dismissed by the user; never guess its action.
+        # Destinations retain their mode and reading position. Explicitly choose
+        # search and scroll back to its controls after a previous run. A retained
+        # modal must be dismissed by the user; never guess its action.
         self.tap_exact("首页", bottom=True)
         self.tap_exact("选座", bottom=True)
+        self.tap_exact("自选座位")
+        self.find_scrolling(lambda: self.exact("查找可用座位"),
+                            "未找到原生查询控件。", max_swipes=12, up=True)
         self.wait(lambda: self.exact("查找可用座位") is not None and self.nodes(lambda node: ISO_DATE.fullmatch(label(node)) is not None),
                   "选座未就绪；请先在 App 中保存账号并完成登录，确认已连接校园网。")
         raw_today = self.adb("shell", "date", "+%Y-%m-%d").decode().strip()

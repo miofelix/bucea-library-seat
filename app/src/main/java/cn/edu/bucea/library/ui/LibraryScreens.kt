@@ -63,6 +63,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.LocalSaveableStateRegistry
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -407,8 +408,11 @@ private fun Avatar(label: String, size: Int) {
 @Composable
 private fun AccountEditor(account: AccountSummary?, busy: Boolean, onDismiss: () -> Unit,
     onRename: (String, String) -> Unit, onSave: (String, String, String) -> Unit) {
-    var username by remember(account?.id) { mutableStateOf(account?.username.orEmpty()) }
-    var password by remember(account?.id) { mutableStateOf("") }
+    // A new saveable registry marks an Activity recreation. Reset credentials in
+    // that new composition while the note draft remains saveable below.
+    val stateRegistry = LocalSaveableStateRegistry.current
+    var username by remember(account?.id, stateRegistry) { mutableStateOf(account?.username.orEmpty()) }
+    var password by remember(account?.id, stateRegistry) { mutableStateOf("") }
     // Only the note and account ID survive recreation; credentials remain in memory.
     var label by rememberSaveable(account?.id) { mutableStateOf(account?.label.orEmpty()) }
     var visible by remember { mutableStateOf(false) }

@@ -9,6 +9,8 @@ import cn.edu.bucea.library.ocr.DdddOcr
 import cn.edu.bucea.library.ui.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,13 +30,31 @@ internal object SearchFilterPolicy {
         } + ("name" to previous["name"].orEmpty())
 }
 
+/** Read requests can be controlled independently of account storage and booking mutations. */
+internal data class SeatSearchRequests(
+    val options: suspend () -> SeatSearchOptions,
+    val rooms: suspend (String) -> List<LibraryOption>,
+    val search: suspend (SeatQuery, Int) -> SeatPage,
+    val userMessage: (Exception) -> String,
+)
+
 /** Seat search and booking use only options/times returned by the active account's server. */
-class LibraryFeatureViewModel(application: Application) : AndroidViewModel(application) {
+class LibraryFeatureViewModel internal constructor(
+    application: Application,
+    private val searchRequestsOverride: SeatSearchRequests?,
+) : AndroidViewModel(application) {
+    constructor(application: Application) : this(application, null)
     private val accounts = AccountStore(application)
     private val favorites = SeatFavoritesStore(application)
     private val ocrResource = lazy { DdddOcr(application) }
     private val repository by lazy { LibraryRepository(accounts, ocrResource.value) }
     private val functions by lazy { LibraryFunctionsRepository(repository) }
+    private val searchRequests by lazy { searchRequestsOverride ?: SeatSearchRequests(
+        options = { functions.options(account()) },
+        rooms = { building -> functions.rooms(account(), building) },
+        search = { query, offset -> functions.search(account(), query, offset) },
+        userMessage = repository::userMessage,
+    ) }
     private val searchState = MutableStateFlow(SeatSearchState())
     val search = searchState.asStateFlow()
     private val hubState = MutableStateFlow(LibraryHubState())
@@ -53,6 +73,10 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     private val pages = mutableMapOf<Int, SeatPage>()
     private val backendSeats = mutableMapOf<String, LibrarySeat>()
     private var requestedQuery: SeatQuery? = null
+    private data class PageRequest(val query: SeatQuery, val index: Int, val offset: Int)
+    private var failedPageRequest: PageRequest? = null
+    private var requestedRoom: Pair<String, String?>? = null
+    private var optionsReadFailed = false
     private var selectedDate: String? = null
     private val extensionState = MutableStateFlow<List<LibraryOption>>(emptyList())
     val extensionTimes = extensionState.asStateFlow()
@@ -78,7 +102,8 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
         boundAccountId?.let { repository.releaseSession(it) }
         boundAccountId = id
         authenticated = loggedIn
-        pages.clear(); backendSeats.clear(); requestedQuery = null
+        pages.clear(); backendSeats.clear(); requestedQuery = null; failedPageRequest = null
+        requestedRoom = null; optionsReadFailed = false
         selectedDate = null; historyOffset = null; extensionState.value = emptyList()
         mutationState.value = false; lastActionMessage = null
         optionsDate = null; pendingFavorite = null; actionRefreshRequired = false
@@ -103,26 +128,39 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
             return
         }
         searchJob?.cancel(); roomsJob?.cancel(); timesJob?.cancel()
+        failedPageRequest = null
+        requestedRoom = null
+        optionsReadFailed = false
         val previousFilters = searchState.value.filters
         optionsJob = viewModelScope.launch {
-            searchState.update { it.copy(loading = true, error = null) }
+            searchState.update { it.copy(loading = true, error = null, failedPage = null, roomsLoading = false, roomsError = null) }
             try {
-                val options = functions.options(account())
+                val options = searchRequests.options()
+                currentCoroutineContext().ensureActive()
                 require(options.dates.isNotEmpty()) { "图书馆暂未开放可预约日期，请稍后刷新" }
                 val mapped = mapOf("onDate" to options.dates, "building" to options.buildings, "room" to options.rooms,
                     "hour" to options.durations, "startMin" to options.startTimes, "endMin" to options.endTimes,
                     "power" to options.powers, "window" to options.windows)
                     .mapValues { (_, list) -> list.map { SeatOption(it.value, it.label) } }
-                val filters = SearchFilterPolicy.reconcile(previousFilters, mapped)
+                val reconciled = SearchFilterPolicy.reconcile(previousFilters, mapped)
+                val building = reconciled["building"].orEmpty()
+                val needsRooms = building.isNotBlank() && building != "null"
+                val filters = if (needsRooms) reconciled + ("room" to "null") else reconciled
                 optionsDate = today
                 pages.clear(); requestedQuery = null; selectedDate = null
-                searchState.update { it.copy(options = mapped, filters = filters, seats = emptyList(), hasSearched = false,
+                searchState.update { it.copy(options = if (needsRooms) mapped + ("room" to emptyList()) else mapped,
+                    filters = filters, seats = emptyList(), hasSearched = false,
                     page = 0, hasNextPage = false, selectedSeat = null, startOptions = emptyList(), endOptions = emptyList(),
                     selectedStart = null, selectedEnd = null, verificationRequired = false,
                     reservationOutcomeUncertain = false, status = "可用日期与条件已更新，请查询座位") }
+                if (needsRooms) loadRooms(building, previousFilters["room"])
                 pendingFavorite?.also { pendingFavorite = null }?.let(::selectSeat)
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { searchState.update { it.copy(error = repository.userMessage(e)) } }
+            catch (e: Exception) {
+                currentCoroutineContext().ensureActive()
+                optionsReadFailed = true
+                searchState.update { it.copy(error = searchRequests.userMessage(e)) }
+            }
             finally { if (coroutineContext[Job]?.isActive == true) searchState.update { it.copy(loading = false) } }
         }
     }
@@ -135,23 +173,60 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     }
 
     fun setFilter(key: String, value: String) {
-        if (searchState.value.reservationBusy) return
+        val current = searchState.value
+        if (current.reservationBusy || optionsJob?.isActive == true) return
+        if (key != "name" && current.options[key].orEmpty().none { it.value == value }) return
+        if (key == "room" && (current.roomsLoading || current.roomsError != null)) return
+        if (current.filters[key] == value) return
         searchJob?.cancel(); timesJob?.cancel(); pages.clear(); requestedQuery = null
+        failedPageRequest = null
         searchState.update { it.copy(filters = it.filters + (key to value), seats = emptyList(), hasSearched = false,
             page = 0, hasNextPage = false, selectedSeat = null, error = null, status = null,
-            loading = false, verificationRequired = false) }
+            loading = false, verificationRequired = false, failedPage = null) }
         if (key == "building") {
-            roomsJob?.cancel()
-            searchState.update { it.copy(filters = it.filters + ("room" to "null")) }
-            roomsJob = viewModelScope.launch {
-                try {
-                    val returned = functions.rooms(account(), value).map { SeatOption(it.value, it.label) }
-                    val rooms = if (returned.any { it.value == "null" }) returned else listOf(SeatOption("null", "不限房间")) + returned
-                    searchState.update { it.copy(options = it.options + ("room" to rooms)) }
-                } catch (e: CancellationException) { throw e }
-                catch (e: Exception) { searchState.update { it.copy(error = repository.userMessage(e)) } }
-            }
+            loadRooms(value)
         }
+    }
+
+    private fun loadRooms(building: String, preferredRoom: String? = null) {
+        roomsJob?.cancel()
+        requestedRoom = building to preferredRoom
+        searchState.update { it.copy(options = it.options + ("room" to emptyList()),
+            filters = it.filters + ("room" to "null"), roomsLoading = true, roomsError = null) }
+        roomsJob = viewModelScope.launch {
+            try {
+                val returned = searchRequests.rooms(building).map { SeatOption(it.value, it.label) }
+                currentCoroutineContext().ensureActive()
+                val rooms = (listOf(SeatOption("null", "不限区域")) + returned.filter { it.value.isNotBlank() && it.value != "null" })
+                    .distinctBy { it.value }
+                searchState.update { it.copy(options = it.options + ("room" to rooms),
+                    filters = it.filters + ("room" to (preferredRoom?.takeIf { value -> rooms.any { it.value == value } } ?: "null"))) }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                currentCoroutineContext().ensureActive()
+                searchState.update { it.copy(roomsError = searchRequests.userMessage(e)) }
+            }
+            finally { if (coroutineContext[Job]?.isActive == true) searchState.update { it.copy(roomsLoading = false) } }
+        }
+    }
+
+    fun retryRooms() {
+        val current = searchState.value
+        if (current.reservationBusy || current.roomsLoading || optionsJob?.isActive == true || current.roomsError == null) return
+        current.filters["building"]?.let { building ->
+            loadRooms(building, requestedRoom?.takeIf { it.first == building }?.second)
+        }
+    }
+
+    fun retrySearch() {
+        if (searchState.value.loading || searchState.value.reservationBusy) return
+        if (optionsReadFailed) { loadSearch(force = true); return }
+        if (optionsDate != LocalDate.now(ZoneId.of("Asia/Shanghai"))) {
+            loadSearch(force = true)
+            return
+        }
+        failedPageRequest?.let { requestPage(it.index, it.offset, it.query); return }
+        searchSeats()
     }
 
     private fun query(): SeatQuery = searchState.value.filters.let { f ->
@@ -161,25 +236,35 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
     }
 
     fun searchSeats() {
-        if (searchState.value.loading || searchState.value.reservationBusy) return
+        val current = searchState.value
+        if (current.loading || current.reservationBusy || current.roomsLoading || current.roomsError != null) return
+        val room = current.filters["room"]
+        if (!room.isNullOrBlank() && current.options["room"].orEmpty().none { it.value == room }) return
         if (searchState.value.options.isEmpty()) { loadSearch(); return }
         if (optionsDate != LocalDate.now(ZoneId.of("Asia/Shanghai"))) { loadSearch(force = true); return }
         pages.clear(); requestedQuery = query()
         requestPage(0, 0)
     }
 
-    private fun requestPage(pageIndex: Int, offset: Int) {
-        val currentQuery = requestedQuery ?: return
+    private fun requestPage(pageIndex: Int, offset: Int, retryQuery: SeatQuery? = null) {
+        val currentQuery = retryQuery ?: requestedQuery ?: return
+        val request = PageRequest(currentQuery, pageIndex, offset)
+        failedPageRequest = null
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
-            searchState.update { it.copy(loading = true, error = null, status = null) }
+            searchState.update { it.copy(loading = true, error = null, status = null, failedPage = null) }
             try {
-                val page = functions.search(account(), currentQuery, offset)
+                val page = searchRequests.search(currentQuery, offset)
+                currentCoroutineContext().ensureActive()
                 pages[pageIndex] = page
                 page.seats.forEach { backendSeats[it.id] = it }
                 showPage(pageIndex, page)
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { searchState.update { it.copy(error = repository.userMessage(e)) } }
+            catch (e: Exception) {
+                currentCoroutineContext().ensureActive()
+                failedPageRequest = request
+                searchState.update { it.copy(error = searchRequests.userMessage(e), failedPage = pageIndex) }
+            }
             finally { if (coroutineContext[Job]?.isActive == true) searchState.update { it.copy(loading = false) } }
         }
     }
@@ -189,9 +274,10 @@ class LibraryFeatureViewModel(application: Application) : AndroidViewModel(appli
         localFavorite = boundAccountId?.let { id -> favorites.seats(id).any { it.id == seat.id } } == true)
 
     private fun showPage(index: Int, page: SeatPage) {
+        failedPageRequest = null
         searchState.update { it.copy(seats = page.seats.map(::nativeSeat), page = index, hasSearched = true,
             hasNextPage = page.nextOffset != null, total = page.seats.size, status = page.message.ifBlank { null },
-            verificationRequired = page.verificationRequired, verificationUserId = page.verificationUserId) }
+            verificationRequired = page.verificationRequired, verificationUserId = page.verificationUserId, error = null, failedPage = null) }
     }
 
     fun nextPage() {

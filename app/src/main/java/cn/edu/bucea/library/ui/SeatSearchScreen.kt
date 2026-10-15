@@ -105,6 +105,9 @@ data class SeatSearchState(
     val seats: List<NativeSeat> = emptyList(),
     val loading: Boolean = false,
     val error: String? = null,
+    val roomsLoading: Boolean = false,
+    val roomsError: String? = null,
+    val failedPage: Int? = null,
     val status: String? = null,
     val hasSearched: Boolean = false,
     val page: Int = 0,
@@ -139,6 +142,8 @@ fun SeatSearchScreen(
     onDismissReservation: () -> Unit = {},
     onVerify: () -> Unit = {},
     onOpenReservations: () -> Unit = {},
+    onRetrySearch: () -> Unit = onSearch,
+    onRetryRooms: () -> Unit = {},
 ) {
     var advanced by rememberSaveable { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
@@ -198,7 +203,20 @@ fun SeatSearchScreen(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     FilterField("场馆", selectedLabel(state, "building", "不限场馆"), !state.loading && state.options["building"].orEmpty().isNotEmpty(), Modifier.weight(1f)) { choosing = "building" }
-                    FilterField("阅览区域", selectedLabel(state, "room", "不限区域"), !state.loading && state.options["room"].orEmpty().isNotEmpty(), Modifier.weight(1f)) { choosing = "room" }
+                    FilterField("阅览区域", if (state.roomsLoading) "正在加载区域…" else if (state.roomsError != null) "区域加载失败" else selectedLabel(state, "room", "不限区域"),
+                        !state.loading && !state.roomsLoading && state.roomsError == null && state.options["room"].orEmpty().isNotEmpty(), Modifier.weight(1f)) { choosing = "room" }
+                }
+                if (state.roomsLoading) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                    Text("正在读取所选场馆的阅览区域…", fontSize = 12.sp, color = Muted)
+                }
+                state.roomsError?.let { error ->
+                    Surface(color = Color(0xFFF8EAE4), shape = RoundedCornerShape(13.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(13.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(error, color = Color(0xFF8E473A), fontSize = 12.sp, lineHeight = 19.sp)
+                            TextButton(onClick = onRetryRooms, enabled = !state.loading && !state.roomsLoading) { Text("重新加载阅览区域") }
+                        }
+                    }
                 }
                 OutlinedTextField(
                     value = state.filters["name"].orEmpty(),
@@ -226,7 +244,7 @@ fun SeatSearchScreen(
                     Text(if (advanced) "收起筛选条件" else "时间、电源与靠窗", fontSize = 12.sp)
                     Icon(Icons.Outlined.ExpandMore, null, modifier = Modifier.size(18.dp))
                 }
-                Button(onClick = { focusManager.clearFocus(); onSearch() }, enabled = !state.loading && state.options.isNotEmpty() && !state.filters["onDate"].isNullOrBlank(), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().height(50.dp),
+                Button(onClick = { focusManager.clearFocus(); onSearch() }, enabled = !state.loading && !state.roomsLoading && state.roomsError == null && state.options.isNotEmpty() && !state.filters["onDate"].isNullOrBlank(), shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().height(50.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary, contentColor = MaterialTheme.colorScheme.onTertiary)) {
                     if (state.loading) CircularProgressIndicator(Modifier.size(17.dp), color = MaterialTheme.colorScheme.onTertiary, strokeWidth = 2.dp)
                     else Icon(Icons.Outlined.Search, null, modifier = Modifier.size(19.dp))
@@ -242,7 +260,9 @@ fun SeatSearchScreen(
             Surface(color = Color(0xFFF8EAE4), shape = RoundedCornerShape(16.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(error, color = Color(0xFF8E473A), fontSize = 13.sp, lineHeight = 21.sp)
-                    TextButton(onClick = onSearch, enabled = !state.loading) { Text("重新查询") }
+                    TextButton(onClick = { focusManager.clearFocus(); onRetrySearch() }, enabled = !state.loading && !state.roomsLoading && state.roomsError == null) {
+                        Text(state.failedPage?.let { "重试第 ${it + 1} 页" } ?: "重新查询")
+                    }
                 }
             }
         }

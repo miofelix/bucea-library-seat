@@ -101,7 +101,7 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
             }
         }
     }
-    val businessBusy = state.busy || mutating || seatState.loading || hubState.loading || mapState.loading || regionState.loading ||
+    val businessBusy = state.busy || mutating || seatState.loading || seatState.roomsLoading || hubState.loading || mapState.loading || regionState.loading ||
         seatState.reservationBusy || accountState.busy || interactions.focusedInputs.intValue > 0 ||
         seatState.selectedSeat != null || hubState.selectedRecord != null || mapVisible || signOutOpen ||
         verificationState.context != null || extensionOptions.isNotEmpty() || interactions.dialogs.intValue > 0
@@ -225,12 +225,13 @@ fun LibraryApp(viewModel: MainViewModel, features: LibraryFeatureViewModel, regi
                         onRefresh = { if (layoutSelected) maps.refresh() else features.refreshSearch() },
                         modifier = Modifier.padding(padding).consumeWindowInsets(padding),
                         enabled = selectionEnabled,
-                        refreshEnabled = selectionEnabled && !(if (layoutSelected) mapState.loading else seatState.loading),
+                        refreshEnabled = selectionEnabled && !(if (layoutSelected) mapState.loading else seatState.loading || seatState.roomsLoading),
                         searchContent = {
                             SeatSearchScreen(seatState, features::setFilter, features::searchSeats, features::nextPage, features::previousPage,
                                 features::selectSeat, onBack = backFromSeats, onToggleFavorite = features::toggleFavorite,
                                 onSelectStart = features::selectStart, onSelectEnd = features::selectEnd, onConfirmReservation = features::confirmReservation,
                                 onDismissReservation = features::dismissReservation, onVerify = verifySearch,
+                                onRetrySearch = features::retrySearch, onRetryRooms = features::retryRooms,
                                 onOpenReservations = { features.dismissReservation(); tab = 2 })
                         },
                         layoutContent = {
