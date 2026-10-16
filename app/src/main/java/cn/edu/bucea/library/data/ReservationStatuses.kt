@@ -5,7 +5,7 @@ internal object ReservationStatuses {
     val knownLabels = setOf(
         "已预约", "预约", "待签到", "已签到", "使用中", "暂离",
         "已履约", "履约", "失约", "已失约", "已取消", "取消",
-        "已完成", "已违约", "违约", "已结束",
+        "已完成", "已违约", "违约", "已结束", "结束使用",
     )
 
     fun isInactive(status: String): Boolean =

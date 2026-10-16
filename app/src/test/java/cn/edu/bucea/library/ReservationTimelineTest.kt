@@ -46,13 +46,14 @@ class ReservationTimelineTest {
     @Test fun fulfilledAndMissedReservationsUseHistoryEvenBeforeTheirScheduledEnd() {
         val fulfilled = record("fulfilled", "2030-01-15", "08:00", "14:00", "已履约", canCancel = false)
         val missed = record("missed", "2030-01-15", "10:00", "16:00", "失约", canCancel = false)
+        val stopped = record("stopped", "2030-01-15", "11:00", "18:00", "结束使用", canCancel = false)
         val upcoming = record("upcoming", "2030-01-16", "08:00", "10:00")
 
-        val groups = reservationTimeline(listOf(fulfilled, upcoming, missed), now)
+        val groups = reservationTimeline(listOf(fulfilled, upcoming, missed, stopped), now)
 
         assertEquals(listOf("接下来的预约", "历史预约"), groups.map { it.title })
         assertEquals(listOf(upcoming), groups[0].records)
-        assertEquals(listOf(missed, fulfilled), groups[1].records)
+        assertEquals(listOf(stopped, missed, fulfilled), groups[1].records)
     }
 
     private fun record(id: String, date: String?, begin: String, end: String, status: String = "已预约", canCancel: Boolean = true) =

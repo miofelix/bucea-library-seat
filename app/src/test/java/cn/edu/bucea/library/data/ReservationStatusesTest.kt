@@ -8,7 +8,7 @@ import org.junit.Test
 class ReservationStatusesTest {
     @Test fun historyPreservesEachSchoolStatusAndOnlyActiveRecordsExposeCancellation() {
         val active = listOf("已预约", "待签到", "已签到", "使用中", "暂离")
-        val inactive = listOf("已履约", "失约", "已失约", "已结束", "已取消", "已完成", "已违约")
+        val inactive = listOf("已履约", "失约", "已失约", "已结束", "结束使用", "已取消", "已完成", "已违约")
         val labels = active + inactive
         val page = "<div class='myReserveList'>" + labels.mapIndexed { index, label ->
             historyRecord(index + 1, label)
@@ -35,7 +35,7 @@ class ReservationStatusesTest {
         val unknown = LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(historyRecord(1, "学校新增状态"))).items.single()
         assertEquals("学校新增状态", unknown.status)
 
-        for (label in listOf("已履约", "失约")) {
+        for (label in listOf("已履约", "失约", "结束使用")) {
             val unstyled = historyRecord(2, label).replace("<a class='normal'>$label</a>", "<a>$label</a>")
             assertEquals(label, LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(unstyled)).items.single().status)
         }
@@ -50,7 +50,7 @@ class ReservationStatusesTest {
     }
 
     @Test fun paginatedHistoryKeepsFulfilledAndMissedLabelsFromServerFragments() = runTest {
-        val labels = listOf("已履约", "失约", "已结束", "已取消", "已预约")
+        val labels = listOf("已履约", "失约", "已结束", "结束使用", "已取消", "已预约")
         val repository = LibraryFunctionsRepository(
             request = { _, path ->
                 assertTrue(path.startsWith("/user/viewMoreHistory?"))
@@ -67,7 +67,7 @@ class ReservationStatusesTest {
     }
 
     @Test fun fulfilledOrMissedReceiptCannotConfirmANewReservation() {
-        for (label in listOf("已履约", "失约", "已结束", "已取消")) {
+        for (label in listOf("已履约", "失约", "已结束", "结束使用", "已取消")) {
             val result = LibraryFunctionsRepository.parseReservationResult(LibraryHtml.parse("""
                 <p>预约成功</p><div class='receipt'><dl>
                 <dd>凭证号：synthetic-receipt</dd><dd>日期：2030-01-15</dd><dd>时间：08:00 - 10:00</dd>
