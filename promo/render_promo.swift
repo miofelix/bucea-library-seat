@@ -577,9 +577,11 @@ func drawCover() {
     text("library.miofelix.com",420,824,26,purple,"medium")
     text("Android 8.0+  ·  非官方客户端",420,880,22,gray,"regular")
     text("查看馆内情况 · 筛选座位 · 管理预约",420,942,20,gray,"regular")
-    // Right column: two devices with a deliberate gutter; no card or copy is covered.
-    device("map",1015,560,650,-6,1,-0.4)
-    device("home",1430,545,900,0,1,0)
+    // Right column: three screens with deliberate gutters. The layout map is the
+    // rightmost screen so the core differentiator reads immediately from the cover.
+    device("search",1000,570,560,-7,1,-0.4)
+    device("home",1380,545,820,0,1,0)
+    device("map",1755,570,600,7,1,0.4)
     text("画面与数据为演示内容",1790,1014,16,0xA6A1AD,"regular",0.9,"right")
 }
 
