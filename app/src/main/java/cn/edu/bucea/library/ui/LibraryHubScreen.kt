@@ -73,6 +73,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import cn.edu.bucea.library.data.ReservationStatuses
 import cn.edu.bucea.library.data.models.ReservationSchedule
 import java.time.LocalDate
 
@@ -526,7 +527,7 @@ internal fun HubCurrentReservation(state: LibraryHubState, onRefresh: () -> Unit
 
 @Composable
 private fun HubStatusPill(status: String, modifier: Modifier = Modifier) {
-    val inactive = listOf("取消", "完成", "已结束", "违约").any(status::contains)
+    val inactive = ReservationStatuses.isInactive(status)
     Surface(color = if (inactive) Paper else SoftAccent, shape = RoundedCornerShape(8.dp), modifier = modifier) {
         Text(status, Modifier.padding(horizontal = 8.dp, vertical = 5.dp), color = if (inactive) Muted else Accent, fontSize = 11.sp, lineHeight = 17.sp)
     }

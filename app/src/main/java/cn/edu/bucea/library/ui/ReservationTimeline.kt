@@ -1,5 +1,6 @@
 package cn.edu.bucea.library.ui
 
+import cn.edu.bucea.library.data.ReservationStatuses
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -21,8 +22,7 @@ internal fun reservationTimeline(
             undated += record
         } else {
             val end = record.schedule.end?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
-            val inactive = listOf("取消", "违约", "完成", "结束", "CANCELED", "CANCELLED", "FINISHED", "STOPPED")
-                .any { record.status.contains(it, ignoreCase = true) }
+            val inactive = ReservationStatuses.isInactive(record.status)
             val ended = date < now.toLocalDate() || (date == now.toLocalDate() && end != null && !end.isAfter(now.toLocalTime()))
             if (inactive || ended) history += record else upcoming += record
         }
