@@ -403,13 +403,17 @@ class LibraryFunctionsRepository(
                         url.queryParameter("id")?.matches(Regex("[0-9]+")) == true
                 }
                 val detailId = detail?.let { (LibraryRepository.BASE_URL + it).toHttpUrl().queryParameter("id") }
-                val staticLabels = item.select("a").filter { it.attr("href").isBlank() &&
-                    it.attr("onclick").isBlank() && it.closest("form") == null && it.text().isNotBlank() }
-                // The school renders each record's status as a static .normal anchor.
-                // Preserve its text even when the school introduces another displayed label.
-                val status = staticLabels.lastOrNull { it.hasClass("normal") }?.text()
+                // The school normally renders each record's status as a .normal anchor,
+                // but historical fragments may turn that label into a link (or another
+                // element with the same class). Keep the displayed status independent of
+                // the link/action shape so terminal labels such as “结束使用” survive.
+                val normalLabels = item.select(".normal").filter { it.closest("form") == null && it.text().isNotBlank() }
+                val status = normalLabels.lastOrNull { it.text().trim() in ReservationStatuses.knownLabels }?.text()
+                    ?: normalLabels.lastOrNull { it.tagName() != "a" || it.attr("href").isBlank() }?.text()
                     ?: details.firstOrNull { it.contains("状态") }
-                    ?: staticLabels.lastOrNull { it.text() in ReservationStatuses.knownLabels }?.text().orEmpty()
+                    ?: item.select("a, span, em, strong, b").lastOrNull {
+                        it.closest("form") == null && it.text().trim() in ReservationStatuses.knownLabels
+                    }?.text().orEmpty()
                 val inactive = ReservationStatuses.isInactive(status)
                 val reservationForm = item.select("form[action][method]").firstOrNull {
                     val id = it.selectFirst("input[name=id]")?.attr("value")
@@ -455,7 +459,7 @@ class LibraryFunctionsRepository(
             if (soft && status != "LOC_RESTRICT") {
                 when (status) {
                     "RESERVE" -> actions += "checkIn"
-                    "CHECK_IN" -> {
+                    "CHECK_IN", "IN_USE", "USING", "CHECKED_IN" -> {
                         actions += "extend"
                         if (user?.optBoolean("wifiAwayStopDisabled", user.optBoolean("wifiAwayDisabled")) != true) actions += "leave"
                         if (user?.optBoolean("wifiStopDisabled") != true) actions += "stopUsing"

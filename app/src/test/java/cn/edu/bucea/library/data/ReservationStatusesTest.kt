@@ -49,6 +49,24 @@ class ReservationStatusesTest {
         assertEquals("", LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(actionOnly)).items.single().status)
     }
 
+    @Test fun linkedOrNonAnchorTerminalStatusRemainsVisibleOnTheHistoryRecord() {
+        val linked = historyRecord(5, "结束使用")
+            .replace("<a class='normal'>结束使用</a>", "<a class='normal' href='/history/status?id=5'>结束使用</a>")
+        val nonAnchor = historyRecord(6, "结束使用")
+            .replace("<a class='normal'>结束使用</a>", "<span class='normal'>结束使用</span>")
+
+        val history = LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(linked + nonAnchor))
+
+        assertEquals(listOf("结束使用", "结束使用"), history.items.map { it.status })
+        assertTrue(history.items.all { it.cancelPath == null })
+
+        for (label in listOf("STOPPED", "FINISHED")) {
+            val machineLabel = historyRecord(7, label)
+                .replace("<a class='normal'>$label</a>", "<a class='normal' href='/history/status?id=7'>$label</a>")
+            assertEquals(label, LibraryFunctionsRepository.parseHistory(LibraryHtml.parse(machineLabel)).items.single().status)
+        }
+    }
+
     @Test fun paginatedHistoryKeepsFulfilledAndMissedLabelsFromServerFragments() = runTest {
         val labels = listOf("已履约", "失约", "已结束", "结束使用", "已取消", "已预约")
         val repository = LibraryFunctionsRepository(

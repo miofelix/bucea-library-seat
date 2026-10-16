@@ -112,6 +112,25 @@ class LibraryHubUiInstrumentedTest {
         }
     }
 
+    @Test fun inUseCurrentCardKeepsTheEndUseActionVisible() {
+        val actions = AtomicInteger()
+        val state = mutableStateOf(LibraryHubState(
+            currentStatus = "IN_USE",
+            currentDetails = listOf("座位：A101", "位置：图书馆二层东区"),
+            actions = listOf(HubAction("stopUsing", "结束使用", "结束当前座位使用。", destructive = true)),
+        ))
+        withHub(state, onAction = { action ->
+            assertEquals("stopUsing", action.id)
+            actions.incrementAndGet()
+        }) {
+            findWithScroll("The in-use current card must display the end-use action") { findText("结束使用") }
+            click(findWithScroll("The end-use action must be tappable") { findText("结束使用") })
+            waitFor("The end-use action must require confirmation") { hasText("确认结束使用") }
+            click(requireNode("The confirmation must remain dismissible") { findText("取消") })
+            assertEquals("Dismissing the end-use confirmation must not submit the action", 0, actions.get())
+        }
+    }
+
     @Test fun reservationCancellationRequiresConfirmationAndInactiveRecordsOfferNoCancelAction() {
         val cancellations = AtomicInteger()
         val cancelledId = AtomicReference<String?>()
@@ -165,7 +184,18 @@ class LibraryHubUiInstrumentedTest {
             findWithScroll("The compact card must preserve its scheduled time") { findText("09:00 — 11:00") }
             findWithScroll("The compact card must preserve its seat") { findText("A101 号座位") }
             findWithScroll("The compact card must preserve its location") { findText("位置：图书馆二层东区") }
-            assertMinimumTouchHeight(findWithScroll("The compact details action must remain visible") { findText("查看详情") })
+            val detailsLabel = findWithScroll("The compact details action must remain visible") { findText("查看详情") }
+            val detailsTarget = requireNotNull(clickableParent(detailsLabel))
+            val detailsBounds = Rect().apply { detailsLabel.getBoundsInScreen(this) }
+            val targetBounds = Rect().apply { detailsTarget.getBoundsInScreen(this) }
+            assertMinimumTouchHeight(detailsLabel)
+            // TextButton content must stay inside its rounded clip. A zero-padded
+            // button previously cut the first glyph from both card action lines.
+            val minimumInset = 4f * instrumentation.targetContext.resources.displayMetrics.density
+            if (detailsBounds != targetBounds) {
+                assertTrue("The details label must have a safe inset from the action edge: label=$detailsBounds target=$targetBounds",
+                    detailsBounds.left - targetBounds.left >= minimumInset - 1f)
+            }
             click(findWithScroll("The real record title must still open its details") { findText(ended.title) })
             waitFor("Ended record details must retain the complete status") { hasText("关闭") && hasText("结束使用") }
             assertFalse("Ending use must not expose cancellation", hasText("取消预约"))
@@ -177,6 +207,12 @@ class LibraryHubUiInstrumentedTest {
             }
             findWithScroll("Completed records must retain their own label at large text size", backwards = true) { findText("已履约") }
             assertFalse("Completed records must not expose cancellation", hasText("取消预约"))
+
+            instrumentation.runOnMainSync {
+                state.value = state.value.copy(records = listOf(ended.copy(status = "STOPPED")))
+            }
+            findWithScroll("The ended-use server code must render its complete Chinese label", backwards = true) { findText("结束使用") }
+            assertFalse("Ended-use records must not expose cancellation", hasText("取消预约"))
 
             instrumentation.runOnMainSync {
                 state.value = state.value.copy(records = listOf(ended.copy(id = "fixture-active", status = "已预约", canCancel = true,

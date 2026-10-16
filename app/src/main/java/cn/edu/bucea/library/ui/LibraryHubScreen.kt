@@ -294,7 +294,7 @@ fun LibraryHubScreen(
             text = {
                 Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
                     if (state.detailsLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
-                    record.status.takeIf { it.isNotBlank() }?.let { HubStatusPill(it) }
+                    hubRecordStatus(record)?.let { HubStatusPill(it, paletteStatus = record.status) }
                     state.detailsError?.let { error ->
                         Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, lineHeight = 21.sp)
                         TextButton(onClick = { onOpenRecord(record) }, enabled = !state.loading && !state.detailsLoading, modifier = Modifier.heightIn(min = 48.dp)) {
@@ -540,6 +540,32 @@ private fun hubDetailText(text: String): Pair<String?, String> {
     return label to text.drop(separator + 1).trim()
 }
 
+/**
+ * History pages have used both a status field and a status detail over time. Keep
+ * the displayed label complete when one source is absent, and translate the
+ * machine values emitted after ending a seat session into the user-facing label.
+ */
+private fun hubRecordStatus(record: HubRecord): String? {
+    val statusValue = hubDetailText(record.status).let { (label, value) ->
+        value.takeIf { label == "状态" } ?: record.status.trim()
+    }
+    val detailValue = record.details.asSequence().mapNotNull { detail ->
+        val (label, value) = hubDetailText(detail)
+        when {
+            label == "状态" && value.isNotBlank() -> value
+            detail.trim() in setOf("已预约", "待签到", "已签到", "使用中", "暂离", "已履约", "失约", "已失约",
+                "已结束", "结束使用", "已取消", "已完成", "已违约") -> detail.trim()
+            else -> null
+        }
+    }.firstOrNull()
+    val value = statusValue.ifBlank { detailValue.orEmpty() }.trim()
+    if (value.isBlank()) return null
+    return when (value.uppercase()) {
+        "STOPPED", "FINISHED" -> "结束使用"
+        else -> value
+    }
+}
+
 private fun hubSeatNumber(details: List<String>): String? = details.firstNotNullOfOrNull { detail ->
     Regex("座位(?:号)?\\s*[：:]?\\s*([0-9A-Za-z][0-9A-Za-z-]{0,15})").find(detail)?.groupValues?.get(1)
         ?: Regex("([0-9A-Za-z]+)\\s*号座位").find(detail)?.groupValues?.get(1)
@@ -569,18 +595,26 @@ private fun HubReservationTimelineEntry(record: HubRecord, enabled: Boolean, onC
             drawLine(line, Offset(size.width / 2, 0f), Offset(size.width / 2, size.height), 2.dp.toPx())
             drawCircle(accent, 5.dp.toPx(), Offset(size.width / 2, markerY))
         }
-        HubRecordCard(record, enabled, onClick, onCancel, timeline = true)
+        HubRecordCard(record, enabled, onClick, onCancel, timeline = true, modifier = Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun HubRecordCard(record: HubRecord, enabled: Boolean, onClick: () -> Unit, onCancel: (() -> Unit)? = null, timeline: Boolean = false) {
+private fun HubRecordCard(
+    record: HubRecord,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    onCancel: (() -> Unit)? = null,
+    timeline: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
     val seat = if (timeline) hubSeatNumber(record.details) else null
+    val recordStatus = hubRecordStatus(record)
     val title = if (timeline && record.schedule.begin?.let(record.title::contains) == true)
         seat?.let { "$it 号座位" } ?: "座位预约" else record.title
     // Keep status readable independently and combine title/details into one
     // comfortably sized action so each record needs only one action row.
-    Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
+    Card(modifier = modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (timeline) {
                 val date = record.schedule.date?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
@@ -588,7 +622,7 @@ private fun HubRecordCard(record: HubRecord, enabled: Boolean, onClick: () -> Un
                     ?: record.schedule.dateLabel ?: "日期待确认"
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(label, color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                    record.status.takeIf { it.isNotBlank() }?.let { HubStatusPill(it) }
+                    recordStatus?.let { HubStatusPill(it, paletteStatus = record.status) }
                 }
                 val time = when {
                     record.schedule.begin != null && record.schedule.end != null -> "${record.schedule.begin} — ${record.schedule.end}"
@@ -598,7 +632,7 @@ private fun HubRecordCard(record: HubRecord, enabled: Boolean, onClick: () -> Un
                 }
                 Text(time, color = Accent, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, lineHeight = 26.sp)
             } else {
-                record.status.takeIf { it.isNotBlank() }?.let { HubStatusPill(it) }
+                recordStatus?.let { HubStatusPill(it, paletteStatus = record.status) }
             }
             if (seat != null && title != "$seat 号座位") Text("$seat 号座位", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
             record.details.filter { it.isNotBlank() && hubDetailText(it).first != "状态" &&
@@ -608,7 +642,11 @@ private fun HubRecordCard(record: HubRecord, enabled: Boolean, onClick: () -> Un
                 Text(it, color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onClick, enabled = enabled, modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(0.dp)) {
+                TextButton(onClick = onClick, enabled = enabled, modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    // A zero-padded TextButton puts its first glyph under the rounded
+                    // corner clip. Keep the compact 48dp target while protecting both
+                    // lines from being cut at large font scales.
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
                     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(title, color = Ink, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp)
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {

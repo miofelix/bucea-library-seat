@@ -143,6 +143,10 @@ class LibraryFunctionsInstrumentedTest {
         assertTrue(state("""{"currentReservationStatus":"LOC_RESTRICT","softMode":true,"hasPrevUnStoppedReservation":true}""").actions.isEmpty())
         assertEquals(listOf("extend"), state("""{"currentReservationStatus":"CHECK_IN","softMode":true,"wifiAwayDisabled":true,"wifiStopDisabled":true}""").actions)
         assertEquals(listOf("resume", "stopUsing"), state("""{"currentReservationStatus":"AWAY","softMode":true}""").actions)
+        for (status in listOf("IN_USE", "USING", "CHECKED_IN")) {
+            assertEquals("$status must expose the server's end-use action", listOf("extend", "leave", "stopUsing"),
+                state("""{"currentReservationStatus":"$status","softMode":true}""").actions)
+        }
     }
 
     @Test
