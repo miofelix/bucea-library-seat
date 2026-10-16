@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -295,7 +294,7 @@ fun LibraryHubScreen(
             text = {
                 Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
                     if (state.detailsLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
-                    record.status.takeIf { it.isNotBlank() }?.let { HubStatusPill(it) }
+                    hubRecordStatus(record)?.let { HubStatusPill(it, paletteStatus = it) }
                     state.detailsError?.let { error ->
                         Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, lineHeight = 21.sp)
                         TextButton(onClick = { onOpenRecord(record) }, enabled = !state.loading && !state.detailsLoading, modifier = Modifier.heightIn(min = 48.dp)) {
@@ -480,7 +479,7 @@ internal fun HubCurrentReservation(state: LibraryHubState, onRefresh: () -> Unit
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Outlined.CalendarMonth, null, tint = Muted, modifier = Modifier.size(18.dp))
                 Text("当前预约", color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                if (seat != null) HubStatusPill(currentStatusLabel(state.currentStatus), Modifier.widthIn(max = 180.dp))
+                if (seat != null) HubStatusPill(currentStatusLabel(state.currentStatus), Modifier.widthIn(max = 180.dp), state.currentStatus)
             }
             if (seat != null) {
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -525,10 +524,10 @@ internal fun HubCurrentReservation(state: LibraryHubState, onRefresh: () -> Unit
 }
 
 @Composable
-private fun HubStatusPill(status: String, modifier: Modifier = Modifier) {
-    val inactive = listOf("取消", "完成", "已结束", "违约").any(status::contains)
-    Surface(color = if (inactive) Paper else SoftAccent, shape = RoundedCornerShape(8.dp), modifier = modifier) {
-        Text(status, Modifier.padding(horizontal = 8.dp, vertical = 5.dp), color = if (inactive) Muted else Accent, fontSize = 11.sp, lineHeight = 17.sp)
+private fun HubStatusPill(status: String, modifier: Modifier = Modifier, paletteStatus: String = status) {
+    val palette = reservationStatusPalette(paletteStatus)
+    Surface(color = palette.background, shape = RoundedCornerShape(8.dp), modifier = modifier) {
+        Text(status, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), color = palette.foreground, fontSize = 11.sp, lineHeight = 17.sp)
     }
 }
 
@@ -539,6 +538,34 @@ private fun hubDetailText(text: String): Pair<String?, String> {
     val label = text.take(separator).replace(Regex("[\\s\\u00a0]"), "")
     if (label !in setOf("座位", "座位号", "位置", "地点", "房间", "日期", "预约日期", "时间", "时段", "状态", "凭证号", "预约编号")) return null to text
     return label to text.drop(separator + 1).trim()
+}
+
+/**
+ * History pages have used both a status field and a status detail over time. Keep
+ * the displayed label complete when one source is absent, and translate the
+ * machine values emitted after ending a seat session into the user-facing label.
+ */
+private fun hubRecordStatus(record: HubRecord): String? {
+    val statusValue = hubDetailText(record.status).let { (label, value) ->
+        value.takeIf { label == "状态" } ?: record.status.trim()
+    }
+    val detailValue = record.details.asSequence().mapNotNull { detail ->
+        val (label, value) = hubDetailText(detail)
+        when {
+            label == "状态" && value.isNotBlank() -> value
+            detail.trim() in setOf("已预约", "待签到", "已签到", "使用中", "暂离", "已履约", "失约", "已失约",
+                "已结束", "结束使用", "已取消", "已完成", "已违约") -> detail.trim()
+            else -> null
+        }
+    }.firstOrNull()
+    // A detail field is the server's explicit displayed status. Prefer it when
+    // present so “结束使用” cannot be hidden behind a separate “已完成” code.
+    val value = (detailValue ?: statusValue).trim()
+    if (value.isBlank()) return null
+    return when (value.uppercase()) {
+        "STOPPED", "FINISHED" -> "结束使用"
+        else -> value
+    }
 }
 
 private fun hubSeatNumber(details: List<String>): String? = details.firstNotNullOfOrNull { detail ->
@@ -561,7 +588,7 @@ private fun HubDetailLine(text: String) {
 
 @Composable
 private fun HubReservationTimelineEntry(record: HubRecord, enabled: Boolean, onClick: () -> Unit, onCancel: (() -> Unit)?) {
-    val accent = Accent
+    val accent = reservationStatusPalette(hubRecordStatus(record).orEmpty()).foreground
     val line = Line
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).semantics { contentDescription = "预约时间线 ${record.id}" },
         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -570,24 +597,35 @@ private fun HubReservationTimelineEntry(record: HubRecord, enabled: Boolean, onC
             drawLine(line, Offset(size.width / 2, 0f), Offset(size.width / 2, size.height), 2.dp.toPx())
             drawCircle(accent, 5.dp.toPx(), Offset(size.width / 2, markerY))
         }
-        HubRecordCard(record, enabled, onClick, onCancel, timeline = true)
+        HubRecordCard(record, enabled, onClick, onCancel, timeline = true, modifier = Modifier.weight(1f))
     }
 }
 
 @Composable
-private fun HubRecordCard(record: HubRecord, enabled: Boolean, onClick: () -> Unit, onCancel: (() -> Unit)? = null, timeline: Boolean = false) {
+private fun HubRecordCard(
+    record: HubRecord,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    onCancel: (() -> Unit)? = null,
+    timeline: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
     val seat = if (timeline) hubSeatNumber(record.details) else null
+    val recordStatus = hubRecordStatus(record)
     val title = if (timeline && record.schedule.begin?.let(record.title::contains) == true)
         seat?.let { "$it 号座位" } ?: "座位预约" else record.title
-    // Keep the changing status outside a merged clickable label. The title and
-    // details affordance remain separate touch targets for readers and touch users.
-    Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
-        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    // Keep status readable independently and combine title/details into one
+    // comfortably sized action so each record needs only one action row.
+    Card(modifier = modifier, shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Line)) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (timeline) {
                 val date = record.schedule.date?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
                 val label = date?.let { "${it.year}年${it.monthValue}月${it.dayOfMonth}日" }
                     ?: record.schedule.dateLabel ?: "日期待确认"
-                Text(label, color = Muted, fontSize = 12.sp)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(label, color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                    recordStatus?.let { HubStatusPill(it, paletteStatus = it) }
+                }
                 val time = when {
                     record.schedule.begin != null && record.schedule.end != null -> "${record.schedule.begin} — ${record.schedule.end}"
                     record.schedule.begin != null -> "开始 ${record.schedule.begin}"
@@ -595,12 +633,8 @@ private fun HubRecordCard(record: HubRecord, enabled: Boolean, onClick: () -> Un
                     else -> "时段待确认"
                 }
                 Text(time, color = Accent, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, lineHeight = 26.sp)
-            }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(title, color = Ink, fontWeight = FontWeight.Medium, fontSize = 14.sp,
-                    modifier = Modifier.weight(1f).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-                        .heightIn(min = 48.dp).wrapContentHeight(Alignment.CenterVertically))
-                record.status.takeIf { it.isNotBlank() }?.let { HubStatusPill(it) }
+            } else {
+                recordStatus?.let { HubStatusPill(it, paletteStatus = it) }
             }
             if (seat != null && title != "$seat 号座位") Text("$seat 号座位", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
             record.details.filter { it.isNotBlank() && hubDetailText(it).first != "状态" &&
@@ -610,10 +644,17 @@ private fun HubRecordCard(record: HubRecord, enabled: Boolean, onClick: () -> Un
                 Text(it, color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onClick, enabled = enabled, modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(0.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text("查看详情", color = Accent, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                        if (onCancel == null) Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Muted, modifier = Modifier.size(16.dp))
+                TextButton(onClick = onClick, enabled = enabled, modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                    // A zero-padded TextButton puts its first glyph under the rounded
+                    // corner clip. Keep the compact 48dp target while protecting both
+                    // lines from being cut at large font scales.
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
+                    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(title, color = Ink, fontWeight = FontWeight.Medium, fontSize = 14.sp, lineHeight = 20.sp)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("查看详情", color = Accent, fontSize = 12.sp, lineHeight = 17.sp)
+                            Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = Muted, modifier = Modifier.size(14.dp))
+                        }
                     }
                 }
                 if (onCancel != null) TextButton(enabled = enabled, onClick = onCancel, modifier = Modifier.heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 10.dp)) {

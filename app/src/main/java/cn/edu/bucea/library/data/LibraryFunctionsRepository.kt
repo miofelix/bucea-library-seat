@@ -403,18 +403,27 @@ class LibraryFunctionsRepository(
                         url.queryParameter("id")?.matches(Regex("[0-9]+")) == true
                 }
                 val detailId = detail?.let { (LibraryRepository.BASE_URL + it).toHttpUrl().queryParameter("id") }
-                val knownStatuses = setOf("已预约", "预约", "已取消", "取消", "已完成", "已违约", "违约", "使用中", "暂离", "待签到", "已签到", "已结束")
-                val status = item.select("a").lastOrNull { it.attr("href").isBlank() && it.attr("onclick").isBlank() &&
-                    it.text() in knownStatuses }?.text() ?: details.firstOrNull { it.contains("状态") }.orEmpty()
-                val inactive = listOf("取消", "违约", "完成", "结束").any(status::contains)
-                val cancelForm = item.select("form[action][method]").firstOrNull {
+                // The school normally renders each record's status as a .normal anchor,
+                // but historical fragments may turn that label into a link (or another
+                // element with the same class). Keep the displayed status independent of
+                // the link/action shape so terminal labels such as “结束使用” survive.
+                val normalLabels = item.select(".normal").filter { it.closest("form") == null && it.text().isNotBlank() }
+                val status = normalLabels.lastOrNull { it.text().trim() in ReservationStatuses.knownLabels }?.text()
+                    ?: normalLabels.lastOrNull { it.tagName() != "a" || it.attr("href").isBlank() }?.text()
+                    ?: details.firstOrNull { it.contains("状态") }
+                    ?: item.select("a, span, em, strong, b").lastOrNull {
+                        it.closest("form") == null && it.text().trim() in ReservationStatuses.knownLabels
+                    }?.text().orEmpty()
+                val inactive = ReservationStatuses.isInactive(status)
+                val reservationForm = item.select("form[action][method]").firstOrNull {
                     val id = it.selectFirst("input[name=id]")?.attr("value")
-                    !inactive && schoolPath(it.attr("action")) == "/reservation/cancel" &&
+                    schoolPath(it.attr("action")) == "/reservation/cancel" &&
                         it.attr("method").equals("post", true) && id?.matches(Regex("[0-9]+")) == true &&
                         (detailId == null || id == detailId)
                 }
                 // A cancellation form also identifies the server record when its detail link is absent.
-                val serverId = detailId ?: cancelForm?.selectFirst("input[name=id]")?.attr("value")
+                val serverId = detailId ?: reservationForm?.selectFirst("input[name=id]")?.attr("value")
+                val cancelForm = reservationForm?.takeUnless { inactive }
                 val cancel = cancelForm?.let { schoolPath(it.attr("action")) }
                     ?: if (inactive) null else item.select("a[href]").mapNotNull { schoolPath(it.attr("href")) }
                         .firstOrNull {
@@ -450,7 +459,7 @@ class LibraryFunctionsRepository(
             if (soft && status != "LOC_RESTRICT") {
                 when (status) {
                     "RESERVE" -> actions += "checkIn"
-                    "CHECK_IN" -> {
+                    "CHECK_IN", "IN_USE", "USING", "CHECKED_IN" -> {
                         actions += "extend"
                         if (user?.optBoolean("wifiAwayStopDisabled", user.optBoolean("wifiAwayDisabled")) != true) actions += "leave"
                         if (user?.optBoolean("wifiStopDisabled") != true) actions += "stopUsing"
@@ -500,7 +509,7 @@ class LibraryFunctionsRepository(
             val receipt = if (!number.isNullOrBlank() && !date.isNullOrBlank() && time?.size == 2)
                 ReservationReceipt(number, date, time[0], time[1], receiptField("位置").orEmpty(), receiptField("状态").orEmpty())
                 else null
-            val inactiveReceipt = receipt?.status?.let { status -> listOf("取消", "违约", "结束", "完成").any(status::contains) } == true
+            val inactiveReceipt = receipt?.status?.let(ReservationStatuses::isInactive) == true
             val activeReceipt = receipt != null && receipt.status in setOf("预约", "已预约", "待签到")
             val explicitFailure = document.select(".errors, .error, .alert-danger").any { it.text().isNotBlank() }
             val confirmed = !explicitFailure && !inactiveReceipt && ((activeReceipt && !message.contains("失败")) || message in successMessages)

@@ -11,8 +11,11 @@ import android.view.MotionEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import cn.edu.bucea.library.ui.HubAction
@@ -109,6 +112,25 @@ class LibraryHubUiInstrumentedTest {
         }
     }
 
+    @Test fun inUseCurrentCardKeepsTheEndUseActionVisible() {
+        val actions = AtomicInteger()
+        val state = mutableStateOf(LibraryHubState(
+            currentStatus = "IN_USE",
+            currentDetails = listOf("座位：A101", "位置：图书馆二层东区"),
+            actions = listOf(HubAction("stopUsing", "结束使用", "结束当前座位使用。", destructive = true)),
+        ))
+        withHub(state, onAction = { action ->
+            assertEquals("stopUsing", action.id)
+            actions.incrementAndGet()
+        }) {
+            findWithScroll("The in-use current card must display the end-use action") { findText("结束使用") }
+            click(findWithScroll("The end-use action must be tappable") { findText("结束使用") })
+            waitFor("The end-use action must require confirmation") { hasText("确认结束使用") }
+            click(requireNode("The confirmation must remain dismissible") { findText("取消") })
+            assertEquals("Dismissing the end-use confirmation must not submit the action", 0, actions.get())
+        }
+    }
+
     @Test fun reservationCancellationRequiresConfirmationAndInactiveRecordsOfferNoCancelAction() {
         val cancellations = AtomicInteger()
         val cancelledId = AtomicReference<String?>()
@@ -144,6 +166,79 @@ class LibraryHubUiInstrumentedTest {
             waitFor("Inactive record details must open") { hasText("关闭") && hasText("已取消") }
             assertFalse("Inactive details must not expose cancellation", hasText("取消预约"))
             assertEquals("Inactive records must not trigger another cancellation", 1, cancellations.get())
+        }
+    }
+
+    @Test fun compactReservationCardsKeepEndedLabelsDetailsAndTouchTargetsAtLargeFontScale() {
+        val date = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+        val ended = HubRecord("fixture-ended", "测试预约 A101", "结束使用",
+            listOf("座位：A101", "位置：图书馆二层东区"),
+            schedule = ReservationSchedule(date.minusDays(1).toString(), "09:00", "11:00"))
+        val state = mutableStateOf(LibraryHubState(currentStatus = "NO_RESERVATION", records = listOf(ended)))
+        val cancellations = AtomicInteger()
+        withHub(state, fontScale = 1.6f, onCancelRecord = { cancellations.incrementAndGet() }) {
+            val endedLabel = findWithScroll("The complete server label must remain visible at large text size") { findText("结束使用") }
+            val labelBounds = Rect().apply { endedLabel.getBoundsInScreen(this) }
+            assertTrue("The status must grow with text rather than use a clipped fixed height",
+                labelBounds.height() >= 11f * 1.6f * instrumentation.targetContext.resources.displayMetrics.density)
+            findWithScroll("The compact card must preserve its scheduled time") { findText("09:00 — 11:00") }
+            findWithScroll("The compact card must preserve its seat") { findText("A101 号座位") }
+            findWithScroll("The compact card must preserve its location") { findText("位置：图书馆二层东区") }
+            val detailsLabel = findWithScroll("The compact details action must remain visible") { findText("查看详情") }
+            val detailsTarget = requireNotNull(clickableParent(detailsLabel))
+            val detailsBounds = Rect().apply { detailsLabel.getBoundsInScreen(this) }
+            val targetBounds = Rect().apply { detailsTarget.getBoundsInScreen(this) }
+            assertMinimumTouchHeight(detailsLabel)
+            // TextButton content must stay inside its rounded clip. A zero-padded
+            // button previously cut the first glyph from both card action lines.
+            val minimumInset = 4f * instrumentation.targetContext.resources.displayMetrics.density
+            if (detailsBounds != targetBounds) {
+                assertTrue("The details label must have a safe inset from the action edge: label=$detailsBounds target=$targetBounds",
+                    detailsBounds.left - targetBounds.left >= minimumInset - 1f)
+            }
+            click(findWithScroll("The real record title must still open its details") { findText(ended.title) })
+            waitFor("Ended record details must retain the complete status") { hasText("关闭") && hasText("结束使用") }
+            assertFalse("Ending use must not expose cancellation", hasText("取消预约"))
+            click(requireNode("The large-text details dialog must close") { findText("关闭") })
+            waitFor("Closing details must return to the compact card") { !hasText("关闭") }
+
+            instrumentation.runOnMainSync {
+                state.value = state.value.copy(records = listOf(ended.copy(status = "已履约")))
+            }
+            findWithScroll("Completed records must retain their own label at large text size", backwards = true) { findText("已履约") }
+            assertFalse("Completed records must not expose cancellation", hasText("取消预约"))
+
+            instrumentation.runOnMainSync {
+                state.value = state.value.copy(records = listOf(ended.copy(status = "STOPPED")))
+            }
+            findWithScroll("The ended-use server code must render its complete Chinese label", backwards = true) { findText("结束使用") }
+            assertFalse("Ended-use records must not expose cancellation", hasText("取消预约"))
+
+            instrumentation.runOnMainSync {
+                state.value = state.value.copy(records = listOf(ended.copy(status = "已完成")))
+            }
+            findWithScroll("The school's completed history label must remain distinct", backwards = true) { findText("已完成") }
+            assertFalse("Completed records must not expose cancellation", hasText("取消预约"))
+
+            instrumentation.runOnMainSync {
+                state.value = state.value.copy(records = listOf(ended.copy(status = "", details = listOf(
+                    "状态：结束使用", "座位：A101", "位置：图书馆二层东区",
+                ))))
+            }
+            findWithScroll("An explicit ended-use detail must appear on the collapsed card", backwards = true) { findText("结束使用") }
+            assertFalse("Ended-use records must not expose cancellation", hasText("取消预约"))
+
+            instrumentation.runOnMainSync {
+                state.value = state.value.copy(records = listOf(ended.copy(id = "fixture-active", status = "已预约", canCancel = true,
+                    schedule = ReservationSchedule(date.plusDays(1).toString(), "09:00", "11:00"))))
+            }
+            val cancel = findWithScroll("Active compact cards must retain cancellation") { findText("取消预约") }
+            assertMinimumTouchHeight(cancel)
+            click(cancel)
+            waitFor("The compact cancel action must still require confirmation") { hasText("取消这次预约？") }
+            click(requireNode("The confirmation must remain dismissible at large text size") { findText("保留预约") })
+            waitFor("Keeping the reservation must return to the compact card") { !hasText("取消这次预约？") }
+            assertEquals("The presentation regression must never submit a cancellation", 0, cancellations.get())
         }
     }
 
@@ -316,6 +411,7 @@ class LibraryHubUiInstrumentedTest {
         onOpenRecord: (HubRecord) -> Unit = { state.value = state.value.copy(selectedRecord = it) },
         onSearch: () -> Unit = {},
         favoriteBooking: () -> FavoriteBookingActions? = { null },
+        fontScale: Float? = null,
         assertions: () -> Unit,
     ) {
         val activity = instrumentation.startActivitySync(
@@ -326,22 +422,25 @@ class LibraryHubUiInstrumentedTest {
         try {
             instrumentation.runOnMainSync {
                 activity.setContent {
-                    MaterialTheme {
-                        LibraryHubScreen(
-                            state = state.value,
-                            onRefresh = onRefresh,
-                            onSection = onSection,
-                            onLoadMore = onLoadMore,
-                            onSearch = onSearch,
-                            onOpenMap = {},
-                            onFavorite = onFavorite,
-                            onRemoveFavorite = onRemoveFavorite,
-                            onAction = onAction,
-                            onCancelRecord = onCancelRecord,
-                            onOpenRecord = onOpenRecord,
-                            onDismissRecord = { state.value = state.value.copy(selectedRecord = null) },
-                            favoriteBooking = favoriteBooking(),
-                        )
+                    val density = LocalDensity.current
+                    CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale ?: density.fontScale)) {
+                        MaterialTheme {
+                            LibraryHubScreen(
+                                state = state.value,
+                                onRefresh = onRefresh,
+                                onSection = onSection,
+                                onLoadMore = onLoadMore,
+                                onSearch = onSearch,
+                                onOpenMap = {},
+                                onFavorite = onFavorite,
+                                onRemoveFavorite = onRemoveFavorite,
+                                onAction = onAction,
+                                onCancelRecord = onCancelRecord,
+                                onOpenRecord = onOpenRecord,
+                                onDismissRecord = { state.value = state.value.copy(selectedRecord = null) },
+                                favoriteBooking = favoriteBooking(),
+                            )
+                        }
                     }
                 }
             }
@@ -447,6 +546,13 @@ class LibraryHubUiInstrumentedTest {
             current = current?.parent
         }
         return null
+    }
+
+    private fun assertMinimumTouchHeight(node: AccessibilityNodeInfo) {
+        val target = requireNotNull(clickableParent(node)) { "The record action must be independently clickable" }
+        val bounds = Rect().apply { target.getBoundsInScreen(this) }
+        val minimum = 48f * instrumentation.targetContext.resources.displayMetrics.density
+        assertTrue("Record actions must retain at least a 48 dp touch height: $bounds", bounds.height() >= minimum - 1f)
     }
 
     private fun click(node: AccessibilityNodeInfo) {

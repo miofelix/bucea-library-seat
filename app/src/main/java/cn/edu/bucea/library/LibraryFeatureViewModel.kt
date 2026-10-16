@@ -463,7 +463,8 @@ class LibraryFeatureViewModel internal constructor(
                         historyItems.clear()
                         // Fresh records restore cancellation independently of Wi-Fi-only seat actions.
                         actionRefreshRequired = false
-                        val records = result.items.map(::hubRecord)
+                        val resolvedItems = resolveHistoryItems(current, result.items)
+                        val records = resolvedItems.map(::hubRecord)
                         hubState.update { it.copy(records = records, hasMore = result.nextOffset != null,
                             selectedRecord = it.selectedRecord?.let { selected -> records.firstOrNull { record -> record.id == selected.id } },
                             currentStatus = result.userStatus, notice = operationNotice(result.message)) }
@@ -507,6 +508,22 @@ class LibraryFeatureViewModel internal constructor(
 
     private var historyOffset: Int? = null
     private fun operationNotice(message: String) = listOfNotNull(lastActionMessage, message.takeIf { it.isNotBlank() }).joinToString("\n").ifBlank { null }
+
+    /**
+     * The list endpoint can expose a summary such as “已完成” while the linked
+     * detail page carries the explicit user-facing state “结束使用”. Resolve those
+     * ambiguous completed records before rendering the collapsed history cards.
+     * A detail read failure leaves the original list item intact.
+     */
+    private suspend fun resolveHistoryItems(account: SavedAccount, items: List<LibraryHistoryItem>): List<LibraryHistoryItem> =
+        items.map { item ->
+            if (item.detailPath != null && item.status in setOf("", "已完成")) {
+                try { functions.reservationDetails(account, item) }
+                catch (e: CancellationException) { throw e }
+                catch (_: Exception) { item }
+            } else item
+        }
+
     private fun hubRecord(item: LibraryHistoryItem): HubRecord {
         historyItems[item.id] = item
         return HubRecord(item.id, item.title.ifBlank { "座位记录" }, item.status, item.details, canCancel = item.cancelPath != null,
@@ -522,9 +539,20 @@ class LibraryFeatureViewModel internal constructor(
         detailsJob = viewModelScope.launch {
             try {
                 val details = functions.reservationDetails(account(), item)
-                hubState.update { it.copy(selectedRecord = hubRecord(details).let { record ->
+                val resolved = hubRecord(details).let { record ->
                     if (actionRefreshRequired) record.copy(canCancel = false) else record
-                }, detailsLoading = false, detailsError = null) }
+                }
+                hubState.update { state ->
+                    state.copy(
+                        // Keep the list card in sync with the authoritative detail
+                        // response. The list can carry a summary status while the
+                        // detail page exposes a distinct state such as “结束使用”.
+                        records = state.records.map { record -> if (record.id == resolved.id) resolved else record },
+                        selectedRecord = resolved,
+                        detailsLoading = false,
+                        detailsError = null,
+                    )
+                }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { hubState.update { it.copy(detailsError = repository.userMessage(e), detailsLoading = false) } }
         }
@@ -599,9 +627,11 @@ class LibraryFeatureViewModel internal constructor(
         hubJob = viewModelScope.launch {
             hubState.update { it.copy(loading = true, error = null) }
             try {
-                val result = if (section == HubSection.VIOLATIONS) functions.violations(account(), offset) else functions.history(account(), offset)
+                val current = account()
+                val result = if (section == HubSection.VIOLATIONS) functions.violations(current, offset) else functions.history(current, offset)
                 historyOffset = result.nextOffset
-                val records = result.items.map(::hubRecord).map { record -> if (actionRefreshRequired) record.copy(canCancel = false) else record }
+                val items = if (section == HubSection.RESERVATIONS) resolveHistoryItems(current, result.items) else result.items
+                val records = items.map(::hubRecord).map { record -> if (actionRefreshRequired) record.copy(canCancel = false) else record }
                 hubState.update { it.copy(records = (it.records + records).distinctBy { record -> record.id },
                     hasMore = result.nextOffset != null, notice = operationNotice(result.message)) }
             } catch (e: CancellationException) { throw e }
