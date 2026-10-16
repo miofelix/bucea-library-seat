@@ -562,23 +562,24 @@ func drawCover() {
     drawBackground()
     circle(1740,930,330,0xEADDF2,0.32)
     circle(250,120,250,0xEADDF2,0.20)
-    image(logo,CGRect(x:130,y:164,width:94,height:94))
-    label("BUCEA  /  LIBRARY",132,303,1)
-    title("北建大",132,365,92,1,ink)
-    title("图书馆选座",132,475,92,1,purple)
-    sub("把时间，留给专注。",136,625,1,gray)
-    chip("看馆内概况",136,720,182,selected:true)
-    chip("找喜欢的位置",334,720,218)
-    chip("轻松预约",568,720,158)
-    text("Android 8.0+  ·  非官方客户端",136,856,22,gray,"regular")
-    // A shareable cover keeps the app's three strongest visual anchors together.
-    device("search",1120,564,790,-7,1,-0.5)
-    device("home",1395,542,900,0,1,0)
-    device("map",1670,566,760,7,1,0.5)
-    shadowCard(CGRect(x:1534,y:790,width:280,height:224),24)
-    if let qr=qrImage { image(qr,CGRect(x:1575,y:822,width:150,height:150)) }
-    text("扫码下载",1609,995,21,gray,"medium",1,"center")
-    text("library.miofelix.com",1600,1048,20,purple,"medium",1,"center")
+    // Left column: all copy and the QR card stay clear of the device artwork.
+    image(logo,CGRect(x:130,y:130,width:94,height:94))
+    label("BUCEA  /  LIBRARY",132,270,1)
+    title("北建大",132,335,92,1,ink)
+    title("图书馆选座",132,445,92,1,purple)
+    sub("把时间，留给专注。",136,580,1,gray)
+    chip("看馆内概况",136,660,182,selected:true)
+    chip("找喜欢的位置",334,660,218)
+    chip("轻松预约",568,660,158)
+    shadowCard(CGRect(x:130,y:760,width:244,height:256),24)
+    if let qr=qrImage { image(qr,CGRect(x:167,y:785,width:170,height:170)) }
+    text("扫码下载",252,976,20,gray,"medium",1,"center")
+    text("library.miofelix.com",420,824,26,purple,"medium")
+    text("Android 8.0+  ·  非官方客户端",420,880,22,gray,"regular")
+    text("查看馆内情况 · 筛选座位 · 管理预约",420,942,20,gray,"regular")
+    // Right column: two devices with a deliberate gutter; no card or copy is covered.
+    device("search",1015,560,650,-6,1,-0.4)
+    device("home",1430,545,900,0,1,0)
     text("画面与数据为演示内容",1790,1014,16,0xA6A1AD,"regular",0.9,"right")
 }
 
