@@ -522,9 +522,20 @@ class LibraryFeatureViewModel internal constructor(
         detailsJob = viewModelScope.launch {
             try {
                 val details = functions.reservationDetails(account(), item)
-                hubState.update { it.copy(selectedRecord = hubRecord(details).let { record ->
+                val resolved = hubRecord(details).let { record ->
                     if (actionRefreshRequired) record.copy(canCancel = false) else record
-                }, detailsLoading = false, detailsError = null) }
+                }
+                hubState.update { state ->
+                    state.copy(
+                        // Keep the list card in sync with the authoritative detail
+                        // response. The list can carry a summary status while the
+                        // detail page exposes a distinct state such as “结束使用”.
+                        records = state.records.map { record -> if (record.id == resolved.id) resolved else record },
+                        selectedRecord = resolved,
+                        detailsLoading = false,
+                        detailsError = null,
+                    )
+                }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { hubState.update { it.copy(detailsError = repository.userMessage(e), detailsLoading = false) } }
         }
