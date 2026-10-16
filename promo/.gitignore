@@ -1,0 +1,5 @@
+.render/
+music/*.wav
+music/*.mid
+*.mp4
+!bucea-library-promo-landscape.mp4

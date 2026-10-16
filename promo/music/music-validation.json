@@ -1,0 +1,21 @@
+{
+  "title": "把时间，留给专注 / Time for Focus",
+  "composition": "Original melody, harmony and arrangement for this project",
+  "tempo_bpm": 90,
+  "key": "F major",
+  "duration_seconds": 45.0,
+  "sample_rate_hz": 48000,
+  "channels": 2,
+  "bit_depth": 24,
+  "integrated_loudness_lufs": -17.9,
+  "true_peak_dbfs": -4.9,
+  "sample_peak_dbfs": -4.86745,
+  "rms_dbfs": -20.786933,
+  "nan_samples": 0.0,
+  "infinite_samples": 0.0,
+  "fade_in_seconds": 0.7,
+  "fade_out_start_seconds": 41.5,
+  "fade_out_seconds": 3.5,
+  "instrument_source": "macOS built-in General MIDI gs_instruments.dls",
+  "third_party_song_samples": false
+}
