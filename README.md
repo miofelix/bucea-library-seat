@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  正式版 v1.0.1 · <a href="docs/releases/1.0.1.md">更新说明</a>
+  正式版 v1.0.2 · <a href="docs/releases/1.0.2.md">更新说明</a>
 </p>
 
 这是北京建筑大学图书馆的**非官方客户端**，为同学们提供更方便的选座与预约体验。
