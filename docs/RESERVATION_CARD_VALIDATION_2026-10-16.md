@@ -62,3 +62,7 @@ The card keeps `已完成` distinct from `结束使用`. When a history record i
 explicit `状态：结束使用` detail, that detail takes precedence over a separate
 machine or summary field, so the collapsed card and its detail dialog show
 `结束使用` consistently.
+
+When the detail endpoint supplies the authoritative status only after a card is
+opened, the resolved record is now written back to the timeline list as well. Closing
+the dialog therefore keeps the newly resolved `结束使用` label on the collapsed card.
