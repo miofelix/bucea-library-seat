@@ -569,7 +569,7 @@ func drawCover() {
     title("图书馆选座",132,445,92,1,purple)
     sub("把时间，留给专注。",136,580,1,gray)
     chip("看馆内概况",136,660,182,selected:true)
-    chip("找喜欢的位置",334,660,218)
+    chip("布局选座",334,660,178)
     chip("轻松预约",568,660,158)
     shadowCard(CGRect(x:130,y:760,width:244,height:256),24)
     if let qr=qrImage { image(qr,CGRect(x:167,y:785,width:170,height:170)) }
@@ -578,7 +578,7 @@ func drawCover() {
     text("Android 8.0+  ·  非官方客户端",420,880,22,gray,"regular")
     text("查看馆内情况 · 筛选座位 · 管理预约",420,942,20,gray,"regular")
     // Right column: two devices with a deliberate gutter; no card or copy is covered.
-    device("search",1015,560,650,-6,1,-0.4)
+    device("map",1015,560,650,-6,1,-0.4)
     device("home",1430,545,900,0,1,0)
     text("画面与数据为演示内容",1790,1014,16,0xA6A1AD,"regular",0.9,"right")
 }
