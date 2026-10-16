@@ -66,7 +66,7 @@ Pages 发布依赖正确的账户 ID、项目名称与 API token。`pages.yml` �
 
 两份工作流的网页部署共享 `cloudflare-production` 队列，串行执行。获得部署位置后，job 读取 R2 最新元数据，只构建并验证一次 `dist/website`，再用 Wrangler 部署到 Cloudflare，并通过 `actions/upload-pages-artifact@v3` 与 `actions/deploy-pages@v4` 将同一产物部署到 GitHub Pages；两个站点的版本和五种 R2 下载链接保持一致。Release 网页 job 等待获得部署位置后才重新读取元数据，减少并发发布覆盖新版本的可能。Direct Upload 项目不配置额外的 Git 自动生产部署。
 
-[首次生产部署](https://github.com/miofelix/bucea-library-seat/actions/runs/38788641625) 展示 `v1.0.0` 并提供五种 R2 APK 下载。1.0.1 及后续版本由发布工作流读取最新 R2 元数据更新网页，每次同步仍需核对 Actions 结果、两站页面版本和下载链接；本版结果见 [RELEASE_VALIDATION_1.0.1.md](RELEASE_VALIDATION_1.0.1.md)。
+[首次生产部署](https://github.com/miofelix/bucea-library-seat/actions/runs/38788641625) 展示 `v1.0.0` 并提供五种 R2 APK 下载。1.0.2 及后续版本由发布工作流读取最新 R2 元数据更新网页，每次同步仍需核对 Actions 结果、两站页面版本和下载链接；1.0.2 结果见 [RELEASE_VALIDATION_1.0.2.md](RELEASE_VALIDATION_1.0.2.md)。
 
 ### 2026-10-16 双站同步验证
 

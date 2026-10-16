@@ -30,5 +30,7 @@
 
 ## 公布后检查
 
-发布脚本将逐项校验 GitHub Release 的五个 APK、`SHA256SUMS` 和 `update.json`，随后由 `release.yml` 同步 Cloudflare R2 并部署两站官网。发布完成后补充公开清单、五个下载地址、完整下载摘要和 Actions 运行结果。
+正式 [GitHub Release v1.0.2](https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.2) 已发布，包含五个 APK、`SHA256SUMS` 和 `update.json` 七个附件。发布工作流 [38873095342](https://github.com/miofelix/bucea-library-seat/actions/runs/38873095342) 的 `publish` 与 `website` job 均成功，R2 清单和官网均切换到 1.0.2 / versionCode 16。
+
+公开校验结果：`https://download.miofelix.com/bucea-library-seat/updates/latest.json` 和 `releases/latest.json` 返回 200，五个 APK 均完整下载并与上表 SHA-256、字节数一致；HEAD 返回正确长度，首段 `Range: bytes=0-1023` 返回 206 和 1024 字节。`library.miofelix.com` 与 GitHub Pages 镜像均返回 200，页面和 `release.json` 显示 1.0.2，五个下载链接有效且未发现横向溢出风险。
 
