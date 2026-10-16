@@ -1,5 +1,9 @@
+# Reproducible source, cleaned screenshots, cover art and the final deliverable
+# are tracked. Local renders and generated audio intermediates stay untracked.
 .render/
 music/*.wav
 music/*.mid
+
+# Keep the final promo in the repository; any other local video export is ignored.
 *.mp4
 !bucea-library-promo-landscape.mp4

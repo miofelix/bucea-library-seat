@@ -32,3 +32,7 @@ bash promo/create_promo.sh
 ```
 
 `assets/` 保存已清理的界面素材；当本机存在原始验收截图时，渲染器会重新裁切并清理它们。主题图标来自项目官方 SVG 与 `AppThemeColor.kt` 配色。视频、音频中间产物写入已忽略的 `.render/`。
+
+## 版本控制范围
+
+`render_promo.swift`、`create_promo.sh`、`music/` 下的构建源文件与验证记录、`assets/` 下的脱敏界面素材、`cover.png`、`preview.html` 和最终横屏 MP4 需要追踪。`.render/` 中的帧图、临时视频、编译产物，以及 `music/*.wav` 与 `music/*.mid` 是本地生成文件，不纳入版本控制；配乐可由 `music/build_music.py` 重新生成。

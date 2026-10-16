@@ -569,8 +569,8 @@ func drawCover() {
     title("图书馆选座",132,445,92,1,purple)
     sub("把时间，留给专注。",136,580,1,gray)
     chip("看馆内概况",136,660,182,selected:true)
-    chip("布局选座",334,660,178)
-    chip("轻松预约",568,660,158)
+    chip("布局选座",344,660,182)
+    chip("轻松预约",552,660,182)
     shadowCard(CGRect(x:130,y:760,width:244,height:256),24)
     if let qr=qrImage { image(qr,CGRect(x:167,y:785,width:170,height:170)) }
     text("扫码下载",252,976,20,gray,"medium",1,"center")
