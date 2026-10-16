@@ -96,12 +96,13 @@ import cn.edu.bucea.library.LibraryUiState
 import cn.edu.bucea.library.data.models.RegionOverviewState
 import cn.edu.bucea.library.data.models.RegionSeatOverview
 import java.time.LocalDate
-import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private const val ProjectUrl = "https://github.com/miofelix/bucea-library-seat"
 private const val OfficialLibraryUrl = "https://lib.bucea.edu.cn/"
+private val ShanghaiZone = ZoneId.of("Asia/Shanghai")
 
 @Composable
 internal fun FeatureLoginPrompt(state: LibraryUiState, modifier: Modifier, onLogin: () -> Unit,
@@ -130,7 +131,8 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
     val account = state.accounts.firstOrNull { it.id == state.activeAccountId }
     val name = state.overview?.displayName?.takeIf(String::isNotBlank)
         ?: account?.label?.takeIf(String::isNotBlank) ?: "同学"
-    val greeting = when (LocalTime.now().hour) { in 5..10 -> "早上好"; in 11..13 -> "中午好"; in 14..17 -> "下午好"; else -> "晚上好" }
+    val now = java.time.ZonedDateTime.now(ShanghaiZone)
+    val greeting = when (now.hour) { in 5..10 -> "早上好"; in 11..13 -> "中午好"; in 14..17 -> "下午好"; else -> "晚上好" }
     var noticesExpanded by rememberSaveable { mutableStateOf(false) }
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState())
         .padding(horizontal = LibrarySpacing.pageHorizontal, vertical = LibrarySpacing.pageVertical),
@@ -138,7 +140,7 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(LocalDate.now().format(DateTimeFormatter.ofPattern("M 月 d 日 · EEEE", Locale.CHINA)), color = Accent,
+                Text(now.toLocalDate().format(DateTimeFormatter.ofPattern("M 月 d 日 · EEEE", Locale.CHINA)), color = Accent,
                     fontSize = 10.sp, lineHeight = 14.sp, letterSpacing = 1.sp)
                 Text(if (state.authenticated) "$greeting，$name" else "给专注，留一席。",
                     style = MaterialTheme.typography.headlineMedium, color = Ink)

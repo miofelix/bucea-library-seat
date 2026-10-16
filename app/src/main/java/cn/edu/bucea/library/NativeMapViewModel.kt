@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.ZoneId
 
 class NativeMapViewModel(application: Application) : AndroidViewModel(application) {
     private val accounts = AccountStore(application)
@@ -60,7 +61,11 @@ internal class NativeMapCoordinator(
     private val account: (String?) -> SavedAccount,
     private val releaseSession: (String) -> Unit,
     private val userMessage: (Throwable) -> String,
-    private val today: () -> LocalDate = { LocalDate.now() },
+    // The library server and all other date-sensitive features use Beijing time.
+    // Reading the device's local timezone here can select yesterday/tomorrow for
+    // users travelling outside China and then make map filters disagree with the
+    // server's available dates.
+    private val today: () -> LocalDate = { LocalDate.now(ZoneId.of("Asia/Shanghai")) },
 ) {
     private val repository by lazy(repository)
     private val mutableState = MutableStateFlow(NativeMapState())

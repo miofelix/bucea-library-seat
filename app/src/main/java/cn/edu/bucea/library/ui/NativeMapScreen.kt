@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.edu.bucea.library.data.models.*
 import java.time.LocalDate
+import java.time.ZoneId
 
 internal data class MapSeatStyle(val fill: Color, val label: String, val marker: String)
 
@@ -366,9 +367,10 @@ private fun MapFilterField(title: String, value: String, enabled: Boolean, modif
 private fun friendlyDate(option: LibraryOption): String {
     val parsed = runCatching { LocalDate.parse(option.value) }.getOrNull() ?: return option.label
     val shortDate = "${parsed.monthValue}/${parsed.dayOfMonth}"
+    val today = LocalDate.now(ZoneId.of("Asia/Shanghai"))
     return when (parsed) {
-        LocalDate.now() -> "今天 $shortDate"
-        LocalDate.now().plusDays(1) -> "明天 $shortDate"
+        today -> "今天 $shortDate"
+        today.plusDays(1) -> "明天 $shortDate"
         else -> shortDate
     }
 }
