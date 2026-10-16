@@ -215,6 +215,20 @@ class LibraryHubUiInstrumentedTest {
             assertFalse("Ended-use records must not expose cancellation", hasText("取消预约"))
 
             instrumentation.runOnMainSync {
+                state.value = state.value.copy(records = listOf(ended.copy(status = "已完成")))
+            }
+            findWithScroll("The school's completed history label must remain distinct", backwards = true) { findText("已完成") }
+            assertFalse("Completed records must not expose cancellation", hasText("取消预约"))
+
+            instrumentation.runOnMainSync {
+                state.value = state.value.copy(records = listOf(ended.copy(status = "", details = listOf(
+                    "状态：结束使用", "座位：A101", "位置：图书馆二层东区",
+                ))))
+            }
+            findWithScroll("An explicit ended-use detail must appear on the collapsed card", backwards = true) { findText("结束使用") }
+            assertFalse("Ended-use records must not expose cancellation", hasText("取消预约"))
+
+            instrumentation.runOnMainSync {
                 state.value = state.value.copy(records = listOf(ended.copy(id = "fixture-active", status = "已预约", canCancel = true,
                     schedule = ReservationSchedule(date.plusDays(1).toString(), "09:00", "11:00"))))
             }

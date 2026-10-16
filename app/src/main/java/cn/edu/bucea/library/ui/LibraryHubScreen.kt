@@ -294,7 +294,7 @@ fun LibraryHubScreen(
             text = {
                 Column(Modifier.fillMaxWidth().heightIn(max = maximumDialogHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
                     if (state.detailsLoading) LinearProgressIndicator(Modifier.fillMaxWidth())
-                    hubRecordStatus(record)?.let { HubStatusPill(it, paletteStatus = record.status) }
+                    hubRecordStatus(record)?.let { HubStatusPill(it, paletteStatus = it) }
                     state.detailsError?.let { error ->
                         Text(error, color = MaterialTheme.colorScheme.error, fontSize = 13.sp, lineHeight = 21.sp)
                         TextButton(onClick = { onOpenRecord(record) }, enabled = !state.loading && !state.detailsLoading, modifier = Modifier.heightIn(min = 48.dp)) {
@@ -558,7 +558,9 @@ private fun hubRecordStatus(record: HubRecord): String? {
             else -> null
         }
     }.firstOrNull()
-    val value = statusValue.ifBlank { detailValue.orEmpty() }.trim()
+    // A detail field is the server's explicit displayed status. Prefer it when
+    // present so “结束使用” cannot be hidden behind a separate “已完成” code.
+    val value = (detailValue ?: statusValue).trim()
     if (value.isBlank()) return null
     return when (value.uppercase()) {
         "STOPPED", "FINISHED" -> "结束使用"
@@ -586,7 +588,7 @@ private fun HubDetailLine(text: String) {
 
 @Composable
 private fun HubReservationTimelineEntry(record: HubRecord, enabled: Boolean, onClick: () -> Unit, onCancel: (() -> Unit)?) {
-    val accent = reservationStatusPalette(record.status).foreground
+    val accent = reservationStatusPalette(hubRecordStatus(record).orEmpty()).foreground
     val line = Line
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min).semantics { contentDescription = "预约时间线 ${record.id}" },
         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -622,7 +624,7 @@ private fun HubRecordCard(
                     ?: record.schedule.dateLabel ?: "日期待确认"
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(label, color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                    recordStatus?.let { HubStatusPill(it, paletteStatus = record.status) }
+                    recordStatus?.let { HubStatusPill(it, paletteStatus = it) }
                 }
                 val time = when {
                     record.schedule.begin != null && record.schedule.end != null -> "${record.schedule.begin} — ${record.schedule.end}"
@@ -632,7 +634,7 @@ private fun HubRecordCard(
                 }
                 Text(time, color = Accent, fontSize = 19.sp, fontWeight = FontWeight.SemiBold, lineHeight = 26.sp)
             } else {
-                recordStatus?.let { HubStatusPill(it, paletteStatus = record.status) }
+                recordStatus?.let { HubStatusPill(it, paletteStatus = it) }
             }
             if (seat != null && title != "$seat 号座位") Text("$seat 号座位", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
             record.details.filter { it.isNotBlank() && hubDetailText(it).first != "状态" &&
