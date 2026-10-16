@@ -63,6 +63,8 @@ explicit `状态：结束使用` detail, that detail takes precedence over a sep
 machine or summary field, so the collapsed card and its detail dialog show
 `结束使用` consistently.
 
-When the detail endpoint supplies the authoritative status only after a card is
-opened, the resolved record is now written back to the timeline list as well. Closing
-the dialog therefore keeps the newly resolved `结束使用` label on the collapsed card.
+When the list endpoint supplies only a summary such as `已完成`, history loading now
+resolves that record's linked detail before rendering the collapsed card. If the
+authoritative detail is fetched later by opening the card, it is written back to the
+timeline list as well. The collapsed card therefore shows the explicit `结束使用`
+label without requiring a click first, and keeps it after the dialog closes.
