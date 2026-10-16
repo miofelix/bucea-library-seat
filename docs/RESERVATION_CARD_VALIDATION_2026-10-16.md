@@ -57,3 +57,8 @@ These codes now expose the `结束使用` action. History records also preserve 
 or non-anchor terminal labels, and `STOPPED` / `FINISHED` render as `结束使用` on the
 card. The final follow-up device run passed 25 instrumented tests and the JVM suite
 passed 85 tests, all without failures.
+
+The card keeps `已完成` distinct from `结束使用`. When a history record includes an
+explicit `状态：结束使用` detail, that detail takes precedence over a separate
+machine or summary field, so the collapsed card and its detail dialog show
+`结束使用` consistently.
