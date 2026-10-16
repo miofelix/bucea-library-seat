@@ -54,6 +54,40 @@ class AccountSessionInstrumentedTest {
     }
 
     @Test
+    fun alphanumericStudentNumbersPersistAndUpdateWithoutChangingTheirIdentity() {
+        val store = AccountStore(context)
+        val numeric = store.save("209999990012", "synthetic-numeric-password", "普通账号")
+        val transfer = store.save("2099ZS99001234", "synthetic-transfer-password", "专升本账号")
+        val lowerCase = store.save("2099zs99001235", "synthetic-lowercase-password", "小写字母账号")
+        val reloaded = AccountStore(context)
+        assertEquals(listOf(numeric, transfer, lowerCase), reloaded.accounts())
+        assertEquals(lowerCase.id, reloaded.activeAccountId)
+        assertCiphertext("accounts", listOf(transfer.username, transfer.password, lowerCase.username))
+
+        val updated = reloaded.save(transfer.username, "synthetic-updated-password", transfer.label)
+        assertEquals(transfer.id, updated.id)
+        assertEquals(transfer.username, updated.username)
+        assertEquals(updated, AccountStore(context).accounts().single { it.id == transfer.id })
+        assertEquals(3, AccountStore(context).accounts().size)
+        assertEquals(transfer.id, AccountStore(context).activeAccountId)
+    }
+
+    @Test
+    fun malformedStudentNumbersCannotChangeTheVault() {
+        val store = AccountStore(context)
+        store.save("209999990013", "synthetic-password", "原账号")
+        val before = preferences.all.toMap()
+        for (username in listOf("", "123", "2".repeat(31), "2099 ZS99001234", "2099ZS99001234\n",
+            "2099-ZS99001234", "２０９９ZS99001234", "2099专升本99001234")) {
+            try {
+                store.save(username, "synthetic-password", "无效账号")
+                org.junit.Assert.fail("Malformed student numbers must fail")
+            } catch (_: IllegalArgumentException) { }
+            assertEquals(before, preferences.all)
+        }
+    }
+
+    @Test
     fun labelUpdatePersistsWithoutChangingCredentialsSessionsOrOtherAccount() {
         val store = AccountStore(context)
         val a = store.save("209999990009", "synthetic-password-A", "旧备注")

@@ -58,7 +58,7 @@ class AccountStore(context: Context) {
     }
 
     @Synchronized fun save(username: String, password: String, label: String): SavedAccount {
-        require(username.matches(Regex("[0-9]{4,30}"))) { "请输入正确的学号" }
+        require(username.matches(Regex("[A-Za-z0-9]{4,30}"))) { "请输入正确的学号" }
         require(password.isNotBlank()) { "请输入密码" }
         val accounts = accounts().toMutableList()
         val old = accounts.find { it.username == username }
