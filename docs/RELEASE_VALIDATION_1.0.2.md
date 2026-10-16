@@ -1,6 +1,6 @@
 # 1.0.2 发布验证
 
-验证日期：2026-10-16。版本为 **1.0.2 / versionCode 16**，包名 `cn.edu.bucea.library`，最低支持 Android 8.0 / API 26。发行说明见 [releases/1.0.2.md](releases/1.0.2.md)。本次审查提交基于 `333f574`，包含北京时间修复提交 `adacdeb`。
+验证日期：2026-10-16。版本为 **1.0.2 / versionCode 16**，包名 `cn.edu.bucea.library`，最低支持 Android 8.0 / API 26。发行说明见 [releases/1.0.2.md](releases/1.0.2.md)。发布目标提交为 `e5fddc7`，包含北京时间修复提交 `adacdeb`。
 
 ## 自动检查
 
@@ -22,11 +22,11 @@
 
 | 文件 | 字节数 | SHA-256 |
 | --- | ---: | --- |
-| `BUCEA-Library-Seat-v1.0.2.apk` | 55,617,674 | `773160abe634f5c86b6d2d9e587538d963c7760f279e7accf57e355b23fa4d8a` |
-| `BUCEA-Library-Seat-v1.0.2-arm64-v8a.apk` | 33,901,195 | `4cc1446ccaec9ec0a514fa072a3ed90a343e26847df0b4bf46f2f743d880ec70` |
-| `BUCEA-Library-Seat-v1.0.2-armeabi-v7a.apk` | 33,336,001 | `2d2059a6140884f62dfbc590dd3f6c530fad76797ba2a8331b3f9ccb68293441` |
-| `BUCEA-Library-Seat-v1.0.2-x86.apk` | 35,156,133 | `10cf323dc3af626d90d3fcdfa54b8259827c377c630d786cdacb52c276b2a08e` |
-| `BUCEA-Library-Seat-v1.0.2-x86_64.apk` | 35,144,046 | `78c50f4a27ce61565143cedf3f775c75e6fbf7253866d58c792f23eb28448f91` |
+| `BUCEA-Library-Seat-v1.0.2.apk` | 55,617,674 | `84b38173922d53ab8ab69d61e7c3dbb5b681c415dd78153cce3edb3e02d86cf7` |
+| `BUCEA-Library-Seat-v1.0.2-arm64-v8a.apk` | 33,901,195 | `5a827e53c87dce0c5ed022acde26eb1498f75c02e6b22aebfb4766132c357e1b` |
+| `BUCEA-Library-Seat-v1.0.2-armeabi-v7a.apk` | 33,336,001 | `8f8697e46f4f6df9300b2daeb56a541e2b4fa4001618a120539eb963527873bb` |
+| `BUCEA-Library-Seat-v1.0.2-x86.apk` | 35,156,133 | `0921511732adabe6788aeaa85e4f78c6c92af451b5a7183b679e7da8ec017b54` |
+| `BUCEA-Library-Seat-v1.0.2-x86_64.apk` | 35,144,046 | `bb36c5e8dde37e492be8215f54b0838c4f9e9c9ae0aa079b77ec0c381c308bfc` |
 
 ## 公布后检查
 
