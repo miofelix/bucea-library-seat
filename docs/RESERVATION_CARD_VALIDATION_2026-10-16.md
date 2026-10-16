@@ -42,3 +42,18 @@ at 1.6x font scale.
 The connected PKX110 / Android API 36 device passed all six `LibraryHubUiInstrumentedTest`
 tests, including the 1.6x-font fixture covering `结束使用`, `已履约`, details and
 cancellation confirmation. The JVM suite passed 84 tests with no failures.
+
+## Follow-up correction
+
+The next device review found two presentation gaps. Timeline cards had measured as
+full width after the 14 dp timeline marker, so their right side could overflow; the
+details button also had zero horizontal padding. The card now takes the remaining
+timeline width and the button has 8 dp horizontal / 4 dp vertical content padding,
+while retaining a 48 dp touch target. A 1.6x-font test checks the label inset and
+the complete seat and details text.
+
+The server can expose an in-use reservation as `IN_USE`, `USING` or `CHECKED_IN`.
+These codes now expose the `结束使用` action. History records also preserve linked
+or non-anchor terminal labels, and `STOPPED` / `FINISHED` render as `结束使用` on the
+card. The final follow-up device run passed 25 instrumented tests and the JVM suite
+passed 85 tests, all without failures.
