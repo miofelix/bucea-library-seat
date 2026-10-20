@@ -222,9 +222,12 @@ class LibraryFunctionsRepository(
     suspend fun performAction(account: SavedAccount, action: String, endTime: String? = null): ReservationResult {
         require(action in setOf("checkIn", "leave", "resume", "stopUsing", "extend")) { "预约操作无效" }
         val state = userState(account)
+        // After the day's first entry registration, the school checks new reservations in by itself.
+        if (action == "checkIn" && state.status in setOf("CHECK_IN", "IN_USE", "USING", "CHECKED_IN"))
+            return ReservationResult(false, "当前预约已签到，座位正在使用中")
         require(action in state.actions) {
             when {
-                state.status == "LOC_RESTRICT" || !state.softMode || state.status.isBlank() -> state.actionMessage
+                state.status == "LOC_RESTRICT" || state.status.isBlank() -> state.actionMessage
                 action == "checkIn" && state.status == "NO_RESERVATION" -> "当前没有可签到的预约，请同步预约记录"
                 else -> "当前预约没有此操作，请同步预约状态后重试"
             }
@@ -456,7 +459,9 @@ class LibraryFunctionsRepository(
             val status = user?.optString("currentReservationStatus").orEmpty()
             val soft = user?.optBoolean("softMode") == true
             val actions = mutableListOf<String>()
-            if (soft && status != "LOC_RESTRICT") {
+            // softMode only shows the school's kiosk button bar; on library Wi-Fi the school
+            // accepts these actions with softMode=false. Location is signaled by LOC_RESTRICT.
+            if (status != "LOC_RESTRICT") {
                 when (status) {
                     "RESERVE" -> actions += "checkIn"
                     "CHECK_IN", "IN_USE", "USING", "CHECKED_IN" -> {
@@ -474,7 +479,6 @@ class LibraryFunctionsRepository(
                 status == "LOC_RESTRICT" -> "签到等座位操作需连接图书馆 Wi-Fi，连接后请同步预约状态"
                 status == "NO_RESERVATION" -> "当前没有可签到的预约，已预约座位请查看预约记录"
                 status.isBlank() -> "暂未读取到当前预约状态，请同步后重试"
-                !soft -> "图书馆系统暂未开放在线座位操作，请连接图书馆 Wi-Fi 后同步，或按馆内指引签到"
                 status == "RESERVE" -> "签到前请连接图书馆 Wi-Fi，并在预约允许的时间内操作"
                 actions.isEmpty() -> "当前预约没有可执行的座位操作，请同步预约状态"
                 else -> "座位操作以图书馆系统当前提供的选项为准"

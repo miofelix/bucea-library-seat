@@ -137,9 +137,10 @@ class LibraryFunctionsInstrumentedTest {
     }
 
     @Test
-    fun reservationActionsRespectServerModeAndLocationRestrictions() {
+    fun reservationActionsFollowServerStatusAndLocationRestrictions() {
         fun state(json: String) = LibraryFunctionsRepository.parseUserState(LibraryHtml.parse("<script>var userInfo='$json';</script>"))
-        assertTrue(state("""{"currentReservationStatus":"CHECK_IN","softMode":false}""").actions.isEmpty())
+        // softMode only toggles the school's kiosk button bar; library Wi-Fi actions still apply.
+        assertEquals(listOf("extend", "leave", "stopUsing"), state("""{"currentReservationStatus":"CHECK_IN","softMode":false}""").actions)
         assertTrue(state("""{"currentReservationStatus":"LOC_RESTRICT","softMode":true,"hasPrevUnStoppedReservation":true}""").actions.isEmpty())
         assertEquals(listOf("extend"), state("""{"currentReservationStatus":"CHECK_IN","softMode":true,"wifiAwayDisabled":true,"wifiStopDisabled":true}""").actions)
         assertEquals(listOf("resume", "stopUsing"), state("""{"currentReservationStatus":"AWAY","softMode":true}""").actions)
@@ -165,10 +166,11 @@ class LibraryFunctionsInstrumentedTest {
         val reserved = state("""{"currentReservationStatus":"RESERVE","softMode":true}""")
         assertEquals(listOf("checkIn"), reserved.actions)
         assertTrue(reserved.requiresLibraryWifi)
-        val manualMode = state("""{"currentReservationStatus":"RESERVE","softMode":false}""")
-        assertTrue(manualMode.actions.isEmpty())
-        assertTrue(manualMode.actionMessage.contains("按馆内指引签到"))
-        assertFalse(manualMode.actionMessage.contains("当前网络"))
+        val kioskBarHidden = state("""{"currentReservationStatus":"RESERVE","softMode":false}""")
+        assertEquals(listOf("checkIn"), kioskBarHidden.actions)
+        assertTrue(kioskBarHidden.actionMessage.contains("图书馆 Wi-Fi"))
+        assertFalse(kioskBarHidden.actionMessage.contains("暂未开放"))
+        assertFalse(kioskBarHidden.actionMessage.contains("当前网络"))
     }
 
     @Test
@@ -179,7 +181,7 @@ class LibraryFunctionsInstrumentedTest {
         val repository = LibraryFunctionsRepository(request = { _, endpoint ->
             if (endpoint == "/self") {
                 val status = if (restricted) "LOC_RESTRICT" else "RESERVE"
-                """<script>var userInfo='{"currentReservationStatus":"$status","softMode":true}';</script>"""
+                """<script>var userInfo='{"currentReservationStatus":"$status","softMode":false}';</script>"""
             } else {
                 assertEquals("/user/checkIn", endpoint)
                 actions++
