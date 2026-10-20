@@ -36,14 +36,40 @@
 
 三条测试预约均为“结束使用”，结束时无进行中的预约。违约记录未新增，最新一条仍是此前的 2026-10-13 迟到违约。
 
+## 续约修复
+
+续约时会短暂弹出错误提示，并显示“暂时无法同步：登录已失效，请重新登录；正在同步预约状态，请确认结果后再操作”；点击“重试”后恢复正常。
+
+17:37 实测的请求序列：
+
+1. `GET /user/getTimeExtend` → `{"status":"success","data":{"endTimes":[{"id":"1110","value":"18:30"}]}}`，两次读取结果一致。
+2. `GET /user/extend?endTime=1110` → `302` 到 `/error/serverError`（学校通用的“出错了 Oops…”页面），没有 JSON 结果。
+3. 服务器实际已保存新的结束时间：预约记录变为“今天 17:20 -- 18:30”，再次查询返回 `{"status":"fail","message":"该预约已无法续约"}`。
+
+旧实现把任何 HTML 回应都当作登录页，报告“登录已失效”，并在随后成功的刷新中保留这条错误，直到点击“重试”。学校拒绝续约时，回答也被显示为“暂时无法同步”。
+
+修复：
+
+- `/user/extend` 返回非 JSON 页面时，登录页仍报告登录失效；否则只读一次预约记录，确认今天使用中的预约已按所选时间结束才报告“续约成功，可使用至 HH:MM”，否则报告“续约未生效，请刷新预约状态后重试”。续约请求只发送一次。
+- `extensionTimes` 返回学校提供的时段和说明；学校拒绝或没有可选时段时显示为提示和 Toast，不再显示“暂时无法同步”。
+- 其他座位操作若返回非 JSON 页面，不再误报登录失效，提示刷新核实。
+
+| 预约 | 操作 | 结果 |
+| --- | --- | --- |
+| 056B 17:20–18:00 | 旧逻辑续约至 18:30 | 复现：服务器已续约，App 显示“登录已失效…”及“暂时无法同步” |
+| 056B（已续约） | 修复后再次点击续约 | Toast 与说明“该预约已无法续约”，无同步错误卡片，操作按钮保留 |
+| 007D 17:58–18:30 | 修复后签到、续约至 19:00 | Toast“续约成功”，说明“续约成功，可使用至19:00”，时间线显示 17:58 — 19:00；随后结束使用 |
+
+056B 经用户同意后结束使用，以便新建可续约的测试预约。所有测试预约均已结束，违约记录未新增。
+
 ## 自动化检查
 
-- `./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug`：通过，JVM 90 项无失败，其中新增 `ReservationActionsTest` 5 项使用本次实测的状态与响应结构（凭证号已替换）。
-- 设备 `am instrument`：`LibraryFunctionsInstrumentedTest` 18 项通过（自动签到处理加入前的构建）；最终调试构建上 `LibraryHubUiInstrumentedTest` 7 项通过，字体与旋转设置未改变。
-- 新增可选诊断 `LiveCheckInDiagnosticTest`：默认只读；仅在 `-e live_checkin_submit true` 且状态为 `RESERVE` 时发送一次签到，日志只输出状态字段。
+- `./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug`：通过，JVM 94 项无失败。`ReservationActionsTest` 9 项使用本次实测的状态与响应结构（凭证号已替换），其中续约用例按上述请求序列回放学校错误页面。
+- 设备 `am instrument`（续约修复后的调试构建）：`LibraryFunctionsInstrumentedTest` 18 项、`LibraryHubUiInstrumentedTest` 7 项通过，字体与旋转设置未改变。
+- 可选诊断 `LiveCheckInDiagnosticTest`：默认只读；`-e live_extension_read true` 连续读取两次可续约时段；仅在 `-e live_checkin_submit true` 且状态为 `RESERVE` 时发送一次签到。日志只输出状态字段。
 
-## 设备最终状态与未覆盖项
+## 设备状态与未覆盖项
 
-手机安装本次修改的 arm64-v8a Release 本地构建（versionCode 16，未发布，SHA-256 `96b6c81dff80d854264512786a4fc0b936b6cfb97d83e61c48a256c3b3cbb040`，原签名证书，非调试），账号会话保留；测试包已卸载，设备内诊断页面已删除。原 v1.0.2 安装包备份及截图、页面等私有证据位于忽略的 `.private/checkin-debug/`。
+签到阶段结束时手机曾安装本地 Release 构建（SHA-256 `96b6c81dff80d854264512786a4fc0b936b6cfb97d83e61c48a256c3b3cbb040`）；续约验证使用同一签名的调试构建，账号会话保留。原 v1.0.2 安装包备份及截图、页面等私有证据位于忽略的 `.private/checkin-debug/`。
 
-未实测：校园网馆外的 `LOC_RESTRICT`、超出签到时间窗的失败提示，以及有可续约时段时的实际续约。服务器拒绝续约时，消息目前显示在“暂时无法同步”卡片中，可后续调整措辞。
+未实测：校园网馆外的 `LOC_RESTRICT`，以及超出签到时间窗的失败提示。
