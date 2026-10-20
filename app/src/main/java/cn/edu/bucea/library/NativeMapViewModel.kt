@@ -8,13 +8,17 @@ import cn.edu.bucea.library.data.LibraryRepository
 import cn.edu.bucea.library.data.NativeMapRepository
 import cn.edu.bucea.library.data.SavedAccount
 import cn.edu.bucea.library.data.loadRegion
+import cn.edu.bucea.library.data.loadReservation
 import cn.edu.bucea.library.data.models.NativeMapOptions
 import cn.edu.bucea.library.data.models.NativeMapState
 import cn.edu.bucea.library.data.models.RegionSeatOverview
+import cn.edu.bucea.library.data.models.ReservationMapTarget
 import cn.edu.bucea.library.ocr.DdddOcr
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -41,6 +45,7 @@ class NativeMapViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun bindAccount(id: String?, loggedIn: Boolean) = coordinator.bindAccount(id, loggedIn)
     fun selectRegion(region: RegionSeatOverview) = coordinator.selectRegion(region)
+    fun openReservation(target: ReservationMapTarget) = coordinator.openReservation(target)
     fun showRegionSelector() = coordinator.showRegionSelector()
     fun refresh() = coordinator.refresh()
     fun onFilter(key: String, value: String) = coordinator.onFilter(key, value)
@@ -75,6 +80,7 @@ internal class NativeMapCoordinator(
     private var operation: Job? = null
     private var optionsDay: LocalDate? = null
     private var pendingRegion: RegionSeatOverview? = null
+    private var pendingReservation: ReservationMapTarget? = null
     private var requestedRoomId: String? = null
 
     fun bindAccount(id: String?, loggedIn: Boolean) {
@@ -85,6 +91,7 @@ internal class NativeMapCoordinator(
         authenticated = loggedIn
         optionsDay = null
         pendingRegion = null
+        pendingReservation = null
         requestedRoomId = null
         mutableState.value = NativeMapState()
     }
@@ -112,19 +119,49 @@ internal class NativeMapCoordinator(
     fun selectRegion(region: RegionSeatOverview) {
         operation?.cancel()
         pendingRegion = region
+        pendingReservation = null
         requestedRoomId = null
         optionsDay = null
         mutableState.value = NativeMapState(directRegionView = true)
     }
 
-    fun showRegionSelector() {
+    /** Preserve the reservation's exact date and text until a fresh map resolves its seat ID. */
+    fun openReservation(target: ReservationMapTarget) {
+        operation?.cancel()
         pendingRegion = null
-        mutableState.update { it.copy(directRegionView = false) }
+        pendingReservation = target
+        requestedRoomId = null
+        optionsDay = null
+        mutableState.value = NativeMapState(directRegionView = true, filters = mapOf("onDate" to target.date),
+            focusSeatLabel = target.seatLabel, reservationDate = target.date)
+    }
+
+    fun showRegionSelector() {
+        operation?.cancel()
+        pendingRegion = null
+        pendingReservation = null
+        mutableState.update { it.copy(loading = false, directRegionView = false, focusSeatId = null, focusSeatLabel = null,
+            reservationDate = null, notice = null) }
     }
 
     /** Refresh the requested region, current room, or server date/building/floor choices. */
     fun refresh() = run { account ->
         releaseSession(account.id)
+        pendingReservation?.let { target ->
+            mutableState.update { it.copy(focusSeatId = null, focusSeatLabel = target.seatLabel) }
+            val selected = repository.loadReservation(account, target, today())
+            currentCoroutineContext().ensureActive()
+            if (pendingReservation !== target) return@run
+            mutableState.update { selected.copy(loading = true, listMode = it.listMode,
+                focusSeatLabel = selected.focusSeatLabel ?: target.seatLabel) }
+            if (!selected.verificationRequired && selected.layout != null) {
+                requestedRoomId = selected.layout.roomId
+                optionsDay = today()
+            }
+            // Keep the target on both success and failure: refresh must retain its
+            // date and re-resolve focus against the next authoritative layout.
+            return@run
+        }
         pendingRegion?.let { region ->
             val selected = repository.loadRegion(account, region)
             if (pendingRegion !== region) return@run
@@ -165,8 +202,10 @@ internal class NativeMapCoordinator(
         }.any { it.value == value }
         if (!valid) return
         pendingRegion = null
+        pendingReservation = null
         requestedRoomId = null
-        mutableState.update { it.copy(filters = it.filters + (key to value), layout = null, rooms = emptyList()) }
+        mutableState.update { it.copy(filters = it.filters + (key to value), layout = null, rooms = emptyList(),
+            focusSeatId = null, focusSeatLabel = null, reservationDate = null) }
         run { account ->
             if (key == "building") {
                 val floors = repository.floors(account, value)
@@ -192,6 +231,9 @@ internal class NativeMapCoordinator(
     }
 
     fun loadRoom(roomId: String) {
+        pendingReservation = null
+        pendingRegion = null
+        mutableState.update { it.copy(focusSeatId = null, focusSeatLabel = null, reservationDate = null) }
         requestedRoomId = roomId
         run { account -> loadLayout(account, roomId) }
     }

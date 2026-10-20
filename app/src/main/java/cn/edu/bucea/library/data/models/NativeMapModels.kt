@@ -9,6 +9,10 @@ data class NativeMapOptions(
 data class NativeMapRoom(val id: String, val name: String)
 data class NativeMapRooms(val rooms: List<NativeMapRoom>, val verificationRequired: Boolean = false,
     val message: String = "", val verificationUserId: String = "", val incomplete: Boolean = false)
+
+/** Reservation identity stays separate from the server's seat and room IDs. */
+data class ReservationMapTarget(val date: String, val seatLabel: String, val location: String)
+
 enum class NativeMapCellKind { EMPTY, SEAT, TABLE, WALL, DOOR, WINDOW, LABEL }
 
 /** Coordinates refer to the server's actual row/column grid, including its empty aisles. */
@@ -48,4 +52,8 @@ data class NativeMapState(
     val verificationRequired: Boolean = false,
     val verificationUserId: String = "",
     val directRegionView: Boolean = false,
+    val focusSeatId: String? = null,
+    val focusSeatLabel: String? = null,
+    /** Original booking date; filters.onDate always identifies the map actually displayed. */
+    val reservationDate: String? = null,
 )

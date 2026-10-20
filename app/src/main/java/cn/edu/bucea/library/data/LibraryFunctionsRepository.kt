@@ -212,7 +212,7 @@ class LibraryFunctionsRepository(
             end = updatedSchedule.end ?: record.schedule.end,
             dateLabel = updatedSchedule.dateLabel ?: record.schedule.dateLabel,
         )
-        return record.copy(details = details.ifEmpty { record.details },
+        return record.copy(details = ReservationHistoryDetails.merge(record.details, details.ifEmpty { record.details }),
             status = receipt?.status?.ifBlank { record.status } ?: record.status, schedule = schedule)
     }
 

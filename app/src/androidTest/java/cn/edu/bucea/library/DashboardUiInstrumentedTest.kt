@@ -76,8 +76,6 @@ class DashboardUiInstrumentedTest {
             waitFor("Refresh must invoke the existing synthetic callback once") { callbacks.refresh.get() == 1 }
             click(findWithScroll("A real current-reservation presentation must offer details") { findText("查看我的预约") })
             waitFor("Current reservation must open the reservation section") { callbacks.reservations.get() == 1 }
-            click(findWithScroll("Reservation history shortcut must remain available") { findText("预约记录") })
-            waitFor("Reservation details and history must use the matching callback") { callbacks.reservations.get() == 2 }
             assertRemovedHomeActions()
             assertEquals("Removed home seat actions must not call seat search", 0, callbacks.search.get())
             assertEquals("Removed map shortcut must not call map navigation", 0, callbacks.map.get())
@@ -90,7 +88,9 @@ class DashboardUiInstrumentedTest {
     @Test fun accountNetworkAndBusyGatesRemainIntact() {
         val state = mutableStateOf(fixtureState().copy(authenticated = false))
         val callbacks = Callbacks()
-        withDashboard(state, callbacks) {
+        val hub = LibraryHubState(currentStatus = "RESERVED",
+            currentDetails = listOf("座位：A042", "位置：合成测试区域", "时间：14:00 — 18:00"))
+        withDashboard(state, callbacks, hub) {
             click(findWithScroll("A saved signed-out account must offer login") { findText("登录图书馆") })
             waitFor("The existing session card must route to saved-account login") { callbacks.login.get() == 1 }
             update(state) { it.copy(campusAccess = CampusAccess.UNREACHABLE) }
@@ -110,7 +110,7 @@ class DashboardUiInstrumentedTest {
             val refresh = findWithScroll("A busy refresh must remain discoverable", backwards = true) { findDescription("刷新馆内概况") }
             assertFalse("Busy state must disable overview refresh", enabled(refresh))
             assertFalse("Busy state must disable account management", enabled(findWithScroll("Busy account action must remain discoverable", backwards = true) { findDescription("管理账号") }))
-            assertFalse("Busy state must disable reservation history", enabled(findWithScroll("Busy reservation history must remain discoverable") { findText("预约记录") }))
+            assertFalse("Busy state must disable current reservation details", enabled(findWithScroll("Busy current reservation details must remain discoverable") { findText("查看我的预约") }))
             assertRemovedHomeActions()
             assertEquals("Busy and offline controls must not begin seat search", 0, callbacks.search.get())
             assertEquals("Busy controls must not refresh", 0, callbacks.refresh.get())
@@ -215,7 +215,7 @@ class DashboardUiInstrumentedTest {
     private fun hasDistribution() = nodes().any { it.contentDescription?.toString()?.startsWith("馆内状态分布：") == true }
 
     private fun assertRemovedHomeActions() {
-        val removed = setOf("找一个好座位", "布局选座", "收藏座位")
+        val removed = setOf("找一个好座位", "布局选座", "收藏座位", "预约记录", "随时查看")
         fun inspect(node: AccessibilityNodeInfo) {
             if (node.packageName?.toString() == appPackage) {
                 assertFalse("Deleted home actions must be absent from the complete fixture hierarchy",

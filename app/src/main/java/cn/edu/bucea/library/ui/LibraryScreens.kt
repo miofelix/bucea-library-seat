@@ -127,7 +127,8 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
     onLogin: () -> Unit, onRefresh: () -> Unit, onOpenLibrary: () -> Unit,
     onReservations: () -> Unit, onAccounts: () -> Unit, onOpenMap: () -> Unit, onFavorites: () -> Unit,
     regions: RegionOverviewState = RegionOverviewState(), onRefreshRegions: () -> Unit = onRefresh,
-    onVerifyRegions: () -> Unit = {}, onRegion: (RegionSeatOverview) -> Unit = {}) {
+    onVerifyRegions: () -> Unit = {}, onRegion: (RegionSeatOverview) -> Unit = {},
+    onLocateSeat: ((cn.edu.bucea.library.data.models.ReservationMapTarget) -> Unit)? = null) {
     val account = state.accounts.firstOrNull { it.id == state.activeAccountId }
     val name = state.overview?.displayName?.takeIf(String::isNotBlank)
         ?: account?.label?.takeIf(String::isNotBlank) ?: "同学"
@@ -152,11 +153,8 @@ internal fun Dashboard(state: LibraryUiState, hub: LibraryHubState, modifier: Mo
         HomeOverviewCard(state, onRefresh)
         if (state.authenticated && hub.currentStatus.isNotBlank() && hub.currentStatus != "NO_RESERVATION") {
             HubCurrentReservation(hub.copy(loading = hub.loading || state.busy), onRefresh,
-                onConfirmAction = { onReservations() }, onOpenDetails = onReservations)
+                onConfirmAction = { onReservations() }, onOpenDetails = onReservations, onLocateSeat = onLocateSeat)
         } else if (!state.authenticated && account != null) SessionCard(state, account, onLogin)
-        if (state.authenticated) {
-            HomeShortcut("预约记录", "随时查看", Icons.Outlined.AutoStories, onReservations, Modifier.fillMaxWidth(), !state.busy && !hub.loading)
-        }
         RegionOverviewSection(regions, onRefreshRegions, onVerifyRegions, authenticated = state.authenticated,
             enabled = !state.busy && state.campusAccess == CampusAccess.REACHABLE, onRegion = onRegion)
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
@@ -276,23 +274,6 @@ private fun HomeOverviewMetric(title: String, value: Int?, markerColor: Color, p
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
             Box(Modifier.size(5.dp).clip(CircleShape).background(markerColor))
             Text(title, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
-        }
-    }
-}
-
-@Composable
-private fun HomeShortcut(title: String, detail: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier, enabled: Boolean) {
-    Surface(onClick = onClick, enabled = enabled, modifier = modifier, color = Color.White,
-        border = BorderStroke(1.dp, Line), shape = RoundedCornerShape(14.dp)) {
-        Row(Modifier.heightIn(min = 60.dp).padding(LibrarySpacing.itemGap), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(Modifier.size(36.dp).clip(RoundedCornerShape(12.dp)).background(SoftAccent), contentAlignment = Alignment.Center) {
-                Icon(icon, null, tint = Accent, modifier = Modifier.size(20.dp))
-            }
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(title, color = Ink, fontSize = 13.sp, lineHeight = 18.sp, fontWeight = FontWeight.Medium)
-                Text(detail, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
-            }
         }
     }
 }

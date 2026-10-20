@@ -29,6 +29,7 @@ import cn.edu.bucea.library.ui.NativeSeat
 import cn.edu.bucea.library.ui.SeatOption
 import cn.edu.bucea.library.ui.SeatSearchState
 import cn.edu.bucea.library.data.models.ReservationSchedule
+import cn.edu.bucea.library.data.models.ReservationMapTarget
 import cn.edu.bucea.library.data.LibraryFunctionsRepository
 import cn.edu.bucea.library.data.LibraryHtml
 import cn.edu.bucea.library.data.SavedAccount
@@ -80,11 +81,13 @@ class LibraryHubUiInstrumentedTest {
             findWithScroll("The reservation screen must show its timeline") { findText("预约时间线") }
             assertFalse("My reservations must remove the redundant search shortcut", hasText("查找座位"))
             assertFalse("My reservations must remove the redundant map shortcut", hasText("布局选座"))
-            val expected = listOf(evening to "18:00 — 20:00", late to "20:30 — 22:00", tomorrow to "08:00 — 10:00")
-            expected.forEach { (record, time) ->
+            val expected = listOf(Triple(evening, "18:00 — 20:00", "图书馆2层东区A101号"),
+                Triple(late, "20:30 — 22:00", "图书馆3层西区B202号"),
+                Triple(tomorrow, "08:00 — 10:00", "图书馆1层南区C303号"))
+            expected.forEach { (record, time, location) ->
                 findWithScroll("Each scheduled reservation must show its real time") { findText(time) }
                 findWithScroll("Each scheduled reservation must show its seat") { findText(record.details.first().substringAfter('：') + " 号座位") }
-                findWithScroll("Each scheduled reservation must show its location") { findText(record.details[1]) }
+                findWithScroll("Each scheduled reservation must show its compact location") { findText(location) }
                 findWithScroll("The timeline record remains available for details", backwards = true) { findText(record.title) }
             }
             click(findWithScroll("Pagination must remain available below the loaded timeline") { findText("加载更多") })
@@ -174,6 +177,171 @@ class LibraryHubUiInstrumentedTest {
         }
     }
 
+    @Test fun currentUpcomingAndHistoricalReservationLocatorsKeepTheirExactTargetsWithoutOpeningDetailsOrSubmittingActions() {
+        val today = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+        val currentLocation = "图书馆2层二层内环区，座位号007D"
+        val upcomingLocation = "图书馆三层西区"
+        val upcoming = HubRecord("fixture-locator-upcoming", "次日预约 A101", "已预约",
+            listOf("座位：A101", "位置：$upcomingLocation"), canCancel = true,
+            schedule = ReservationSchedule(today.plusDays(1).toString(), "09:00", "11:00"))
+        val ended = HubRecord("fixture-locator-ended", "历史预约 B202", "结束使用",
+            listOf("座位：B202", "位置：图书馆二层东区"),
+            schedule = ReservationSchedule(today.minusDays(1).toString(), "13:00", "15:00"))
+        val cancelledLocation = "图书馆四层期刊阅"
+        val cancelled = HubRecord("fixture-locator-cancelled", "已取消预约 C303", "已取消",
+            listOf("座位：C303", "位置：$cancelledLocation"),
+            schedule = ReservationSchedule(today.minusDays(2).toString(), "10:00", "12:00"))
+        val state = mutableStateOf(LibraryHubState(
+            currentStatus = "CHECK_IN",
+            currentDetails = listOf("座位：007D", "位置：$currentLocation", "日期：$today", "时间：17:58—19:00"),
+            actions = listOf(HubAction("stopUsing", "结束使用", "合成结束操作", destructive = true)),
+            records = listOf(cancelled, ended, upcoming),
+        ))
+        val locations = AtomicReference<List<ReservationMapTarget>>(emptyList())
+        val submissions = AtomicInteger()
+        val cancellations = AtomicInteger()
+        val openedDetails = AtomicInteger()
+        withHub(state, onAction = { submissions.incrementAndGet() },
+            onCancelRecord = { cancellations.incrementAndGet() }, onOpenRecord = { openedDetails.incrementAndGet() },
+            onLocateSeat = { target -> locations.set(locations.get() + target) }) {
+            val currentLocator = findWithScroll("The current reservation must offer its own seat location") { findText("查看座位位置") }
+            assertMinimumTouchHeight(currentLocator)
+            click(currentLocator)
+            waitFor("The current locator must forward the exact absolute booking date and seat") { locations.get().size == 1 }
+            assertEquals(ReservationMapTarget(today.toString(), "007D", currentLocation), locations.get().single())
+
+            findWithScroll("The future record must remain in the upcoming reservation group") { findText("接下来的预约") }
+            val upcomingLocator = findWithScroll("The upcoming seat must have an independently labeled locator") {
+                findDescription("查看座位位置 A101")
+            }
+            assertMinimumTouchHeight(upcomingLocator)
+            click(upcomingLocator)
+            waitFor("The upcoming locator must use its own date rather than the current reservation date") { locations.get().size == 2 }
+            assertEquals(ReservationMapTarget(today.plusDays(1).toString(), "A101", upcomingLocation), locations.get()[1])
+
+            findWithScroll("The ended reservation must remain available as history") { findText("历史预约") }
+            val endedLocator = findWithScroll("An ended historical reservation must retain its seat locator") {
+                findDescription("查看座位位置 B202")
+            }
+            assertMinimumTouchHeight(endedLocator)
+            click(endedLocator)
+            waitFor("The ended seat locator must retain the original historical booking date") { locations.get().size == 3 }
+            assertEquals(ReservationMapTarget(today.minusDays(1).toString(), "B202", "图书馆二层东区"), locations.get()[2])
+
+            val cancelledLocator = findWithScroll("A cancelled historical reservation must retain its seat locator") {
+                findDescription("查看座位位置 C303")
+            }
+            assertMinimumTouchHeight(cancelledLocator)
+            click(cancelledLocator)
+            waitFor("The cancelled seat locator must retain the original historical booking date") { locations.get().size == 4 }
+            assertEquals(ReservationMapTarget(today.minusDays(2).toString(), "C303", cancelledLocation), locations.get()[3])
+            assertEquals("Locating a seat must not submit a reservation action", 0, submissions.get())
+            assertEquals("Locating a seat must not cancel a reservation", 0, cancellations.get())
+            assertEquals("Locating a seat must not open the reservation detail action", 0, openedDetails.get())
+            assertNull("Locator callbacks must leave record details closed", state.value.selectedRecord)
+        }
+    }
+
+    @Test fun sparseHistoricalReservationLocatorForwardsItsRecordWithoutOpeningDetailsOrSubmittingActions() {
+        val date = LocalDate.now(ZoneId.of("Asia/Shanghai")).minusDays(3)
+        val record = HubRecord("fixture-locator-sparse", "历史预约 D404", "结束使用", listOf("座位：D404"),
+            schedule = ReservationSchedule(date.toString(), "08:00", "10:00"))
+        val state = mutableStateOf(LibraryHubState(currentStatus = "NO_RESERVATION", records = listOf(record)))
+        val locatedRecord = AtomicReference<HubRecord?>()
+        val submissions = AtomicInteger()
+        val cancellations = AtomicInteger()
+        val openedDetails = AtomicInteger()
+        withHub(state, onAction = { submissions.incrementAndGet() },
+            onCancelRecord = { cancellations.incrementAndGet() }, onOpenRecord = { openedDetails.incrementAndGet() },
+            onLocateRecord = { locatedRecord.set(it) }) {
+            val locator = findWithScroll("A sparse record must offer its locator before missing details are read") {
+                findDescription("查看座位位置 D404")
+            }
+            assertMinimumTouchHeight(locator)
+            click(locator)
+            waitFor("The sparse locator must forward the same historical record to the detail resolver") { locatedRecord.get() != null }
+            assertEquals(record, locatedRecord.get())
+            assertEquals(date.toString(), locatedRecord.get()?.schedule?.date)
+            assertEquals("Locating a sparse record must not submit a reservation action", 0, submissions.get())
+            assertEquals("Locating a sparse record must not cancel a reservation", 0, cancellations.get())
+            assertEquals("The locator resolver must stay separate from opening record details", 0, openedDetails.get())
+            assertNull("Resolving a sparse locator must leave record details closed", state.value.selectedRecord)
+        }
+    }
+
+    @Test fun currentReservationShowsItsDetailsCompactlyAndPreservesActionsAtLargeTextSize() {
+        val date = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+        val state = mutableStateOf(LibraryHubState(
+            currentStatus = "IN_USE",
+            currentDetails = listOf("座位：007D", "位置：图书馆2层二层内环区，座位号007D",
+                "日期：$date", "时间：17:58—19:00", "凭证号：fixture-current-receipt"),
+            actions = listOf(HubAction("extend", "续约", "合成续约操作"),
+                HubAction("leave", "暂离", "合成暂离操作"),
+                HubAction("stopUsing", "结束使用", "合成结束操作", destructive = true)),
+        ))
+        val submissions = AtomicInteger()
+        for (fontScale in listOf(1f, 1.6f)) {
+            val locations = AtomicReference<List<ReservationMapTarget>>(emptyList())
+            withHub(state, fontScale = fontScale, onAction = { submissions.incrementAndGet() },
+                onLocateSeat = { target -> locations.set(locations.get() + target) }) {
+                findWithScroll("The current card must show the actual seat") { findText("007D") }
+                findWithScroll("The location must omit the repeated floor and seat suffix") { findText("图书馆2层内环区") }
+                findWithScroll("The actual reservation date and interval must share one compact line") { findText("今天 · 17:58 — 19:00") }
+                findWithScroll("An in-use reservation must show its concise status") { findText("使用中") }
+                assertFalse("The summary must omit the repeated seat suffix", hasText("图书馆2层二层内环区，座位号007D"))
+                assertFalse("The summary must hide receipt details", nodes().any { it.text?.contains("fixture-current-receipt") == true })
+                assertFalse("The summary must not need expansion to reveal its reservation information", hasText("查看完整预约信息"))
+                assertFalse("The summary must not render an expanded detail list", hasText("收起预约信息"))
+
+                val actionBounds = state.value.actions.map { action ->
+                    val label = findWithScroll("The current card must preserve the ${action.label} action") { findText(action.label) }
+                    assertMinimumTouchHeight(label)
+                    val target = requireNotNull(clickableParent(label))
+                    assertTrue("The ${action.label} action must remain enabled", target.isEnabled)
+                    val labelBounds = Rect().apply { label.getBoundsInScreen(this) }
+                    val targetBounds = Rect().apply { target.getBoundsInScreen(this) }
+                    assertTrue("The complete ${action.label} label must stay inside its button: label=$labelBounds target=$targetBounds",
+                        targetBounds.contains(labelBounds))
+                    if (labelBounds != targetBounds) {
+                        val inset = 4f * instrumentation.targetContext.resources.displayMetrics.density
+                        assertTrue("The ${action.label} label must retain horizontal padding at $fontScale text size",
+                            labelBounds.left - targetBounds.left >= inset - 1f && targetBounds.right - labelBounds.right >= inset - 1f)
+                    }
+                    targetBounds
+                }
+                for (first in actionBounds.indices) for (second in first + 1 until actionBounds.size) {
+                    assertFalse("Current reservation actions must have separate touch targets", Rect.intersects(actionBounds[first], actionBounds[second]))
+                }
+                val locator = findWithScroll("The current seat location must remain available at $fontScale text size") { findText("查看座位位置") }
+                assertMinimumTouchHeight(locator)
+                val locatorTarget = requireNotNull(clickableParent(locator))
+                val locatorBounds = Rect().apply { locatorTarget.getBoundsInScreen(this) }
+                val locatorLabelBounds = Rect().apply { locator.getBoundsInScreen(this) }
+                assertTrue("The complete location label must fit its enabled target at $fontScale text size",
+                    locatorTarget.isEnabled && locatorBounds.contains(locatorLabelBounds))
+                actionBounds.forEach { action ->
+                    assertFalse("The location button must not overlap a seat operation", Rect.intersects(locatorBounds, action))
+                }
+                click(locator)
+                waitFor("The location button must invoke only the locator callback at $fontScale text size") { locations.get().size == 1 }
+                assertEquals(ReservationMapTarget(date.toString(), "007D", "图书馆2层二层内环区，座位号007D"), locations.get().single())
+                if (fontScale > 1.2f) {
+                    assertTrue("Large text must move the third action onto a second row",
+                        actionBounds[2].top >= maxOf(actionBounds[0].bottom, actionBounds[1].bottom))
+                } else {
+                    val card = findWithScroll("The current card must expose its presentation bounds", backwards = true) { findDescription("当前预约卡片") }
+                    val bounds = Rect().apply { card.getBoundsInScreen(this) }
+                    val maximum = 300f * instrumentation.targetContext.resources.displayMetrics.density
+                    assertTrue("The normal current card must remain compact: $bounds", bounds.height() in 1..maximum.toInt())
+                }
+                assertEquals("Presentation checks must never submit a seat operation", 0, submissions.get())
+                if (InstrumentationRegistry.getArguments().getString("captureCurrentReservationScreenshots") == "true") {
+                    captureCurrentReservation(if (fontScale > 1.2f) "large" else "normal")
+                }
+            }
+        }
+    }
+
     @Test fun reservationCancellationRequiresConfirmationAndInactiveRecordsOfferNoCancelAction() {
         val cancellations = AtomicInteger()
         val cancelledId = AtomicReference<String?>()
@@ -226,7 +394,7 @@ class LibraryHubUiInstrumentedTest {
                 labelBounds.height() >= 11f * 1.6f * instrumentation.targetContext.resources.displayMetrics.density)
             findWithScroll("The compact card must preserve its scheduled time") { findText("09:00 — 11:00") }
             findWithScroll("The compact card must preserve its seat") { findText("A101 号座位") }
-            findWithScroll("The compact card must preserve its location") { findText("位置：图书馆二层东区") }
+            findWithScroll("The compact card must preserve its compact location") { findText("图书馆2层东区A101号") }
             val detailsLabel = findWithScroll("The compact details action must remain visible") { findText("查看详情") }
             val detailsTarget = requireNotNull(clickableParent(detailsLabel))
             val detailsBounds = Rect().apply { detailsLabel.getBoundsInScreen(this) }
@@ -453,6 +621,8 @@ class LibraryHubUiInstrumentedTest {
         onLoadMore: () -> Unit = {},
         onOpenRecord: (HubRecord) -> Unit = { state.value = state.value.copy(selectedRecord = it) },
         onSearch: () -> Unit = {},
+        onLocateSeat: ((ReservationMapTarget) -> Unit)? = null,
+        onLocateRecord: ((HubRecord) -> Unit)? = null,
         favoriteBooking: () -> FavoriteBookingActions? = { null },
         fontScale: Float? = null,
         assertions: () -> Unit,
@@ -482,6 +652,8 @@ class LibraryHubUiInstrumentedTest {
                                 onOpenRecord = onOpenRecord,
                                 onDismissRecord = { state.value = state.value.copy(selectedRecord = null) },
                                 favoriteBooking = favoriteBooking(),
+                                onLocateSeat = onLocateSeat,
+                                onLocateRecord = onLocateRecord,
                             )
                         }
                     }
@@ -498,6 +670,18 @@ class LibraryHubUiInstrumentedTest {
             instrumentation.runOnMainSync { activity.finish() }
             instrumentation.waitForIdleSync()
         }
+    }
+
+    /** Capture only the synthetic fixture, before withHub restores or finishes the activity. */
+    private fun captureCurrentReservation(size: String) {
+        instrumentation.waitForIdleSync()
+        SystemClock.sleep(250)
+        val screenshot = requireNotNull(automation.takeScreenshot()) { "The synthetic current reservation screenshot must be available" }
+        try {
+            File(instrumentation.targetContext.filesDir, "current-reservation-$size.png").outputStream().use {
+                assertTrue("The synthetic current reservation screenshot must be written", screenshot.compress(Bitmap.CompressFormat.PNG, 100, it))
+            }
+        } finally { screenshot.recycle() }
     }
 
     /** Capture only the synthetic fixture, before withHub restores or finishes the activity. */
