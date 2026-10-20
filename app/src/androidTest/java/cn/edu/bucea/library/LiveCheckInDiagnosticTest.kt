@@ -23,6 +23,7 @@ import org.junit.runner.RunWith
  *   -e live_library true cn.edu.bucea.library.test/androidx.test.runner.AndroidJUnitRunner
  * Optional: -e captureCheckInDiagnostic true keeps raw pages in app-private storage.
  * Optional: -e live_checkin_submit true sends one /user/checkIn for a RESERVE state.
+ * Optional: -e live_extension_read true reads the offered 续约 end times twice.
  */
 @RunWith(AndroidJUnit4::class)
 class LiveCheckInDiagnosticTest {
@@ -59,6 +60,18 @@ class LiveCheckInDiagnosticTest {
                 val state = LibraryFunctionsRepository(library).userState(current)
                 println("CHECKIN_DIAGNOSTIC parsed status=${state.status} softMode=${state.softMode} " +
                     "actions=${state.actions} requiresLibraryWifi=${state.requiresLibraryWifi} message=${state.actionMessage}")
+                if (arguments.getString("live_extension_read") == "true") {
+                    // Same read the school's 续约 button performs before any end time is chosen.
+                    repeat(2) { attempt ->
+                        val response = library.request(current, "/user/getTimeExtend")
+                        if (capture) File(directory, "extension-times-$attempt.json").writeText(response)
+                        val data = runCatching { JSONObject(response) }.getOrNull()
+                        println("CHECKIN_DIAGNOSTIC extension attempt=$attempt json=${data != null} " +
+                            "status=${data?.optString("status")} message=${data?.optString("message")} " +
+                            "keys=${data?.keys()?.asSequence()?.toList()} dataKeys=${data?.optJSONObject("data")?.keys()?.asSequence()?.toList()} " +
+                            "endTimes=${data?.optJSONObject("data")?.optJSONArray("endTimes")}")
+                    }
+                }
                 // A single explicit mutation, only for a reservation currently awaiting check-in.
                 if (arguments.getString("live_checkin_submit") == "true" && state.status == "RESERVE") {
                     val response = library.request(current, "/user/checkIn")

@@ -7,6 +7,7 @@ import org.junit.Test
 /**
  * Contract observed on library Wi-Fi (2026-10-20): the school keeps softMode=false, which
  * only hides its kiosk button bar, and still accepts check-in and the following seat actions.
+ * /user/extend saves the new end time, then redirects to /error/serverError instead of JSON.
  */
 class ReservationActionsTest {
     private fun userInfo(status: String) = """{"currentReservationStatus":"$status","hasPrevUnStoppedReservation":false,""" +
@@ -73,5 +74,66 @@ class ReservationActionsTest {
         assertFalse(result.success)
         assertTrue(result.message.contains("已签到"))
         assertEquals(listOf("/self"), calls)
+    }
+
+    private val account = SavedAccount("fixture", "209999990001", "synthetic", "测试")
+    private val extensionOffer = """{"status":"success","data":{"endTimes":[{"id":"1110","value":"18:30"}]},"message":"","code":"0"}"""
+    // Body of /error/serverError, where the school redirects /user/extend after saving the new end time.
+    private val schoolErrorPage = """<!DOCTYPE html><html><head><title>出错了</title><meta name="layout" content="error"/></head>
+        <body><div class="main"><h1>Oops...</h1><h3>对不起，我们暂时无法处理您的请求，请稍候再试。</h3></div></body></html>"""
+
+    private fun history(end: String) = """<div class="myReserveList"><dl><dt style="font-weight: bold">今天 17:20 -- $end</dt>
+        <dd><a href="/view?id=9&amp;type=SEAT" title="图书馆2层二层内环区056B号">图书馆2层二层内环区056B号</a></dd>
+        <a class="dateUsed">使用中</a></dl></div>"""
+
+    private fun extendRepository(calls: MutableList<String>, extendReply: String, historyEnd: String) =
+        LibraryFunctionsRepository(request = { _, endpoint ->
+            calls += endpoint
+            when (endpoint) {
+                "/self" -> page("CHECK_IN")
+                "/user/getTimeExtend" -> extensionOffer
+                "/user/extend?endTime=1110" -> extendReply
+                "/history?type=SEAT" -> history(historyEnd)
+                else -> error("Unexpected request")
+            }
+        }, post = { _, _, _ -> error("续约 is a single GET") })
+
+    @Test fun extensionSavedBeforeSchoolErrorPageIsConfirmedFromHistory() = runTest {
+        val calls = mutableListOf<String>()
+        val result = extendRepository(calls, schoolErrorPage, historyEnd = "18:30").performAction(account, "extend", "1110")
+        assertTrue(result.success)
+        assertEquals("续约成功，可使用至18:30", result.message)
+        assertFalse(result.message.contains("登录"))
+        assertEquals(listOf("/self", "/user/getTimeExtend", "/user/extend?endTime=1110", "/history?type=SEAT"), calls)
+    }
+
+    @Test fun schoolErrorPageWithUnchangedEndTimeIsNotReportedAsExtended() = runTest {
+        val calls = mutableListOf<String>()
+        val result = extendRepository(calls, schoolErrorPage, historyEnd = "18:00").performAction(account, "extend", "1110")
+        assertFalse(result.success)
+        assertTrue(result.message.contains("续约未生效"))
+        assertEquals("The extension must be sent once", 1, calls.count { it.startsWith("/user/extend") })
+    }
+
+    @Test fun loginPageAfterAnActionStillReportsAnExpiredSession() = runTest {
+        val calls = mutableListOf<String>()
+        val repository = extendRepository(calls, "<form action='/auth/signIn'></form>", historyEnd = "18:30")
+        val failure = runCatching { repository.performAction(account, "extend", "1110") }.exceptionOrNull()
+        assertEquals(FailureKind.CREDENTIALS, (failure as LoginFailure).kind)
+        assertEquals(1, calls.count { it.startsWith("/user/extend") })
+    }
+
+    @Test fun schoolRefusalToExtendIsAnAnswerRatherThanAFailedRequest() = runTest {
+        val repository = LibraryFunctionsRepository(request = { _, endpoint ->
+            assertEquals("/user/getTimeExtend", endpoint)
+            """{"status":"fail","data":{"endTimes":[]},"message":"该预约已无法续约","code":"0"}"""
+        }, post = { _, _, _ -> error("Unexpected mutation") })
+        val times = repository.extensionTimes(account)
+        assertTrue(times.options.isEmpty())
+        assertEquals("该预约已无法续约", times.message)
+        val offered = LibraryFunctionsRepository(request = { _, _ -> extensionOffer },
+            post = { _, _, _ -> error("Unexpected mutation") }).extensionTimes(account)
+        assertEquals(listOf("1110" to "18:30"), offered.options.map { it.value to it.label })
+        assertEquals("", offered.message)
     }
 }

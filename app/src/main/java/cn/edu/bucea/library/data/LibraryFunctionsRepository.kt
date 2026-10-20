@@ -185,6 +185,14 @@ class LibraryFunctionsRepository(
         }
     }
 
+    /** Reads only: whether today's seat in use now ends at [end], as the history list shows after 续约. */
+    private suspend fun inUseReservationEndsAt(account: SavedAccount, end: String): Boolean {
+        val today = LocalDate.now(ZoneId.of("Asia/Shanghai")).toString()
+        return history(account).items.any { item ->
+            item.status.trim() in setOf("使用中", "已签到") && item.schedule.date == today && item.schedule.end == end
+        }
+    }
+
     suspend fun reservationDetails(account: SavedAccount, record: LibraryHistoryItem): LibraryHistoryItem {
         val target = record.detailPath ?: throw IllegalArgumentException("这条记录没有可读取的详情")
         val url = (LibraryRepository.BASE_URL + target).toHttpUrl()
@@ -208,14 +216,16 @@ class LibraryFunctionsRepository(
             status = receipt?.status?.ifBlank { record.status } ?: record.status, schedule = schedule)
     }
 
-    suspend fun extensionTimes(account: SavedAccount): List<LibraryOption> {
+    suspend fun extensionTimes(account: SavedAccount): ExtensionTimes {
         val response = json(request(account, "/user/getTimeExtend"))
-        if (response.optString("status") == "fail") throw LoginFailure(FailureKind.PROTOCOL,
-            response.optString("message").ifBlank { "当前预约无法续约" })
-        val times = response.optJSONObject("data")?.optJSONArray("endTimes") ?: return emptyList()
-        return (0 until times.length()).map { index -> times.getJSONObject(index).let {
+        // A refusal such as “该预约已无法续约” is the school's answer, not a failed request.
+        if (response.optString("status") == "fail")
+            return ExtensionTimes(emptyList(), response.optString("message").ifBlank { "当前预约无法续约" })
+        val times = response.optJSONObject("data")?.optJSONArray("endTimes")
+        val options = (0 until (times?.length() ?: 0)).map { index -> times!!.getJSONObject(index).let {
             LibraryOption(it.getString("id"), it.getString("value"))
         } }
+        return ExtensionTimes(options, if (options.isEmpty()) "当前没有可续约的时段" else "")
     }
 
     /** Mutating actions are sent once, after explicit UI confirmation; no automatic retry. */
@@ -232,12 +242,24 @@ class LibraryFunctionsRepository(
                 else -> "当前预约没有此操作，请同步预约状态后重试"
             }
         }
+        val endMinutes = endTime?.toIntOrNull()
         val endpoint = if (action == "extend") {
-            require(!endTime.isNullOrBlank() && endTime.toIntOrNull() != null) { "请选择续约结束时间" }
-            require(extensionTimes(account).any { it.value == endTime }) { "该续约时段已失效，请重新选择" }
+            require(endMinutes != null && endMinutes in 1..1440) { "请选择续约结束时间" }
+            require(extensionTimes(account).options.any { it.value == endTime }) { "该续约时段已失效，请重新选择" }
             path("/user/extend", "endTime" to endTime)
         } else "/user/$action"
-        val data = json(request(account, endpoint))
+        val response = request(account, endpoint)
+        if (!response.trimStart().startsWith("{")) {
+            if (LibraryHtml.parse(response).selectFirst("form[action='/auth/signIn']") != null)
+                throw LoginFailure(FailureKind.CREDENTIALS, "登录已失效，请重新登录")
+            // The school saves an extension, then redirects /user/extend to its generic error page.
+            // Read the outcome back once instead of reporting that page as a failure or a logout.
+            if (action != "extend") return ReservationResult(false, "图书馆未返回操作结果，请刷新预约状态核实")
+            val end = "%02d:%02d".format(endMinutes!! / 60, endMinutes % 60)
+            return if (inUseReservationEndsAt(account, end)) ReservationResult(true, "续约成功，可使用至$end")
+                else ReservationResult(false, "续约未生效，请刷新预约状态后重试")
+        }
+        val data = json(response)
         val success = data.optString("status") == "success"
         val receipt = (data.optJSONObject("data")?.optJSONObject("reservation") ?: data.optJSONObject("data"))
             ?.takeIf { it.has("receipt") }?.let(::parseReceipt)

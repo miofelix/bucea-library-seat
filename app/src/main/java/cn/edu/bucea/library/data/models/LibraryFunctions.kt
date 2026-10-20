@@ -51,6 +51,9 @@ data class SeatTimes(
     val verificationUserId: String = "",
 )
 
+/** End times the school offers for 续约; [message] explains an empty list, such as a refusal. */
+data class ExtensionTimes(val options: List<LibraryOption>, val message: String = "")
+
 data class ReservationSelection(
     val onDate: String,
     val seat: LibrarySeat,

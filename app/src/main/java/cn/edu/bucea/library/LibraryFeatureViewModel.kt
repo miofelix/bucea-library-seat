@@ -701,11 +701,11 @@ class LibraryFeatureViewModel internal constructor(
             hubState.update { it.copy(loading = true, error = null) }
             try {
                 if (action.id == "getTimeExtend") {
-                    val options = functions.extensionTimes(account())
-                    extensionState.value = options
-                    if (options.isEmpty()) {
-                        hubState.update { it.copy(notice = "当前没有可续约的时段") }
-                        feedbackEvents.trySend("当前没有可续约的时段")
+                    val times = functions.extensionTimes(account())
+                    extensionState.value = times.options
+                    if (times.options.isEmpty()) {
+                        hubState.update { it.copy(notice = times.message) }
+                        feedbackEvents.trySend(times.message)
                     }
                 } else {
                     attemptedMutation = true
