@@ -14,7 +14,7 @@ Android APK 在保存原签名密钥的开发机上构建、验证并发布到 G
 
 R2 和官网已于 2026-10-16 启用。bucket 为 `miofelix-software-releases`，`download.miofelix.com` 自定义域名绑定处于活动状态。官网使用 Direct Upload Pages 项目 `bucea-library-seat-website`，生产分支为 `main`，不连接 Git 仓库；`library.miofelix.com` 已活动且启用 SSL。三项仓库 variables 和三项 secrets 已配置，首次上传、完整下载与官网上线结果见下文验证记录。官网源码保留 GitHub Release 备用下载入口；正式构建由 R2 元数据生成下载链接。此前服务的验收保留在 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md)，其中旧服务器与端口记录均属历史。
 
-`1.0.3 / versionCode 17` 包含图书馆 Wi-Fi 签到与续约修复、紧凑预约信息和全部预约座位定位，发行说明见 [releases/1.0.3.md](releases/1.0.3.md)，本次构建、设备与发布验证见 [RELEASE_VALIDATION_1.0.3.md](RELEASE_VALIDATION_1.0.3.md)。
+`1.0.3 / versionCode 17` 已正式发布并同步 R2 与官网，包含图书馆 Wi-Fi 签到与续约修复、紧凑预约信息和全部预约座位定位。发行说明见 [releases/1.0.3.md](releases/1.0.3.md)，本次构建、设备与发布验证见 [RELEASE_VALIDATION_1.0.3.md](RELEASE_VALIDATION_1.0.3.md)。
 
 `1.0.2 / versionCode 16` 已正式发布并同步 R2，包含预约状态、字母学号登录和北京时间处理修复。五包完整下载、SHA-256、清单、官网和 GitHub Pages 验证均通过，最终结果见 [RELEASE_VALIDATION_1.0.2.md](RELEASE_VALIDATION_1.0.2.md)。上一版 `1.0.1` 的构建、发布与新来源验收见 [RELEASE_VALIDATION_1.0.1.md](RELEASE_VALIDATION_1.0.1.md)。
 

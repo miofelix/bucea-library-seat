@@ -23,3 +23,17 @@
 | `BUCEA-Library-Seat-v1.0.3-armeabi-v7a.apk` | 33,354,485 | `8d3aace0d8b615acc2a32a502913d88abfef3f07831f3ce114853e9c5229c312` |
 | `BUCEA-Library-Seat-v1.0.3-x86.apk` | 35,174,617 | `a03589b560a1527bdf7e0ab54300c169aaa8c3d3e052f4fe1e3ae8c850f72f02` |
 | `BUCEA-Library-Seat-v1.0.3-x86_64.apk` | 35,162,534 | `f3c61689bbe7195fa42f79b407a0c70beb256267a8395384fd14411f72b1666f` |
+
+## 发布与分发
+
+功能代码已通过合并提交 `46243d20b44463f8636f660ea4b7bd73009ba729` 合并并推送至 `main`，`v1.0.3` 标签指向同一提交。正式 [GitHub Release v1.0.3](https://github.com/miofelix/bucea-library-seat/releases/tag/v1.0.3)（ID `418408362`）已发布，七个附件齐全，GitHub 返回的五个 APK 大小与 SHA-256 均与本地校验产物一致。
+
+发布工作流 [39427435311](https://github.com/miofelix/bucea-library-seat/actions/runs/39427435311) 的 `publish` 与 `website` job 均成功，已完成 R2 同步、Cloudflare Pages 和 GitHub Pages 部署。
+
+## 公网最终核对
+
+- `updates/latest.json` 与 `releases/latest.json` 均为 **1.0.3 / versionCode 17**，Release ID `418408362`，与最终产物一致。
+- 从 `https://download.miofelix.com/bucea-library-seat/releases/v1.0.3/` 完整 GET 五个 APK，共 **193,247,481 字节**，每包字节数与 SHA-256 均匹配上表。
+- 五包 HEAD 长度正确；五项 `Range: bytes=0-1023` 返回 206、正确的 `Content-Range` 和 1024 字节，且内容与完整文件首段一致。
+- <https://library.miofelix.com/> 与 <https://miofelix.github.io/bucea-library-seat/> 的 `release.json` 均匹配 R2，首页显示 v1.0.3，五个下载地址均指向该版本；两站首页字节一致。
+- 完整下载、页面副本与机器可读核对结果保存在忽略的 `.private/checkin-debug/public-v1.0.3-checks/`。本次通过 ADB 安装的 ARM64 Release 与上述成品同摘要；未将这些结果记为 DownloadManager 的线上更新安装事务。
