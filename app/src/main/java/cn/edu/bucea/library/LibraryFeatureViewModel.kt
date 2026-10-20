@@ -72,6 +72,7 @@ class LibraryFeatureViewModel internal constructor(
     private var hubJob: Job? = null
     private var actionJob: Job? = null
     private var detailsJob: Job? = null
+    private var locationJob: Job? = null
     private val pages = mutableMapOf<Int, SeatPage>()
     private val pageOffsets = mutableMapOf<Int, Int>()
     private val backendSeats = mutableMapOf<String, LibrarySeat>()
@@ -445,9 +446,10 @@ class LibraryFeatureViewModel internal constructor(
         refreshHub(null)
     }
 
-    private fun refreshHub(retainedError: String?) {
+    private fun refreshHub(retainedError: String?, retainedWifiGuidance: String? = null) {
         hubJob?.cancel()
         detailsJob?.cancel()
+        locationJob?.cancel()
         val section = hubState.value.section
         hubJob = viewModelScope.launch {
             hubState.update { it.copy(loading = true, error = retainedError,
@@ -457,6 +459,7 @@ class LibraryFeatureViewModel internal constructor(
                 detailsLoading = false, detailsError = null) }
             try {
                 val current = account()
+                var currentHistory: List<LibraryHistoryItem>? = null
                 when (section) {
                     HubSection.RESERVATIONS -> {
                         val result = functions.history(current)
@@ -464,6 +467,7 @@ class LibraryFeatureViewModel internal constructor(
                         // Fresh records restore cancellation independently of Wi-Fi-only seat actions.
                         actionRefreshRequired = false
                         val resolvedItems = resolveHistoryItems(current, result.items)
+                        currentHistory = resolvedItems
                         val records = resolvedItems.map(::hubRecord)
                         hubState.update { it.copy(records = records, hasMore = result.nextOffset != null,
                             selectedRecord = it.selectedRecord?.let { selected -> records.firstOrNull { record -> record.id == selected.id } },
@@ -495,10 +499,14 @@ class LibraryFeatureViewModel internal constructor(
                     }
                 }
                 val user = functions.userState(current)
+                val currentDetails = CurrentReservationDetails.read(user, currentHistory,
+                    readHistory = { functions.history(current).items },
+                    readDetails = { functions.reservationDetails(current, it) })
+                currentCoroutineContext().ensureActive()
                 actionRefreshRequired = false
-                hubState.update { it.copy(currentStatus = user.status, currentDetails = user.details,
-                    actions = user.actions.map(::hubAction), actionMessage = user.actionMessage,
-                    requiresLibraryWifi = user.requiresLibraryWifi, error = retainedError) }
+                hubState.update { it.copy(currentStatus = user.status, currentDetails = currentDetails,
+                    actions = user.actions.map(::hubAction), actionMessage = retainedWifiGuidance ?: user.actionMessage,
+                    requiresLibraryWifi = user.requiresLibraryWifi || retainedWifiGuidance != null, error = retainedError) }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { hubState.update { it.copy(error = listOfNotNull(retainedError, repository.userMessage(e)).joinToString("\n"),
                 actions = emptyList(), actionMessage = "当前预约状态同步失败，请连接校园网或图书馆 Wi-Fi 后刷新。") } }
@@ -558,7 +566,38 @@ class LibraryFeatureViewModel internal constructor(
         }
     }
 
-    fun dismissRecord() { detailsJob?.cancel(); hubState.update { it.copy(selectedRecord = null, detailsLoading = false, detailsError = null) } }
+    fun dismissRecord() {
+        detailsJob?.cancel()
+        val locating = locationJob?.isActive == true
+        locationJob?.cancel()
+        hubState.update { it.copy(selectedRecord = null, detailsLoading = false, detailsError = null,
+            loading = if (locating) false else it.loading) }
+    }
+
+    /** Only read missing receipt fields; locating a seat never submits a reservation action. */
+    fun locateRecord(record: HubRecord, onReady: (ReservationMapTarget) -> Unit) {
+        if (hubState.value.loading || actionJob?.isActive == true || locationJob?.isActive == true) return
+        val item = historyItems[record.id] ?: return
+        val direct = reservationMapTarget(record.details, record.schedule)
+        if (direct != null) { onReady(direct); return }
+        locationJob = viewModelScope.launch {
+            hubState.update { it.copy(loading = true) }
+            try {
+                val current = account()
+                val resolved = if (item.detailPath != null) functions.reservationDetails(current, item) else item
+                currentCoroutineContext().ensureActive()
+                val target = reservationMapTarget(resolved.details, resolved.schedule)
+                if (target == null) feedbackEvents.trySend("这条预约缺少明确的日期、区域或座位号，暂时无法定位，请查看详情")
+                else {
+                    val updated = hubRecord(resolved)
+                    hubState.update { it.copy(loading = false, records = it.records.map { old -> if (old.id == updated.id) updated else old }) }
+                    onReady(target)
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { feedbackEvents.trySend(repository.userMessage(e)) }
+            finally { if (coroutineContext[Job]?.isActive == true) hubState.update { it.copy(loading = false) } }
+        }
+    }
 
     fun selectMappedSeat(seat: LibrarySeat, onDate: String) {
         if (searchState.value.reservationBusy || !seat.available) return
@@ -698,21 +737,25 @@ class LibraryFeatureViewModel internal constructor(
             var refresh = false
             var attemptedMutation = false
             var retainedError: String? = null
+            var retainedWifiGuidance: String? = null
             hubState.update { it.copy(loading = true, error = null) }
             try {
                 if (action.id == "getTimeExtend") {
-                    val options = functions.extensionTimes(account())
-                    extensionState.value = options
-                    if (options.isEmpty()) {
-                        hubState.update { it.copy(notice = "当前没有可续约的时段") }
-                        feedbackEvents.trySend("当前没有可续约的时段")
+                    val times = functions.extensionTimes(account())
+                    extensionState.value = times.options
+                    if (times.options.isEmpty()) {
+                        hubState.update { it.copy(notice = times.message) }
+                        feedbackEvents.trySend(times.message)
                     }
                 } else {
                     attemptedMutation = true
                     actionRefreshRequired = true
                     val result = functions.performAction(account(), action.id)
                     lastActionMessage = result.message
-                    hubState.update { it.copy(notice = result.message) }
+                    retainedWifiGuidance = result.message.takeIf { result.requiresLibraryWifi }
+                    hubState.update { it.copy(notice = result.message,
+                        actionMessage = retainedWifiGuidance ?: it.actionMessage,
+                        requiresLibraryWifi = result.requiresLibraryWifi) }
                     feedbackEvents.trySend(if (result.success) confirmedActionFeedback(action.id) else result.message)
                     refresh = true
                 }
@@ -725,7 +768,9 @@ class LibraryFeatureViewModel internal constructor(
                 refresh = attemptedMutation
             }
             finally { if (coroutineContext[Job]?.isActive == true) { mutationState.value = false; hubState.update { it.copy(loading = false) } } }
-            if (refresh) refreshHub(retainedError)
+            // Preserve an action's location refusal through its automatic status read. A later
+            // explicit refresh can dismiss it once the server no longer reports a restriction.
+            if (refresh) refreshHub(retainedError, retainedWifiGuidance)
         }
     }
 
@@ -736,12 +781,16 @@ class LibraryFeatureViewModel internal constructor(
             mutationState.value = true
             var refresh = false
             var retainedError: String? = null
+            var retainedWifiGuidance: String? = null
             actionRefreshRequired = true
             hubState.update { it.copy(loading = true, error = null) }
             try {
                 val result = functions.performAction(account(), "extend", value)
                 lastActionMessage = result.message
-                hubState.update { it.copy(notice = result.message) }; refresh = true
+                retainedWifiGuidance = result.message.takeIf { result.requiresLibraryWifi }
+                hubState.update { it.copy(notice = result.message,
+                    actionMessage = retainedWifiGuidance ?: it.actionMessage,
+                    requiresLibraryWifi = result.requiresLibraryWifi) }; refresh = true
                 feedbackEvents.trySend(if (result.success) "续约成功" else result.message)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
@@ -752,7 +801,7 @@ class LibraryFeatureViewModel internal constructor(
                 refresh = true
             }
             finally { if (coroutineContext[Job]?.isActive == true) { mutationState.value = false; hubState.update { it.copy(loading = false) } } }
-            if (refresh) refreshHub(retainedError)
+            if (refresh) refreshHub(retainedError, retainedWifiGuidance)
         }
     }
 
@@ -767,6 +816,6 @@ class LibraryFeatureViewModel internal constructor(
         else -> "操作成功"
     }
 
-    private fun cancelWork() { listOf(optionsJob, searchJob, roomsJob, timesJob, hubJob, actionJob, detailsJob).forEach { it?.cancel() } }
+    private fun cancelWork() { listOf(optionsJob, searchJob, roomsJob, timesJob, hubJob, actionJob, detailsJob, locationJob).forEach { it?.cancel() } }
     override fun onCleared() { cancelWork(); if (ocrResource.isInitialized()) ocrResource.value.close(); super.onCleared() }
 }

@@ -185,6 +185,14 @@ class LibraryFunctionsRepository(
         }
     }
 
+    /** Reads only: whether today's seat in use now ends at [end], as the history list shows after 续约. */
+    private suspend fun inUseReservationEndsAt(account: SavedAccount, end: String): Boolean {
+        val today = LocalDate.now(ZoneId.of("Asia/Shanghai")).toString()
+        return history(account).items.any { item ->
+            item.status.trim() in setOf("使用中", "已签到") && item.schedule.date == today && item.schedule.end == end
+        }
+    }
+
     suspend fun reservationDetails(account: SavedAccount, record: LibraryHistoryItem): LibraryHistoryItem {
         val target = record.detailPath ?: throw IllegalArgumentException("这条记录没有可读取的详情")
         val url = (LibraryRepository.BASE_URL + target).toHttpUrl()
@@ -204,50 +212,71 @@ class LibraryFunctionsRepository(
             end = updatedSchedule.end ?: record.schedule.end,
             dateLabel = updatedSchedule.dateLabel ?: record.schedule.dateLabel,
         )
-        return record.copy(details = details.ifEmpty { record.details },
+        return record.copy(details = ReservationHistoryDetails.merge(record.details, details.ifEmpty { record.details }),
             status = receipt?.status?.ifBlank { record.status } ?: record.status, schedule = schedule)
     }
 
-    suspend fun extensionTimes(account: SavedAccount): List<LibraryOption> {
+    suspend fun extensionTimes(account: SavedAccount): ExtensionTimes {
         val response = json(request(account, "/user/getTimeExtend"))
-        if (response.optString("status") == "fail") throw LoginFailure(FailureKind.PROTOCOL,
-            response.optString("message").ifBlank { "当前预约无法续约" })
-        val times = response.optJSONObject("data")?.optJSONArray("endTimes") ?: return emptyList()
-        return (0 until times.length()).map { index -> times.getJSONObject(index).let {
+        // A refusal such as “该预约已无法续约” is the school's answer, not a failed request.
+        if (response.optString("status") == "fail")
+            return ExtensionTimes(emptyList(), response.optString("message").ifBlank { "当前预约无法续约" })
+        val times = response.optJSONObject("data")?.optJSONArray("endTimes")
+        val options = (0 until (times?.length() ?: 0)).map { index -> times!!.getJSONObject(index).let {
             LibraryOption(it.getString("id"), it.getString("value"))
         } }
+        return ExtensionTimes(options, if (options.isEmpty()) "当前没有可续约的时段" else "")
     }
 
     /** Mutating actions are sent once, after explicit UI confirmation; no automatic retry. */
     suspend fun performAction(account: SavedAccount, action: String, endTime: String? = null): ReservationResult {
         require(action in setOf("checkIn", "leave", "resume", "stopUsing", "extend")) { "预约操作无效" }
         val state = userState(account)
+        // After the day's first entry registration, the school checks new reservations in by itself.
+        if (action == "checkIn" && state.status in setOf("CHECK_IN", "IN_USE", "USING", "CHECKED_IN"))
+            return ReservationResult(false, "当前预约已签到，座位正在使用中")
+        if (state.requiresLibraryWifi)
+            return ReservationResult(false, state.actionMessage, requiresLibraryWifi = true)
         require(action in state.actions) {
             when {
-                state.status == "LOC_RESTRICT" || !state.softMode || state.status.isBlank() -> state.actionMessage
+                state.status.isBlank() -> state.actionMessage
                 action == "checkIn" && state.status == "NO_RESERVATION" -> "当前没有可签到的预约，请同步预约记录"
                 else -> "当前预约没有此操作，请同步预约状态后重试"
             }
         }
+        val endMinutes = endTime?.toIntOrNull()
         val endpoint = if (action == "extend") {
-            require(!endTime.isNullOrBlank() && endTime.toIntOrNull() != null) { "请选择续约结束时间" }
-            require(extensionTimes(account).any { it.value == endTime }) { "该续约时段已失效，请重新选择" }
+            require(endMinutes != null && endMinutes in 1..1440) { "请选择续约结束时间" }
+            require(extensionTimes(account).options.any { it.value == endTime }) { "该续约时段已失效，请重新选择" }
             path("/user/extend", "endTime" to endTime)
         } else "/user/$action"
-        val data = json(request(account, endpoint))
+        val response = request(account, endpoint)
+        if (!response.trimStart().startsWith("{")) {
+            if (LibraryHtml.parse(response).selectFirst("form[action='/auth/signIn']") != null)
+                throw LoginFailure(FailureKind.CREDENTIALS, "登录已失效，请重新登录")
+            // The school saves an extension, then redirects /user/extend to its generic error page.
+            // Read the outcome back once instead of reporting that page as a failure or a logout.
+            if (action != "extend") return ReservationResult(false, "图书馆未返回操作结果，请刷新预约状态核实")
+            val end = "%02d:%02d".format(endMinutes!! / 60, endMinutes % 60)
+            return if (inUseReservationEndsAt(account, end)) ReservationResult(true, "续约成功，可使用至$end")
+                else ReservationResult(false, "续约未生效，请刷新预约状态后重试")
+        }
+        val data = json(response)
         val success = data.optString("status") == "success"
         val receipt = (data.optJSONObject("data")?.optJSONObject("reservation") ?: data.optJSONObject("data"))
             ?.takeIf { it.has("receipt") }?.let(::parseReceipt)
         val message = data.optString("message").ifBlank {
             if (success) "操作成功" else "操作未成功，请刷新当前预约核实结果"
         }
-        val locationRestricted = data.optString("status") == "LOC_RESTRICT" ||
-            data.optJSONObject("data")?.optString("status") == "LOC_RESTRICT" ||
-            message.contains("仅在场馆内") || message.contains("馆内网络")
-        val guidance = if (!success && (action == "checkIn" || locationRestricted)) {
+        val actionStatuses = listOf(data.optString("status"), data.optJSONObject("data")?.optString("status").orEmpty())
+            .filter { it.isNotBlank() && it !in setOf("success", "fail") }
+        // Older replies may omit the location code. Prefer an explicit code whenever present.
+        val locationRestricted = !success && ("LOC_RESTRICT" in actionStatuses ||
+            (actionStatuses.isEmpty() && (message.contains("仅在场馆内") || message.contains("馆内网络"))))
+        val guidance = if (locationRestricted) {
             "$message；签到等座位操作需连接图书馆 Wi-Fi，连接后请同步预约状态"
         } else message
-        return ReservationResult(success, guidance, receipt)
+        return ReservationResult(success, guidance, receipt, requiresLibraryWifi = locationRestricted)
     }
 
     suspend fun prepareReservation(account: SavedAccount, selection: ReservationSelection): PreparedReservation {
@@ -456,7 +485,9 @@ class LibraryFunctionsRepository(
             val status = user?.optString("currentReservationStatus").orEmpty()
             val soft = user?.optBoolean("softMode") == true
             val actions = mutableListOf<String>()
-            if (soft && status != "LOC_RESTRICT") {
+            // softMode only shows the school's kiosk button bar; on library Wi-Fi the school
+            // accepts these actions with softMode=false. Location is signaled by LOC_RESTRICT.
+            if (status != "LOC_RESTRICT") {
                 when (status) {
                     "RESERVE" -> actions += "checkIn"
                     "CHECK_IN", "IN_USE", "USING", "CHECKED_IN" -> {
@@ -474,13 +505,11 @@ class LibraryFunctionsRepository(
                 status == "LOC_RESTRICT" -> "签到等座位操作需连接图书馆 Wi-Fi，连接后请同步预约状态"
                 status == "NO_RESERVATION" -> "当前没有可签到的预约，已预约座位请查看预约记录"
                 status.isBlank() -> "暂未读取到当前预约状态，请同步后重试"
-                !soft -> "图书馆系统暂未开放在线座位操作，请连接图书馆 Wi-Fi 后同步，或按馆内指引签到"
-                status == "RESERVE" -> "签到前请连接图书馆 Wi-Fi，并在预约允许的时间内操作"
+                status == "RESERVE" -> "请在预约允许的时间内签到"
                 actions.isEmpty() -> "当前预约没有可执行的座位操作，请同步预约状态"
                 else -> "座位操作以图书馆系统当前提供的选项为准"
             }
-            return LibraryUserState(status, soft, details, actions, actionMessage,
-                status in setOf("RESERVE", "CHECK_IN", "AWAY", "COMPLETE", "LOC_RESTRICT"))
+            return LibraryUserState(status, soft, details, actions, actionMessage, status == "LOC_RESTRICT")
         }
 
         private fun parseReceipt(data: JSONObject): ReservationReceipt = ReservationReceipt(

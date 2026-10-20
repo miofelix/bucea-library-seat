@@ -87,11 +87,16 @@ fun NativeMapScreen(
     showHeader: Boolean = true,
     favoriteSeatIds: Set<String> = emptySet(),
     onToggleFavorite: ((NativeSeat) -> Unit)? = null,
+    onRestoreLayout: (() -> Unit)? = null,
 ) {
     var choosing by remember { mutableStateOf<String?>(null) }
     var selected by remember(state.layout?.roomId, state.filters["onDate"], state.layout) { mutableStateOf<NativeMapCell?>(null) }
     var onlyAvailable by rememberSaveable { mutableStateOf(false) }
     val seatCells = remember(state.layout) { state.layout?.cells.orEmpty().filter { it.seat != null } }
+    val focusedSeat = remember(seatCells, state.focusSeatId) {
+        state.focusSeatId?.let { id -> seatCells.singleOrNull { it.seat?.id == id }?.seat }
+    }
+    val focusLabel = focusedSeat?.label ?: state.focusSeatLabel?.takeIf(String::isNotBlank)
     val visibleCells = remember(seatCells, onlyAvailable) {
         if (onlyAvailable) seatCells.filter { it.seat?.available == true && !it.localOnly } else seatCells
     }
@@ -132,6 +137,29 @@ fun NativeMapScreen(
                 item(key = "map-controls") {
                     Column(Modifier.fillMaxWidth().padding(start = LibrarySpacing.pageHorizontal, end = LibrarySpacing.pageHorizontal,
                         top = LibrarySpacing.pageVertical, bottom = 8.dp), verticalArrangement = Arrangement.spacedBy(LibrarySpacing.sectionGap)) {
+                        if (focusLabel != null || state.directRegionView) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (focusLabel != null) {
+                                    Surface(color = Color(0xFF172535), shape = RoundedCornerShape(9.dp), modifier = Modifier.weight(1f)
+                                        .semantics {
+                                            if (focusedSeat != null) stateDescription = "预约座位${focusedSeat.label}，已高亮"
+                                        }) {
+                                        Text("预约座位 $focusLabel" + if (focusedSeat != null) " · 已高亮" else "",
+                                            color = Color.White, fontSize = 12.sp, lineHeight = 18.sp,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
+                                    }
+                                } else Spacer(Modifier.weight(1f))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (focusLabel != null) TextButton(onClick = onBack, modifier = Modifier.heightIn(min = 48.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp)) { Text("返回预约", fontSize = 12.sp) }
+                                    if (state.directRegionView) TextButton(onClick = { onRestoreLayout?.invoke() }, enabled = onRestoreLayout != null,
+                                        modifier = Modifier.heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 8.dp)) {
+                                        Text("恢复布局选座", fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
                         if (showHeader) {
                             LibraryPageHeader(title = if (state.directRegionView) roomName else "布局选座",
                                 subtitle = if (state.directRegionView) listOfNotNull(
@@ -245,8 +273,8 @@ fun NativeMapScreen(
                         Column(Modifier.fillMaxWidth().heightIn(min = minimumBodyHeight)
                             .padding(horizontal = LibrarySpacing.pageHorizontal).padding(top = 8.dp),
                             verticalArrangement = Arrangement.spacedBy(LibrarySpacing.itemGap)) {
-                            if (state.directRegionView) NativeRoomCanvas(layout, !state.loading, selected?.seat?.id) { selected = it }
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FlowRow(modifier = Modifier.semantics { contentDescription = "座位状态图例" },
+                                horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 (SeatVisualState.entries.map(::mapSeatStyle) + MapLocalOnly).forEach { style ->
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                         Box(Modifier.size(20.dp).clip(RoundedCornerShape(5.dp)).background(style.fill), contentAlignment = Alignment.Center) {
@@ -256,7 +284,7 @@ fun NativeMapScreen(
                                     }
                                 }
                             }
-                            if (!state.directRegionView) NativeRoomCanvas(layout, !state.loading, selected?.seat?.id) { selected = it }
+                            NativeRoomCanvas(layout, !state.loading, selected?.seat?.id, focusedSeat?.id) { selected = it }
                             Text("拖动查看 · 双指缩放 · 点选座位\n颜色与座位内文字表示当前状态，可预约时段以点选查询为准。", color = Muted, fontSize = 11.sp, lineHeight = 18.sp)
                         }
                     }
@@ -376,10 +404,14 @@ private fun friendlyDate(option: LibraryOption): String {
 }
 
 @Composable
-internal fun NativeRoomCanvas(layout: NativeRoomLayout, enabled: Boolean, selectedSeatId: String?, onSelect: (NativeMapCell) -> Unit) {
+internal fun NativeRoomCanvas(layout: NativeRoomLayout, enabled: Boolean, selectedSeatId: String?,
+    focusedSeatId: String? = null, onSelect: (NativeMapCell) -> Unit) {
     var zoom by remember(layout) { mutableFloatStateOf(1f) }
     var pan by remember(layout) { mutableStateOf(Offset.Zero) }
-    var reset by remember(layout) { mutableIntStateOf(0) }
+    var reset by remember(layout, focusedSeatId) { mutableIntStateOf(0) }
+    val focusedCell = remember(layout, focusedSeatId) {
+        focusedSeatId?.let { id -> layout.cells.singleOrNull { it.seat?.id == id } }
+    }
     val latestEnabled by rememberUpdatedState(enabled)
     val latestSelect by rememberUpdatedState(onSelect)
     val structureLabelColor = Muted
@@ -407,7 +439,6 @@ internal fun NativeRoomCanvas(layout: NativeRoomLayout, enabled: Boolean, select
             val roomHeight = maxOf(1, bottomRow - topRow) * cellSize
             val fit = minOf((viewWidth - 24f) / roomWidth, (viewHeight - 24f) / roomHeight).coerceIn(.01f, 2.5f)
             val basePan = Offset((viewWidth - roomWidth * fit) / 2 - contentLeft * fit, (viewHeight - roomHeight * fit) / 2 - contentTop * fit)
-            LaunchedEffect(layout, viewWidth, viewHeight, reset) { zoom = fit; pan = basePan }
             fun constrain(value: Offset, scale: Float): Offset {
                 val margin = cellSize * scale
                 val leftEdge = value.x + contentLeft * scale
@@ -415,8 +446,26 @@ internal fun NativeRoomCanvas(layout: NativeRoomLayout, enabled: Boolean, select
                 return Offset(leftEdge.coerceIn(minOf(viewWidth - roomWidth * scale - margin, margin), maxOf(margin, viewWidth - roomWidth * scale + margin)) - contentLeft * scale,
                     topEdge.coerceIn(minOf(viewHeight - roomHeight * scale - margin, margin), maxOf(margin, viewHeight - roomHeight * scale + margin)) - contentTop * scale)
             }
+            // Focus is an entry position, not a continuing scroll lock. Gestures
+            // keep their state until the layout, target or viewport changes.
+            LaunchedEffect(layout, viewWidth, viewHeight, reset, focusedSeatId) {
+                if (focusedCell != null && reset == 0) {
+                    zoom = maxOf(fit, 1.1f).coerceAtMost(2.5f)
+                    val center = Offset((focusedCell.column + focusedCell.columnSpan / 2f) * cellSize,
+                        (focusedCell.row + focusedCell.rowSpan / 2f) * cellSize)
+                    pan = constrain(Offset(viewWidth / 2f, viewHeight / 2f) - center * zoom, zoom)
+                } else {
+                    zoom = fit
+                    pan = basePan
+                }
+            }
             val paint = remember { Paint(Paint.ANTI_ALIAS_FLAG).apply { textAlign = Paint.Align.CENTER; typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL) } }
-            Canvas(Modifier.fillMaxSize().semantics { contentDescription = "${layout.roomName}座位地图，双指缩放。使用列表按钮逐项浏览座位。" }
+            Canvas(Modifier.fillMaxSize().semantics {
+                contentDescription = "${layout.roomName}座位地图，双指缩放。使用列表按钮逐项浏览座位。"
+                focusedCell?.let { cell ->
+                    stateDescription = "预约座位${cell.seat?.label.orEmpty()}，${cellStyle(cell).label}，已高亮"
+                }
+            }
                 .pointerInput(layout, cellSize, viewWidth, viewHeight) {
                     detectTransformGestures { centroid, move, multiplier, _ ->
                         if (latestEnabled) {
@@ -447,6 +496,14 @@ internal fun NativeRoomCanvas(layout: NativeRoomLayout, enabled: Boolean, select
                             val height = cell.rowSpan * cellSize
                             if (cell.kind == NativeMapCellKind.SEAT) {
                                 val style = cellStyle(cell)
+                                val reservationFocus = cell.seat?.id == focusedCell?.seat?.id && focusedCell != null
+                                if (reservationFocus) {
+                                    val position = Offset(left + cellSize * .015f, top + cellSize * .015f)
+                                    val size = Size(width - cellSize * .03f, height - cellSize * .03f)
+                                    val radius = androidx.compose.ui.geometry.CornerRadius(cellSize * .15f)
+                                    drawRoundRect(Color(0xFF172535), position, size, radius, style = Stroke(cellSize * .09f))
+                                    drawRoundRect(Color.White, position, size, radius, style = Stroke(cellSize * .035f))
+                                }
                                 if (cell.seat?.id == selectedSeatId) {
                                     val ringPosition = Offset(left + cellSize * .025f, top + cellSize * .035f)
                                     val ringSize = Size(width - cellSize * .05f, height - cellSize * .11f)
@@ -466,6 +523,14 @@ internal fun NativeRoomCanvas(layout: NativeRoomLayout, enabled: Boolean, select
                                     val powerPosition = Offset(left + width - cellSize * .16f, top + height * .68f)
                                     drawCircle(Color.White, cellSize * .055f, powerPosition)
                                     drawCircle(Color(0xFF172535), cellSize * .025f, powerPosition)
+                                }
+                                if (reservationFocus) {
+                                    val marker = Offset(left + width - cellSize * .12f, top + cellSize * .14f)
+                                    drawCircle(Color(0xFF172535), cellSize * .15f, marker)
+                                    drawCircle(Color.White, cellSize * .15f, marker, style = Stroke(cellSize * .025f))
+                                    paint.color = Color.White.toArgb()
+                                    paint.textSize = cellSize * .19f
+                                    drawContext.canvas.nativeCanvas.drawText("约", marker.x, marker.y - (paint.ascent() + paint.descent()) / 2f, paint)
                                 }
                             } else if (cell.kind != NativeMapCellKind.EMPTY) {
                                 val color = when (cell.kind) { NativeMapCellKind.WINDOW -> Color(0xFFE1E9F0); NativeMapCellKind.WALL -> Color(0xFFB7B8BC); else -> Color(0xFFEEEEF0) }

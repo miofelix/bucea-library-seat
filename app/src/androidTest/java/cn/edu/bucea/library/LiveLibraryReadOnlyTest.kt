@@ -103,7 +103,7 @@ class LiveLibraryReadOnlyTest {
                 assertEquals(violations.items.size, violations.items.map { it.id }.distinct().size)
                 val state = functions.userState(current)
                 assertTrue("The server must expose reservation state", state.status.isNotBlank())
-                if (!state.softMode || state.status == "LOC_RESTRICT") assertTrue(state.actions.isEmpty())
+                if (state.status in setOf("LOC_RESTRICT", "NO_RESERVATION")) assertTrue(state.actions.isEmpty())
 
                 val nativeMap = NativeMapRepository(repository)
                 val mapOptions = nativeMap.options(current)

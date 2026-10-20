@@ -137,9 +137,10 @@ class LibraryFunctionsInstrumentedTest {
     }
 
     @Test
-    fun reservationActionsRespectServerModeAndLocationRestrictions() {
+    fun reservationActionsFollowServerStatusAndLocationRestrictions() {
         fun state(json: String) = LibraryFunctionsRepository.parseUserState(LibraryHtml.parse("<script>var userInfo='$json';</script>"))
-        assertTrue(state("""{"currentReservationStatus":"CHECK_IN","softMode":false}""").actions.isEmpty())
+        // softMode only toggles the school's kiosk button bar; library Wi-Fi actions still apply.
+        assertEquals(listOf("extend", "leave", "stopUsing"), state("""{"currentReservationStatus":"CHECK_IN","softMode":false}""").actions)
         assertTrue(state("""{"currentReservationStatus":"LOC_RESTRICT","softMode":true,"hasPrevUnStoppedReservation":true}""").actions.isEmpty())
         assertEquals(listOf("extend"), state("""{"currentReservationStatus":"CHECK_IN","softMode":true,"wifiAwayDisabled":true,"wifiStopDisabled":true}""").actions)
         assertEquals(listOf("resume", "stopUsing"), state("""{"currentReservationStatus":"AWAY","softMode":true}""").actions)
@@ -164,11 +165,13 @@ class LibraryFunctionsInstrumentedTest {
         assertFalse(restricted.actionMessage.contains("没有"))
         val reserved = state("""{"currentReservationStatus":"RESERVE","softMode":true}""")
         assertEquals(listOf("checkIn"), reserved.actions)
-        assertTrue(reserved.requiresLibraryWifi)
-        val manualMode = state("""{"currentReservationStatus":"RESERVE","softMode":false}""")
-        assertTrue(manualMode.actions.isEmpty())
-        assertTrue(manualMode.actionMessage.contains("按馆内指引签到"))
-        assertFalse(manualMode.actionMessage.contains("当前网络"))
+        assertFalse(reserved.requiresLibraryWifi)
+        val kioskBarHidden = state("""{"currentReservationStatus":"RESERVE","softMode":false}""")
+        assertEquals(listOf("checkIn"), kioskBarHidden.actions)
+        assertFalse(kioskBarHidden.requiresLibraryWifi)
+        assertFalse(kioskBarHidden.actionMessage.contains("Wi-Fi"))
+        assertFalse(kioskBarHidden.actionMessage.contains("暂未开放"))
+        assertFalse(kioskBarHidden.actionMessage.contains("当前网络"))
     }
 
     @Test
@@ -179,19 +182,22 @@ class LibraryFunctionsInstrumentedTest {
         val repository = LibraryFunctionsRepository(request = { _, endpoint ->
             if (endpoint == "/self") {
                 val status = if (restricted) "LOC_RESTRICT" else "RESERVE"
-                """<script>var userInfo='{"currentReservationStatus":"$status","softMode":true}';</script>"""
+                """<script>var userInfo='{"currentReservationStatus":"$status","softMode":false}';</script>"""
             } else {
                 assertEquals("/user/checkIn", endpoint)
                 actions++
                 """{"status":"fail","message":"该功能仅在场馆内有效","data":{"status":"LOC_RESTRICT"}}"""
             }
         }, post = { _, _, _ -> error("Seat actions must not invent a POST contract") })
-        try { repository.performAction(account, "checkIn"); fail("Restricted state must not send an action") }
-        catch (failure: IllegalArgumentException) { assertTrue(failure.message.orEmpty().contains("图书馆 Wi-Fi")) }
+        val preflight = repository.performAction(account, "checkIn")
+        assertFalse(preflight.success)
+        assertTrue(preflight.requiresLibraryWifi)
+        assertTrue(preflight.message.contains("图书馆 Wi-Fi"))
         assertEquals(0, actions)
         restricted = false
         val result = repository.performAction(account, "checkIn")
         assertFalse(result.success)
+        assertTrue(result.requiresLibraryWifi)
         assertTrue(result.message.contains("该功能仅在场馆内有效"))
         assertTrue(result.message.contains("图书馆 Wi-Fi"))
         assertEquals(1, actions)
