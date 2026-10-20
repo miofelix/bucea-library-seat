@@ -21,8 +21,9 @@ class ReservationActionsTest {
         val reserved = state("RESERVE")
         assertFalse(reserved.softMode)
         assertEquals(listOf("checkIn"), reserved.actions)
-        assertTrue(reserved.requiresLibraryWifi)
-        assertTrue(reserved.actionMessage.contains("图书馆 Wi-Fi"))
+        assertFalse(reserved.requiresLibraryWifi)
+        assertFalse(reserved.actionMessage.contains("Wi-Fi"))
+        assertTrue(reserved.actionMessage.contains("预约允许的时间"))
         assertFalse(reserved.actionMessage.contains("暂未开放"))
     }
 
@@ -30,6 +31,10 @@ class ReservationActionsTest {
         assertEquals(listOf("extend", "leave", "stopUsing"), state("CHECK_IN").actions)
         assertEquals(listOf("resume", "stopUsing"), state("AWAY").actions)
         assertEquals(listOf("stopUsing"), state("COMPLETE").actions)
+        for (status in listOf("CHECK_IN", "IN_USE", "USING", "CHECKED_IN", "AWAY", "COMPLETE")) {
+            assertFalse("$status must not prompt a server-authorized user to reconnect", state(status).requiresLibraryWifi)
+            assertFalse(state(status).actionMessage.contains("Wi-Fi"))
+        }
     }
 
     @Test fun locationRestrictionAndNoReservationOfferNoActions() {
@@ -40,6 +45,47 @@ class ReservationActionsTest {
         val none = state("NO_RESERVATION")
         assertTrue(none.actions.isEmpty())
         assertFalse(none.requiresLibraryWifi)
+    }
+
+    @Test fun freshLocationRestrictionReturnsGuidanceWithoutSubmittingAnAction() = runTest {
+        val calls = mutableListOf<String>()
+        val repository = LibraryFunctionsRepository(request = { _, endpoint ->
+            calls += endpoint
+            assertEquals("/self", endpoint)
+            page("LOC_RESTRICT")
+        }, post = { _, _, _ -> error("Unexpected mutation") })
+        val result = repository.performAction(account, "checkIn")
+        assertFalse(result.success)
+        assertTrue(result.requiresLibraryWifi)
+        assertTrue(result.message.contains("图书馆 Wi-Fi"))
+        assertEquals(listOf("/self"), calls)
+    }
+
+    @Test fun actionLocationRefusalsHaveTypedGuidanceAndOtherCheckInFailuresKeepTheirReason() = runTest {
+        val replies = listOf(
+            """{"status":"fail","data":{"status":"LOC_RESTRICT"},"message":"位置限制"}""" to true,
+            """{"status":"LOC_RESTRICT","message":"位置限制"}""" to true,
+            """{"status":"ERROR","data":{"status":"LOC_RESTRICT"},"message":"位置限制"}""" to true,
+            """{"status":"fail","message":"该功能仅在场馆内有效"}""" to true,
+            """{"status":"fail","message":"请使用馆内网络"}""" to true,
+            """{"status":"fail","data":{"status":"RESERVE"},"message":"仅在场馆内也需遵守签到时间"}""" to false,
+            """{"status":"fail","message":"不在签到时间内"}""" to false,
+        )
+        for ((reply, restricted) in replies) {
+            var mutations = 0
+            val repository = LibraryFunctionsRepository(request = { _, endpoint ->
+                if (endpoint == "/self") page("RESERVE") else {
+                    assertEquals("/user/checkIn", endpoint)
+                    mutations++
+                    reply
+                }
+            }, post = { _, _, _ -> error("Unexpected mutation") })
+            val result = repository.performAction(account, "checkIn")
+            assertFalse(result.success)
+            assertEquals(reply, restricted, result.requiresLibraryWifi)
+            assertEquals(reply, restricted, result.message.contains("图书馆 Wi-Fi"))
+            assertEquals("Each action must still be sent only once", 1, mutations)
+        }
     }
 
     @Test fun actualCheckInResponseIsConfirmedOnceWithItsReceipt() = runTest {
@@ -56,6 +102,7 @@ class ReservationActionsTest {
         }, post = { _, _, _ -> error("Check-in is a single GET") })
         val result = repository.performAction(SavedAccount("fixture", "209999990001", "synthetic", "测试"), "checkIn")
         assertTrue(result.success)
+        assertFalse(result.requiresLibraryWifi)
         assertEquals("您已登记入场", result.message)
         assertEquals("使用中", result.receipt?.status)
         assertEquals("图书馆3层三层外环区，座位号013B", result.receipt?.location)

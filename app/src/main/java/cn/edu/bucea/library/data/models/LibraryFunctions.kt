@@ -78,7 +78,13 @@ data class ReservationReceipt(
     val status: String,
 )
 
-data class ReservationResult(val success: Boolean, val message: String, val receipt: ReservationReceipt? = null)
+data class ReservationResult(
+    val success: Boolean,
+    val message: String,
+    val receipt: ReservationReceipt? = null,
+    /** The school refused this action because it requires the library's network. */
+    val requiresLibraryWifi: Boolean = false,
+)
 
 /** Validated server schedule; absent or ambiguous fields remain unknown. */
 data class ReservationSchedule(
@@ -113,6 +119,6 @@ data class LibraryUserState(
     val details: List<String>,
     val actions: List<String>,
     val actionMessage: String = "",
-    /** A school requirement, not a measurement of the phone's current Wi-Fi connection. */
+    /** The server reported a location restriction; this does not inspect the phone's Wi-Fi. */
     val requiresLibraryWifi: Boolean = false,
 )

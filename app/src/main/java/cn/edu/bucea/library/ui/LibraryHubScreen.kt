@@ -202,7 +202,7 @@ fun LibraryHubScreen(
                             Text("签到需连接图书馆 Wi-Fi", color = Ink, fontWeight = FontWeight.Medium, fontSize = 13.sp)
                         }
                         Text(
-                            state.actionMessage.takeIf { it.contains("Wi-Fi") }
+                            state.actionMessage.takeIf { it.isNotBlank() }
                                 ?: "到馆后连接图书馆内部 Wi-Fi，再刷新预约状态。",
                             color = Muted, fontSize = 12.sp, lineHeight = 20.sp,
                         )
@@ -496,7 +496,7 @@ internal fun HubCurrentReservation(state: LibraryHubState, onRefresh: () -> Unit
                     Text(if (expanded) "收起预约信息" else "查看完整预约信息", fontSize = 12.sp)
                 }
             }
-            state.actionMessage.takeIf { it.isNotBlank() && !(state.requiresLibraryWifi && it.contains("Wi-Fi")) }?.let { message ->
+            state.actionMessage.takeIf { it.isNotBlank() && !(state.requiresLibraryWifi || state.currentStatus == "LOC_RESTRICT") }?.let { message ->
                 Text(message, color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
             }
             if (onOpenDetails != null) Button(onClick = onOpenDetails, enabled = !state.loading,

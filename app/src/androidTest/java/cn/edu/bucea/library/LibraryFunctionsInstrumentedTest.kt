@@ -165,10 +165,11 @@ class LibraryFunctionsInstrumentedTest {
         assertFalse(restricted.actionMessage.contains("没有"))
         val reserved = state("""{"currentReservationStatus":"RESERVE","softMode":true}""")
         assertEquals(listOf("checkIn"), reserved.actions)
-        assertTrue(reserved.requiresLibraryWifi)
+        assertFalse(reserved.requiresLibraryWifi)
         val kioskBarHidden = state("""{"currentReservationStatus":"RESERVE","softMode":false}""")
         assertEquals(listOf("checkIn"), kioskBarHidden.actions)
-        assertTrue(kioskBarHidden.actionMessage.contains("图书馆 Wi-Fi"))
+        assertFalse(kioskBarHidden.requiresLibraryWifi)
+        assertFalse(kioskBarHidden.actionMessage.contains("Wi-Fi"))
         assertFalse(kioskBarHidden.actionMessage.contains("暂未开放"))
         assertFalse(kioskBarHidden.actionMessage.contains("当前网络"))
     }
@@ -188,12 +189,15 @@ class LibraryFunctionsInstrumentedTest {
                 """{"status":"fail","message":"该功能仅在场馆内有效","data":{"status":"LOC_RESTRICT"}}"""
             }
         }, post = { _, _, _ -> error("Seat actions must not invent a POST contract") })
-        try { repository.performAction(account, "checkIn"); fail("Restricted state must not send an action") }
-        catch (failure: IllegalArgumentException) { assertTrue(failure.message.orEmpty().contains("图书馆 Wi-Fi")) }
+        val preflight = repository.performAction(account, "checkIn")
+        assertFalse(preflight.success)
+        assertTrue(preflight.requiresLibraryWifi)
+        assertTrue(preflight.message.contains("图书馆 Wi-Fi"))
         assertEquals(0, actions)
         restricted = false
         val result = repository.performAction(account, "checkIn")
         assertFalse(result.success)
+        assertTrue(result.requiresLibraryWifi)
         assertTrue(result.message.contains("该功能仅在场馆内有效"))
         assertTrue(result.message.contains("图书馆 Wi-Fi"))
         assertEquals(1, actions)

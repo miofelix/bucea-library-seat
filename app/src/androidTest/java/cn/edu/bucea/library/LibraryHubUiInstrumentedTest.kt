@@ -29,7 +29,11 @@ import cn.edu.bucea.library.ui.NativeSeat
 import cn.edu.bucea.library.ui.SeatOption
 import cn.edu.bucea.library.ui.SeatSearchState
 import cn.edu.bucea.library.data.models.ReservationSchedule
+import cn.edu.bucea.library.data.LibraryFunctionsRepository
+import cn.edu.bucea.library.data.LibraryHtml
+import cn.edu.bucea.library.data.SavedAccount
 import cn.edu.bucea.library.ui.reservationTimeline
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -109,6 +113,45 @@ class LibraryHubUiInstrumentedTest {
             click(findWithScroll("Reconnect must offer a refresh action") { findText("已连接，刷新状态") })
             waitFor("Refresh must call the synthetic refresh callback once") { refreshes.get() == 1 }
             assertEquals("Connectivity guidance must not submit a seat action", 0, actions.get())
+        }
+    }
+
+    @Test fun actionLocationRefusalShowsWifiCardAndFreshAuthorizedStatesRemoveIt() {
+        val refusal = runBlocking {
+            LibraryFunctionsRepository(request = { _, endpoint ->
+                when (endpoint) {
+                    "/self" -> """<script>var userInfo='{"currentReservationStatus":"RESERVE","softMode":false}';</script>"""
+                    "/user/checkIn" -> """{"status":"fail","message":"位置限制","data":{"status":"LOC_RESTRICT"}}"""
+                    else -> error("Unexpected synthetic request")
+                }
+            }, post = { _, _, _ -> error("Unexpected mutation") })
+                .performAction(SavedAccount("fixture", "209999990001", "synthetic", "测试"), "checkIn")
+        }
+        assertTrue(refusal.requiresLibraryWifi)
+        // The action's explicit location refusal still applies when /self repeats RESERVE.
+        val state = mutableStateOf(LibraryHubState(currentStatus = "RESERVE",
+            requiresLibraryWifi = refusal.requiresLibraryWifi, actionMessage = refusal.message))
+        withHub(state) {
+            findWithScroll("An action location refusal must show reconnect guidance") { findText("签到需连接图书馆 Wi-Fi") }
+            for (status in listOf("RESERVE", "CHECK_IN", "IN_USE", "USING", "CHECKED_IN", "AWAY", "COMPLETE")) {
+                val user = LibraryFunctionsRepository.parseUserState(LibraryHtml.parse(
+                    """<script>var userInfo='{"currentReservationStatus":"$status","softMode":false}';</script>"""))
+                instrumentation.runOnMainSync {
+                    state.value = LibraryHubState(currentStatus = user.status, requiresLibraryWifi = user.requiresLibraryWifi,
+                        actionMessage = user.actionMessage, actions = user.actions.map { action ->
+                            HubAction(action, when (action) {
+                                "checkIn" -> "签到"
+                                "extend" -> "续约"
+                                "leave" -> "暂离"
+                                "resume" -> "返回座位"
+                                else -> "结束使用"
+                            }, "合成操作")
+                        })
+                }
+                findWithScroll("$status must render its current reservation", backwards = true) { findText("当前预约") }
+                findWithScroll("$status must keep the server-authorized action visible") { findText(state.value.actions.first().label) }
+                assertWifiGuidanceAbsent(status)
+            }
         }
     }
 
@@ -512,6 +555,20 @@ class LibraryHubUiInstrumentedTest {
     private fun findDescription(value: String) = nodes().firstOrNull { it.contentDescription?.toString() == value }
     private fun findControl(value: String) = nodes().firstOrNull { matchesText(it, value) && clickableParent(it) != null }
     private fun hasText(value: String) = findText(value) != null
+
+    private fun assertWifiGuidanceAbsent(status: String) {
+        // Scan to the footer so a lazy item below the first viewport cannot escape this check.
+        for (attempt in 0 until 10) {
+            for (text in listOf("签到需连接图书馆 Wi-Fi", "打开 Wi-Fi 设置", "已连接，刷新状态")) {
+                assertFalse("$status must hide the reconnect card: $text", hasText(text))
+            }
+            if (hasText("暂无预约记录")) return
+            nodes().firstOrNull { it.isScrollable && it.isEnabled }
+                ?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+            SystemClock.sleep(150)
+        }
+        fail("$status fixture footer must be visible before checking card absence")
+    }
 
     private fun waitFor(message: String, predicate: () -> Boolean) {
         val deadline = SystemClock.uptimeMillis() + 8_000

@@ -445,7 +445,7 @@ class LibraryFeatureViewModel internal constructor(
         refreshHub(null)
     }
 
-    private fun refreshHub(retainedError: String?) {
+    private fun refreshHub(retainedError: String?, retainedWifiGuidance: String? = null) {
         hubJob?.cancel()
         detailsJob?.cancel()
         val section = hubState.value.section
@@ -497,8 +497,8 @@ class LibraryFeatureViewModel internal constructor(
                 val user = functions.userState(current)
                 actionRefreshRequired = false
                 hubState.update { it.copy(currentStatus = user.status, currentDetails = user.details,
-                    actions = user.actions.map(::hubAction), actionMessage = user.actionMessage,
-                    requiresLibraryWifi = user.requiresLibraryWifi, error = retainedError) }
+                    actions = user.actions.map(::hubAction), actionMessage = retainedWifiGuidance ?: user.actionMessage,
+                    requiresLibraryWifi = user.requiresLibraryWifi || retainedWifiGuidance != null, error = retainedError) }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { hubState.update { it.copy(error = listOfNotNull(retainedError, repository.userMessage(e)).joinToString("\n"),
                 actions = emptyList(), actionMessage = "当前预约状态同步失败，请连接校园网或图书馆 Wi-Fi 后刷新。") } }
@@ -698,6 +698,7 @@ class LibraryFeatureViewModel internal constructor(
             var refresh = false
             var attemptedMutation = false
             var retainedError: String? = null
+            var retainedWifiGuidance: String? = null
             hubState.update { it.copy(loading = true, error = null) }
             try {
                 if (action.id == "getTimeExtend") {
@@ -712,7 +713,10 @@ class LibraryFeatureViewModel internal constructor(
                     actionRefreshRequired = true
                     val result = functions.performAction(account(), action.id)
                     lastActionMessage = result.message
-                    hubState.update { it.copy(notice = result.message) }
+                    retainedWifiGuidance = result.message.takeIf { result.requiresLibraryWifi }
+                    hubState.update { it.copy(notice = result.message,
+                        actionMessage = retainedWifiGuidance ?: it.actionMessage,
+                        requiresLibraryWifi = result.requiresLibraryWifi) }
                     feedbackEvents.trySend(if (result.success) confirmedActionFeedback(action.id) else result.message)
                     refresh = true
                 }
@@ -725,7 +729,9 @@ class LibraryFeatureViewModel internal constructor(
                 refresh = attemptedMutation
             }
             finally { if (coroutineContext[Job]?.isActive == true) { mutationState.value = false; hubState.update { it.copy(loading = false) } } }
-            if (refresh) refreshHub(retainedError)
+            // Preserve an action's location refusal through its automatic status read. A later
+            // explicit refresh can dismiss it once the server no longer reports a restriction.
+            if (refresh) refreshHub(retainedError, retainedWifiGuidance)
         }
     }
 
@@ -736,12 +742,16 @@ class LibraryFeatureViewModel internal constructor(
             mutationState.value = true
             var refresh = false
             var retainedError: String? = null
+            var retainedWifiGuidance: String? = null
             actionRefreshRequired = true
             hubState.update { it.copy(loading = true, error = null) }
             try {
                 val result = functions.performAction(account(), "extend", value)
                 lastActionMessage = result.message
-                hubState.update { it.copy(notice = result.message) }; refresh = true
+                retainedWifiGuidance = result.message.takeIf { result.requiresLibraryWifi }
+                hubState.update { it.copy(notice = result.message,
+                    actionMessage = retainedWifiGuidance ?: it.actionMessage,
+                    requiresLibraryWifi = result.requiresLibraryWifi) }; refresh = true
                 feedbackEvents.trySend(if (result.success) "续约成功" else result.message)
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
@@ -752,7 +762,7 @@ class LibraryFeatureViewModel internal constructor(
                 refresh = true
             }
             finally { if (coroutineContext[Job]?.isActive == true) { mutationState.value = false; hubState.update { it.copy(loading = false) } } }
-            if (refresh) refreshHub(retainedError)
+            if (refresh) refreshHub(retainedError, retainedWifiGuidance)
         }
     }
 
