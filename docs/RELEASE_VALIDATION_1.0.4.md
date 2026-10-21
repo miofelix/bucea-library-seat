@@ -2,7 +2,7 @@
 
 记录日期：2026-10-21。计划版本 **1.0.4 / versionCode 18**，包名 `cn.edu.bucea.library`，最低 Android 8.0 / API 26。发行说明见 [releases/1.0.4.md](releases/1.0.4.md)。
 
-本次本地构建与设备验证已完成；GitHub Release、R2、官网和公网完整下载核对将在发布后补录。
+本次本地构建、设备验证、GitHub Release、R2、官网和公网下载核对均已完成。
 
 ## 自动检查与设备
 
@@ -25,12 +25,14 @@
 
 ## 发布与分发
 
-待记录发布提交、`v1.0.4` 标签、GitHub Release 及七个附件的远端核对结果；待记录 R2 同步、Cloudflare Pages 与 GitHub Pages 部署工作流结果。
+- 发布提交为 `17cb088c297409611cf13ff017440e29d4855e83`，`v1.0.4` 标签指向同一提交。
+- GitHub Release `v1.0.4` 已正式发布，Release ID `419455546`，七个附件齐全。
+- 发布工作流 `39589325336` 的 `publish` 与 `website` job 均成功，已完成 R2、Cloudflare Pages 和 GitHub Pages 部署。
 
 ## 公网最终核对
 
-- Android 更新清单与官网下载元数据的版本、Release 标识及内容：发布后待验证。
-- 五个 APK 的公网完整下载、字节数与 SHA-256：待验证。
-- APK 的 HEAD 与 Range：待验证。
-- 官网与 GitHub Pages 的版本、五个下载链接及元数据：待验证。
+- Android 更新清单与官网下载元数据均为 1.0.4 / versionCode 18 / Release ID `419455546`。
+- 五个 APK 已从 R2 完整下载，字节数与 SHA-256 全部匹配本地暂存产物。
+- 通用 APK 的 Range 请求返回 206、1024 字节，`Content-Range` 为 `bytes 0-1023/55638966`。
+- 官网与 GitHub Pages 均显示 v1.0.4，页面版本标记和下载入口已更新。
 - 来自 R2 的真实 Android 更新下载与安装：尚未在本轮验证；后续应按实际执行范围记录，不以 ADB 安装或公网完整下载代替。
