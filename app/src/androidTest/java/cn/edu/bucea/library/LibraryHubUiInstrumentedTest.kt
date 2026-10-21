@@ -177,6 +177,81 @@ class LibraryHubUiInstrumentedTest {
         }
     }
 
+    @Test fun awayCurrentCardPreservesSeatInformationAndItsLocatorWithoutSubmittingAnAction() {
+        val date = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+        val location = "图书馆2层二层内环区，座位号007D"
+        val state = mutableStateOf(LibraryHubState(
+            currentStatus = "AWAY",
+            currentDetails = listOf("座位：007D", "位置：$location", "日期：$date", "时间：09:00—11:00"),
+            actions = listOf(HubAction("resume", "返回座位", "合成返回操作")),
+        ))
+        val located = AtomicReference<ReservationMapTarget?>()
+        val submissions = AtomicInteger()
+        withHub(state, onAction = { submissions.incrementAndGet() }, onLocateSeat = { located.set(it) }) {
+            findWithScroll("A temporarily away reservation must retain its seat number") { findText("007D") }
+            findWithScroll("A temporarily away reservation must retain its compact location") { findText("图书馆2层内环区") }
+            findWithScroll("A temporarily away reservation must retain its scheduled interval") { findText("今天 · 09:00 — 11:00") }
+            findWithScroll("The current card must identify a temporarily away reservation") { findText("暂离中") }
+            findWithScroll("Returning to the seat must remain available") { findText("返回座位") }
+            val locator = findWithScroll("A temporarily away reservation must still offer seat location") { findText("查看座位位置") }
+            assertMinimumTouchHeight(locator)
+            click(locator)
+            waitFor("The away-state locator must forward the reservation's exact date, seat and location") { located.get() != null }
+            assertEquals(ReservationMapTarget(date.toString(), "007D", location), located.get())
+            assertEquals("Locating a temporarily away seat must not resume or submit a seat action", 0, submissions.get())
+        }
+    }
+
+    @Test fun pendingCheckInCurrentReservationCancellationRequiresConfirmationAndServerPermission() {
+        val date = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+        val record = HubRecord("fixture-current-cancellable", "当前预约 A101", "待签到",
+            listOf("座位：A101", "位置：图书馆二层东区", "日期：$date", "时间：09:00—11:00"),
+            canCancel = true, schedule = ReservationSchedule(date.toString(), "09:00", "11:00"))
+        val state = mutableStateOf(LibraryHubState(
+            currentStatus = "RESERVE", currentDetails = record.details, currentReservation = record,
+            actions = listOf(HubAction("checkIn", "签到", "合成签到操作")),
+        ))
+        val cancelled = AtomicReference<HubRecord?>()
+        val cancellations = AtomicInteger()
+        val submissions = AtomicInteger()
+        withHub(state, onAction = { submissions.incrementAndGet() }, onCancelRecord = {
+            cancelled.set(it)
+            cancellations.incrementAndGet()
+        }) {
+            val cancel = findWithScroll("An unsigned current reservation with server permission must offer cancellation") { findText("取消预约") }
+            assertMinimumTouchHeight(cancel)
+            click(cancel)
+            waitFor("Current reservation cancellation must open the existing confirmation") { hasText("取消这次预约？") }
+            assertEquals("Opening confirmation must not cancel the current reservation", 0, cancellations.get())
+            click(requireNode("The current reservation must be kept without submitting") { findText("保留预约") })
+            waitFor("Keeping the current reservation must dismiss confirmation") { !hasText("取消这次预约？") }
+            assertEquals("Keeping the current reservation must not cancel it", 0, cancellations.get())
+
+            click(findWithScroll("The preserved current reservation must remain cancellable") { findText("取消预约") })
+            click(requireNode("Cancelling the current reservation must require explicit confirmation") { findText("确认取消预约") })
+            waitFor("Confirming must submit the current record exactly once and dismiss confirmation") {
+                cancellations.get() == 1 && !hasText("取消这次预约？")
+            }
+            assertEquals(record, cancelled.get())
+            assertEquals("Cancelling the current reservation must not invoke check-in", 0, submissions.get())
+
+            instrumentation.runOnMainSync {
+                state.value = state.value.copy(currentReservation = record.copy(canCancel = false))
+            }
+            findWithScroll("The current card must remain visible without cancellation permission", backwards = true) { findText("当前预约") }
+            waitFor("An unsigned current reservation without server permission must hide cancellation") { !hasText("取消预约") }
+
+            instrumentation.runOnMainSync {
+                state.value = state.value.copy(currentStatus = "CHECK_IN", currentReservation = null,
+                    actions = listOf(HubAction("leave", "暂离", "合成暂离操作")))
+            }
+            findWithScroll("A checked-in current reservation must show its updated status", backwards = true) { findText("使用中") }
+            findWithScroll("A checked-in current reservation must retain its seat", backwards = true) { findText("A101") }
+            assertFalse("A checked-in current reservation must hide cancellation", hasText("取消预约"))
+            assertEquals("State changes must not resubmit cancellation", 1, cancellations.get())
+        }
+    }
+
     @Test fun currentUpcomingAndHistoricalReservationLocatorsKeepTheirExactTargetsWithoutOpeningDetailsOrSubmittingActions() {
         val today = LocalDate.now(ZoneId.of("Asia/Shanghai"))
         val currentLocation = "图书馆2层二层内环区，座位号007D"

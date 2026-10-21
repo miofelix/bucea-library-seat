@@ -24,7 +24,74 @@ class CurrentReservationDetailsTest {
         for (state in listOf("CHECK_IN", "IN_USE", "USING", "CHECKED_IN")) {
             assertEquals(using, CurrentReservationDetails.select(state, items, now))
         }
-        assertNull(CurrentReservationDetails.select("AWAY", items, now))
+        assertEquals(using, CurrentReservationDetails.select("AWAY", items, now))
+    }
+
+    @Test fun awayStateRetainsItsSeatWhenHistoryStillShowsCheckedIn() = runTest {
+        for (state in listOf("AWAY", "LEAVE", "暂离中")) {
+            for (historyStatus in listOf("使用中", "已签到", "CHECK_IN", "暂离")) {
+                val occupied = record("current", historyStatus, begin = "16:00", end = "17:00")
+                val details = CurrentReservationDetails.read(user(state, listOf("座位：SELF999")), listOf(
+                    record("yesterday", "使用中", date = "2026-10-19"),
+                    record("tomorrow", "已预约", date = "2026-10-21"),
+                    record("ended", "结束使用"), occupied,
+                ), readHistory = { error("Loaded history must be reused") },
+                    readDetails = { error("Complete summary must not fetch a receipt") }, now)
+
+                assertTrue("$state / $historyStatus", details.contains("位置：图书馆2层二层内环区056B号"))
+                assertTrue(details.contains("日期：2026-10-20"))
+                assertTrue(details.contains("时间：16:00 — 17:00"))
+                assertFalse(details.any { it.contains("SELF999") })
+            }
+        }
+    }
+
+    @Test fun awayStateDoesNotGuessBetweenOccupiedRecordsOrUseInactiveAndUnstartedSeats() = runTest {
+        val using = record("using", "使用中")
+        val away = record("away", "暂离")
+        assertNull(CurrentReservationDetails.select("AWAY", listOf(using, away), now))
+        for (records in listOf(
+            listOf(using, away),
+            listOf(using, away.copy(schedule = away.schedule.copy(date = null))),
+            listOf(using.copy(status = "已取消")),
+            listOf(using.copy(status = "已完成")),
+            listOf(using.copy(status = "待签到")),
+            listOf(using.copy(schedule = using.schedule.copy(begin = "20:00"))),
+            listOf(using.copy(schedule = using.schedule.copy(date = "2026-10-19"))),
+            listOf(using.copy(schedule = using.schedule.copy(date = "2026-10-21"))),
+        )) {
+            assertTrue(CurrentReservationDetails.read(user("AWAY"), records,
+                readHistory = { error("Loaded history must be reused") },
+                readDetails = { error("No unambiguous current record") }, now).isEmpty())
+        }
+    }
+
+    @Test fun readReservationRetainsOnlyTheCurrentRecordsServerCancellationIdentity() = runTest {
+        val current = record("current", "待签到").copy(
+            cancelPath = "/reservation/cancel", cancelMethod = "POST")
+        val other = current.copy(id = "tomorrow", reservationId = "tomorrow",
+            schedule = current.schedule.copy(date = "2026-10-21"))
+        var historyReads = 0
+        val selected = CurrentReservationDetails.readReservation(user("RESERVE"), null,
+            readHistory = { historyReads++; listOf(other, current) },
+            readDetails = { error("Complete summary must not fetch a receipt") }, now)
+
+        assertEquals(1, historyReads)
+        assertSame(current, selected)
+        assertEquals("current", selected?.reservationId)
+        assertEquals("/reservation/cancel", selected?.cancelPath)
+        assertEquals("POST", selected?.cancelMethod)
+        assertTrue(CurrentReservationDetails.canonicalDetails(requireNotNull(selected))
+            .contains("位置：图书馆2层二层内环区056B号"))
+    }
+
+    @Test fun awaitingCheckInOnlyAcceptsReservationLabels() {
+        for (label in listOf("已预约", "预约", "待签到", "RESERVE", "RESERVED", "BOOKED", "状态：待签到")) {
+            assertTrue(label, CurrentReservationDetails.isAwaitingCheckIn(record("current", label)))
+        }
+        for (label in listOf("使用中", "已签到", "暂离", "AWAY", "已取消", "失约", "已完成", "")) {
+            assertFalse(label, CurrentReservationDetails.isAwaitingCheckIn(record("current", label)))
+        }
     }
 
     @Test fun occupiedSeatRemainsCurrentUntilExplicitlyEndedEvenAfterScheduledEnd() {

@@ -25,8 +25,13 @@ internal object CurrentReservationDetails {
         val actual = status(item.status) ?: return false
         if (ReservationStatuses.isInactive(item.status)) return false
         return userStatus == "LOC_RESTRICT" || actual == status(userStatus) ||
+            // Temporary leave changes /self, while /history can retain its
+            // checked-in label. Both still describe the same occupied booking.
+            (status(userStatus) == Status.AWAY && actual == Status.IN_USE) ||
             (userStatus == "COMPLETE" && actual in setOf(Status.IN_USE, Status.AWAY))
     }
+
+    fun isAwaitingCheckIn(item: LibraryHistoryItem): Boolean = status(item.status) == Status.RESERVED
 
     fun select(
         userStatus: String,
@@ -58,14 +63,24 @@ internal object CurrentReservationDetails {
         readHistory: suspend () -> List<LibraryHistoryItem>,
         readDetails: suspend (LibraryHistoryItem) -> LibraryHistoryItem,
         now: LocalDateTime = LocalDateTime.now(ZoneId.of("Asia/Shanghai")),
-    ): List<String> {
-        if (status(user.status) == null && user.status !in setOf("LOC_RESTRICT", "COMPLETE")) return emptyList()
+    ): List<String> = readReservation(user, availableHistory, readHistory, readDetails, now)
+        ?.let(::canonicalDetails).orEmpty()
+
+    /** Keep the exact current record so its server-provided actions can be reused. */
+    suspend fun readReservation(
+        user: LibraryUserState,
+        availableHistory: List<LibraryHistoryItem>?,
+        readHistory: suspend () -> List<LibraryHistoryItem>,
+        readDetails: suspend (LibraryHistoryItem) -> LibraryHistoryItem,
+        now: LocalDateTime = LocalDateTime.now(ZoneId.of("Asia/Shanghai")),
+    ): LibraryHistoryItem? {
+        if (status(user.status) == null && user.status !in setOf("LOC_RESTRICT", "COMPLETE")) return null
         val items = availableHistory ?: try {
             readHistory()
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            return emptyList()
+            return null
         }
         // An undated active record can only become current after its receipt supplies
         // an authoritative date. Count it when checking uniqueness, so a second
@@ -74,8 +89,8 @@ internal object CurrentReservationDetails {
             select(user.status, listOf(item), now) != null ||
                 (item.schedule.date == null && matchesStatus(user.status, item))
         }
-        val selected = candidates.singleOrNull() ?: return emptyList()
-        if (selected.schedule.date == null && selected.detailPath == null) return emptyList()
+        val selected = candidates.singleOrNull() ?: return null
+        if (selected.schedule.date == null && selected.detailPath == null) return null
         val resolved = if (selected.detailPath != null &&
             (selected.schedule.date == null || selected.schedule.begin == null || selected.schedule.end == null)
         ) {
@@ -90,14 +105,14 @@ internal object CurrentReservationDetails {
             }
         } else selected
         // A receipt can reveal that the list item was already completed or canceled.
-        if (select(user.status, listOf(resolved), now) == null) return emptyList()
-        return canonicalDetails(resolved)
+        if (select(user.status, listOf(resolved), now) == null) return null
+        return resolved
     }
 
     private val dateField = Regex("^\\s*(?:预约|使用)?日期\\s*[:：]")
     private val timeField = Regex("^\\s*(?:预约|使用)?(?:时间|时段|开始时间|结束时间|起始时间|截止时间|开始|结束|起始|截止)\\s*[:：]")
 
-    private fun canonicalDetails(item: LibraryHistoryItem): List<String> {
+    fun canonicalDetails(item: LibraryHistoryItem): List<String> {
         val schedule = item.schedule
         val completeTime = schedule.begin != null && schedule.end != null
         return buildList {

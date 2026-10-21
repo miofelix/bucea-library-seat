@@ -84,12 +84,15 @@ data class ConfirmedUpdate(
 
 data class UpdateUiState(
     val checking: Boolean = false,
+    val preparingInstall: Boolean = false,
+    val cancelling: Boolean = false,
     val available: UpdateManifest? = null,
     val promptVisible: Boolean = false,
     val taskVisible: Boolean = false,
     val task: ConfirmedUpdate? = null,
     val downloadedBytes: Long = 0,
     val totalBytes: Long = 0,
+    val downloadMessage: String? = null,
     val message: String? = null,
     val lastAttempt: Long = 0,
     val lastSuccess: Long = 0,
@@ -105,7 +108,8 @@ interface UpdateStorage {
 }
 
 enum class DownloadStatus { RUNNING, COMPLETE, FAILED, MISSING }
-data class DownloadSnapshot(val status: DownloadStatus, val downloaded: Long = 0, val total: Long = 0)
+data class DownloadSnapshot(val status: DownloadStatus, val downloaded: Long = 0, val total: Long = 0,
+    val message: String? = null)
 
 interface UpdatePlatform {
     val sdkInt: Int

@@ -454,6 +454,7 @@ class LibraryFeatureViewModel internal constructor(
         hubJob = viewModelScope.launch {
             hubState.update { it.copy(loading = true, error = retainedError,
                 actions = if (actionRefreshRequired) emptyList() else it.actions,
+                currentReservation = it.currentReservation?.let { record -> if (actionRefreshRequired) record.copy(canCancel = false) else record },
                 records = if (actionRefreshRequired) it.records.map { record -> record.copy(canCancel = false) } else it.records,
                 selectedRecord = it.selectedRecord?.let { record -> if (actionRefreshRequired) record.copy(canCancel = false) else record },
                 detailsLoading = false, detailsError = null) }
@@ -499,17 +500,23 @@ class LibraryFeatureViewModel internal constructor(
                     }
                 }
                 val user = functions.userState(current)
-                val currentDetails = CurrentReservationDetails.read(user, currentHistory,
+                val currentReservation = CurrentReservationDetails.readReservation(user, currentHistory,
                     readHistory = { functions.history(current).items },
                     readDetails = { functions.reservationDetails(current, it) })
                 currentCoroutineContext().ensureActive()
+                val currentDetails = currentReservation?.let(CurrentReservationDetails::canonicalDetails).orEmpty()
+                val currentRecord = currentReservation?.let { item ->
+                    hubRecord(item).copy(details = currentDetails,
+                        canCancel = item.cancelPath != null && CurrentReservationDetails.isAwaitingCheckIn(item))
+                }
                 actionRefreshRequired = false
                 hubState.update { it.copy(currentStatus = user.status, currentDetails = currentDetails,
+                    currentReservation = currentRecord,
                     actions = user.actions.map(::hubAction), actionMessage = retainedWifiGuidance ?: user.actionMessage,
                     requiresLibraryWifi = user.requiresLibraryWifi || retainedWifiGuidance != null, error = retainedError) }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { hubState.update { it.copy(error = listOfNotNull(retainedError, repository.userMessage(e)).joinToString("\n"),
-                actions = emptyList(), actionMessage = "当前预约状态同步失败，请连接校园网或图书馆 Wi-Fi 后刷新。") } }
+                currentReservation = null, actions = emptyList(), actionMessage = "当前预约状态同步失败，请连接校园网或图书馆 Wi-Fi 后刷新。") } }
             finally { if (coroutineContext[Job]?.isActive == true) hubState.update { it.copy(loading = false) } }
         }
     }
@@ -630,6 +637,7 @@ class LibraryFeatureViewModel internal constructor(
             mutationState.value = true
             actionRefreshRequired = true
             hubState.update { it.copy(loading = true, error = null, actions = emptyList(),
+                currentReservation = it.currentReservation?.copy(canCancel = false),
                 records = it.records.map { record -> record.copy(canCancel = false) }, selectedRecord = null,
                 detailsLoading = false, detailsError = null) }
             var error: String? = null

@@ -95,6 +95,7 @@ data class LibraryHubState(
     val favorites: List<HubFavorite> = emptyList(),
     val currentStatus: String = "",
     val currentDetails: List<String> = emptyList(),
+    val currentReservation: HubRecord? = null,
     val actions: List<HubAction> = emptyList(),
     val hasMore: Boolean = false,
     val notice: String? = null,
@@ -141,13 +142,16 @@ fun LibraryHubScreen(
     val context = LocalContext.current
     var confirmingAction by remember(state.currentStatus, state.currentDetails) { mutableStateOf<HubAction?>(null) }
     var removingFavorite by remember(state.section) { mutableStateOf<HubFavorite?>(null) }
-    var cancellingRecord by remember(state.section) { mutableStateOf<HubRecord?>(null) }
+    var cancellingRecord by remember(state.section, state.currentStatus, state.currentReservation) { mutableStateOf<HubRecord?>(null) }
     var bookingFavorite by remember(state.section) { mutableStateOf<HubFavorite?>(null) }
     val maximumDialogHeight = (LocalConfiguration.current.screenHeightDp.dp * 0.45f).coerceAtMost(360.dp)
-    LaunchedEffect(state.actions, state.favorites, state.records) {
+    LaunchedEffect(state.actions, state.favorites, state.records, state.currentReservation) {
         if (confirmingAction?.id?.let { id -> state.actions.none { it.id == id } } == true) confirmingAction = null
         if (removingFavorite?.id?.let { id -> state.favorites.none { it.id == id && it.local } } == true) removingFavorite = null
-        if (cancellingRecord?.id?.let { id -> state.records.none { it.id == id && it.canCancel } } == true) cancellingRecord = null
+        if (cancellingRecord?.id?.let { id ->
+            state.records.none { it.id == id && it.canCancel } &&
+                state.currentReservation?.let { it.id == id && it.canCancel } != true
+        } == true) cancellingRecord = null
     }
     BackHandler(enabled = state.selectedRecord != null || cancellingRecord != null || confirmingAction != null || removingFavorite != null) {
         when {
@@ -200,7 +204,8 @@ fun LibraryHubScreen(
         }
         if (state.section == HubSection.RESERVATIONS) {
             item(key = "current") {
-                HubCurrentReservation(state, onRefresh, onConfirmAction = { confirmingAction = it }, onLocateSeat = onLocateSeat)
+                HubCurrentReservation(state, onRefresh, onConfirmAction = { confirmingAction = it }, onLocateSeat = onLocateSeat,
+                    onCancelReservation = { cancellingRecord = it })
             }
             if (state.requiresLibraryWifi || state.currentStatus == "LOC_RESTRICT") item(key = "wifi") {
                 Surface(color = SoftAccent, shape = RoundedCornerShape(16.dp)) {
@@ -471,13 +476,15 @@ private fun HubSectionSwitch(selected: HubSection, enabled: Boolean, onSection: 
 
 @Composable
 internal fun HubCurrentReservation(state: LibraryHubState, onRefresh: () -> Unit, onConfirmAction: (HubAction) -> Unit,
-    onOpenDetails: (() -> Unit)? = null, onLocateSeat: ((ReservationMapTarget) -> Unit)? = null) {
+    onOpenDetails: (() -> Unit)? = null, onLocateSeat: ((ReservationMapTarget) -> Unit)? = null,
+    onCancelReservation: ((HubRecord) -> Unit)? = null) {
     val details = state.currentDetails.filter { it.isNotBlank() }.distinct()
     val summary = currentReservationSummary(details)
     val configuration = LocalConfiguration.current
     val actionsPerRow = if (LocalDensity.current.fontScale > 1.2f || configuration.screenWidthDp < 330) 2 else 3
     val primaryAction = state.actions.firstOrNull { !it.destructive }
     val mapTarget = if (state.currentStatus !in setOf("", "NO_RESERVATION")) reservationMapTarget(details) else null
+    val cancellableReservation = state.currentReservation?.takeIf { it.canCancel }
     LibraryCard(highlighted = true) {
         Column(Modifier.fillMaxWidth().semantics { contentDescription = "当前预约卡片" }, verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -522,8 +529,9 @@ internal fun HubCurrentReservation(state: LibraryHubState, onRefresh: () -> Unit
                     }
                 }
             }
-            if (onOpenDetails != null || (onLocateSeat != null && mapTarget != null)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (onOpenDetails != null || (onLocateSeat != null && mapTarget != null) ||
+                (cancellableReservation != null && onCancelReservation != null)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (onLocateSeat != null && mapTarget != null) TextButton(onClick = { onLocateSeat(mapTarget) }, enabled = !state.loading,
                         modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 4.dp)) {
                         Icon(Icons.Outlined.LocationOn, null, modifier = Modifier.size(16.dp))
@@ -532,6 +540,13 @@ internal fun HubCurrentReservation(state: LibraryHubState, onRefresh: () -> Unit
                     }
                     if (onOpenDetails != null) TextButton(onClick = onOpenDetails, enabled = !state.loading,
                         modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(horizontal = 4.dp)) { Text("查看我的预约", fontSize = 13.sp) }
+                    if (cancellableReservation != null && onCancelReservation != null) {
+                        OutlinedButton(onClick = { onCancelReservation(cancellableReservation) }, enabled = !state.loading,
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            border = BorderStroke(1.dp, Line)) { Text("取消预约", fontSize = 13.sp) }
+                    }
                 }
             }
             if (state.currentStatus.isBlank() && !state.loading) {

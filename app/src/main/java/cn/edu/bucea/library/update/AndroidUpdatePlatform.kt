@@ -10,6 +10,8 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.StatFs
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -68,13 +70,29 @@ class AndroidUpdatePlatform(private val context: Context) : UpdatePlatform {
 
     override fun status(id: Long): DownloadSnapshot = manager.query(DownloadManager.Query().setFilterById(id))?.use { cursor ->
         if (!cursor.moveToFirst()) return@use DownloadSnapshot(DownloadStatus.MISSING)
-        val status = when (cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))) {
+        val systemStatus = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+        val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
+        val status = when (systemStatus) {
             DownloadManager.STATUS_SUCCESSFUL -> DownloadStatus.COMPLETE
             DownloadManager.STATUS_FAILED -> DownloadStatus.FAILED
             else -> DownloadStatus.RUNNING
         }
+        val message = when (systemStatus) {
+            DownloadManager.STATUS_PENDING -> "正在等待开始下载"
+            DownloadManager.STATUS_PAUSED -> when (reason) {
+                DownloadManager.PAUSED_WAITING_FOR_NETWORK -> "正在等待网络连接，恢复后自动继续"
+                DownloadManager.PAUSED_QUEUED_FOR_WIFI -> "正在等待 Wi-Fi 连接"
+                else -> "下载暂时中断，系统将自动重试"
+            }
+            DownloadManager.STATUS_FAILED -> when (reason) {
+                DownloadManager.ERROR_INSUFFICIENT_SPACE -> "存储空间不足，请清理后重试"
+                DownloadManager.ERROR_DEVICE_NOT_FOUND -> "下载目录不可用，请检查存储后重试"
+                else -> "下载失败，请检查网络后重试"
+            }
+            else -> null
+        }
         DownloadSnapshot(status, cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR)),
-            cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)))
+            cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES)), message)
     } ?: DownloadSnapshot(DownloadStatus.MISSING)
 
     override fun removeDownload(id: Long) { manager.remove(id) }
@@ -122,6 +140,7 @@ class AndroidUpdatePlatform(private val context: Context) : UpdatePlatform {
                         val buffer = ByteArray(64 * 1024)
                         var copied = 0L
                         while (true) {
+                            currentCoroutineContext().ensureActive()
                             val count = input.read(buffer)
                             if (count < 0) break
                             copied += count
@@ -140,18 +159,20 @@ class AndroidUpdatePlatform(private val context: Context) : UpdatePlatform {
     }
 
     @Suppress("DEPRECATION")
-    private fun verifyArchive(file: File, manifest: UpdateManifest) {
+    private suspend fun verifyArchive(file: File, manifest: UpdateManifest) {
         require(file.length() == manifest.size) { "更新文件大小不匹配" }
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input ->
             val buffer = ByteArray(64 * 1024)
             while (true) {
+                currentCoroutineContext().ensureActive()
                 val count = input.read(buffer)
                 if (count < 0) break
                 digest.update(buffer, 0, count)
             }
         }
         require(digest.digest().hex() == manifest.sha256) { "更新文件摘要校验失败，请重新下载" }
+        currentCoroutineContext().ensureActive()
         val archive = context.packageManager.getPackageArchiveInfo(file.path, signingFlags)
             ?: throw IllegalArgumentException("无法读取 APK 或其签名")
         require(archive.packageName == context.packageName && archive.packageName == manifest.packageName) { "APK 包名不匹配" }
