@@ -7,8 +7,8 @@
 ## 自动检查
 
 - ABI 选择、通用包回退和非法变体校验已加入 JVM 测试。
-- 发布工具测试和官网构建测试待本轮发布前执行。
+- 发布工具测试 44 项、官网构建测试 14 项通过；Debug / Release JVM 测试各 148 项通过，Lint 无 Error。
 
 ## 发布与公网
 
-待记录 `v1.0.5` Release、R2 清单、官网部署及五个 APK 的完整下载摘要。
+`v1.0.5` Release 已正式发布，Release 工作流 `39594362697` 的 publish 与 website job 均成功。更新清单为 versionCode 19，包含 universal、arm64-v8a、armeabi-v7a、x86 和 x86_64 五个包；ARM64 包大小约 33.9MB，通用包约 53.1MB。
