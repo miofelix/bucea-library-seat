@@ -1,5 +1,6 @@
 package cn.edu.bucea.library.update
 
+import android.os.Build
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Authenticator
@@ -12,10 +13,13 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /** Never reuse the campus repository's client, cookie jar, credentials or interceptors. */
-class UpdateHttpClient(private val packageName: String) {
+class UpdateHttpClient(
+    private val packageName: String,
+    private val preferredAbis: List<String> = Build.SUPPORTED_ABIS.toList(),
+) {
     internal val client = secureUpdateClient()
 
-    suspend fun fetch(): UpdateManifest = withContext(Dispatchers.IO) {
+    suspend fun fetch(preferredAbis: List<String> = this.preferredAbis): UpdateManifest = withContext(Dispatchers.IO) {
         val request = Request.Builder().url(UpdateManifestUrl)
             .header("Accept", "application/json").header("Cache-Control", "no-cache").build()
         client.newCall(request).execute().use { response ->
@@ -32,7 +36,7 @@ class UpdateHttpClient(private val packageName: String) {
                     output.write(buffer, 0, count)
                 }
             }
-            UpdateManifest.parse(JSONObject(output.toString("UTF-8")), packageName)
+            UpdateManifest.parse(JSONObject(output.toString("UTF-8")), packageName, preferredAbis)
         }
     }
 }

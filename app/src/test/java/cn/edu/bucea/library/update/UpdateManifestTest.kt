@@ -2,6 +2,7 @@ package cn.edu.bucea.library.update
 
 import okhttp3.Authenticator
 import okhttp3.CookieJar
+import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
@@ -34,6 +35,30 @@ class UpdateManifestTest {
         assertEquals(123L, parsed.assetId)
         assertEquals("$UpdateBaseUrl/releases/v1.0.0/$filename", parsed.url)
         assertEquals(parsed, UpdateManifest.parse(parsed.toJson(), packageName))
+    }
+
+    @Test fun selectsTheFirstPreferredAbiAndFallsBackToUniversal() {
+        val arm64Name = "BUCEA-Library-Seat-v0.3.5-arm64-v8a.apk"
+        val arm64 = JSONObject().put("abi", "arm64-v8a").put("minSdk", 26)
+            .put("assetId", 124).put("name", arm64Name).put("size", 900)
+            .put("sha256", "b".repeat(64)).put("url", updateApkUrl("v0.3.5-beta.1", arm64Name))
+        val json = valid().put("apkVariants", JSONArray().put(arm64))
+        assertEquals(arm64Name, UpdateManifest.parse(json, packageName, listOf("arm64-v8a")).apkName)
+        assertEquals("BUCEA-Library-Seat-v0.3.5.apk", UpdateManifest.parse(json, packageName, listOf("x86_64")).apkName)
+    }
+
+    @Test fun invalidAbiVariantsAreRejectedEvenWhenDeviceWouldUseUniversal() {
+        val variant = JSONObject().put("abi", "mips").put("minSdk", 26)
+            .put("assetId", 124).put("name", "variant.apk").put("size", 900)
+            .put("sha256", "b".repeat(64)).put("url", updateApkUrl("v0.3.5-beta.1", "variant.apk"))
+        rejects(valid().put("apkVariants", JSONArray().put(variant)))
+    }
+
+    @Test fun abiVariantMustUseItsCanonicalVersionedFilename() {
+        val variant = JSONObject().put("abi", "arm64-v8a").put("minSdk", 26)
+            .put("assetId", 124).put("name", "BUCEA-Library-Seat-v0.3.5.apk").put("size", 900)
+            .put("sha256", "b".repeat(64)).put("url", updateApkUrl("v0.3.5-beta.1", "BUCEA-Library-Seat-v0.3.5.apk"))
+        rejects(valid().put("apkVariants", JSONArray().put(variant)))
     }
 
     @Test fun urlsRejectHttpRedirectTargetsPortsCredentialsQueriesAndEncodedPaths() {

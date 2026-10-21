@@ -121,7 +121,7 @@ class CloudflarePublishTest(unittest.TestCase):
         for put in puts[:5]:
             self.assertEqual("application/vnd.android.package-archive", put["ContentType"])
             self.assertIn("attachment;", put["ContentDisposition"])
-        self.assertNotIn("apkVariants", latest)
+        self.assertEqual(list(SUPPORTED_ABIS), [item["abi"] for item in latest["apkVariants"]])
         self.assertNotIn("api.github.com", json.dumps(public))
 
     def test_retry_is_idempotent_without_rewriting_immutable_files_or_pointers(self):

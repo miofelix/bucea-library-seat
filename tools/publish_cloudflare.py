@@ -161,6 +161,13 @@ def prepare_release(directory, release, download_origin=DOWNLOAD_ORIGIN, prefix=
                         "content_type": "application/vnd.android.package-archive", "filename": apk["name"]})
     public = core | release_fields | {"downloads": downloads}
     latest = core | release_fields | {"apk": dict(downloads["universal"])}
+    if "apkVariants" in value:
+        # Keep the updater manifest self-contained so the client can choose the
+        # package matching its primary ABI without downloading the universal APK.
+        latest["apkVariants"] = [
+            {"abi": abi, "minSdk": core["minSdk"], **downloads[abi]}
+            for abi in SUPPORTED_ABIS
+        ]
     descriptor = json_bytes(public)
     objects.append({"key": f"{prefix}/releases/{release_fields['releaseTag']}/release.json", "body": descriptor,
                     "size": len(descriptor), "sha256": hashlib.sha256(descriptor).hexdigest(),
@@ -250,7 +257,27 @@ def validate_latest(value, download_origin=DOWNLOAD_ORIGIN, prefix=PREFIX):
             or raw.get("url") != download_origin + "/" + quote(key)
             or apk["name"] != f"BUCEA-Library-Seat-v{core['versionName']}.apk"):
         raise ValueError("stored update manifest has an invalid APK URL or filename")
-    return core | identity | {"apk": apk | {"assetId": raw["assetId"], "url": raw["url"]}}
+    result = core | identity | {"apk": apk | {"assetId": raw["assetId"], "url": raw["url"]}}
+    if "apkVariants" in value:
+        variants = value["apkVariants"]
+        if not isinstance(variants, list) or len(variants) != len(SUPPORTED_ABIS):
+            raise ValueError("stored update manifest has incomplete variants")
+        cleaned = []
+        for abi, variant in zip(SUPPORTED_ABIS, variants):
+            if (not isinstance(variant, dict) or variant.get("abi") != abi
+                    or type(variant.get("minSdk")) is not int
+                    or variant["minSdk"] != core["minSdk"]):
+                raise ValueError("stored update manifest has invalid ABI metadata")
+            expected_name = f"BUCEA-Library-Seat-v{core['versionName']}-{abi}.apk"
+            metadata = validate_apk(variant, expected_name)
+            key = f"{prefix}/releases/{identity['releaseTag']}/{metadata['name']}"
+            if (not positive_int(variant.get("assetId"))
+                    or variant.get("url") != download_origin + "/" + quote(key)):
+                raise ValueError("stored update manifest has an invalid ABI URL or identity")
+            cleaned.append({"abi": abi, "minSdk": core["minSdk"], **metadata,
+                            "assetId": variant["assetId"], "url": variant["url"]})
+        result["apkVariants"] = cleaned
+    return result
 
 
 def rank(value):

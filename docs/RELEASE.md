@@ -1,6 +1,6 @@
 # Android 发布
 
-APK 的构建、签名和 GitHub 发布在保存原签名密钥的开发机上执行；发布后由 GitHub Actions 将成品与清单分发到 Cloudflare R2，官网由 Cloudflare Pages 托管。版本在 `app/build.gradle.kts` 中维护，本次版本为 **1.0.4 / versionCode 18**，每次后续更新递增 `versionCode`。本次更新完善暂离后的座位信息与定位、未签到预约的取消入口，并优化应用更新的流畅度与操作反馈，发行说明见 [releases/1.0.4.md](releases/1.0.4.md)。本次构建、签名、设备和公网验证进度见 [RELEASE_VALIDATION_1.0.4.md](RELEASE_VALIDATION_1.0.4.md)。
+APK 的构建、签名和 GitHub 发布在保存原签名密钥的开发机上执行；发布后由 GitHub Actions 将成品与清单分发到 Cloudflare R2，官网由 Cloudflare Pages 托管。版本在 `app/build.gradle.kts` 中维护，本次版本为 **1.0.5 / versionCode 19**，每次后续更新递增 `versionCode`。本次更新让应用更新按设备 ABI 优先选择对应安装包，并保留通用包回退，发行说明见 [releases/1.0.5.md](releases/1.0.5.md)。本次构建、签名、设备和公网验证进度见 [RELEASE_VALIDATION_1.0.5.md](RELEASE_VALIDATION_1.0.5.md)。
 
 ## 构建
 
@@ -9,7 +9,7 @@ APK 的构建、签名和 GitHub 发布在保存原签名密钥的开发机上�
 ```sh
 python3 -m unittest discover -s tools/tests -v
 ./gradlew :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lint :app:lintRelease
-./gradlew -PreleaseDistributions=true -PreleaseTag=v1.0.4 -PreleaseNotesFile=docs/releases/1.0.4.md :app:stageReleaseApk
+./gradlew -PreleaseDistributions=true -PreleaseTag=v1.0.5 -PreleaseNotesFile=docs/releases/1.0.5.md :app:stageReleaseApk
 ```
 
 有日常数据的真机不要使用会在测试结束时卸载目标 App 的 `connectedDebugAndroidTest`；应通过 `adb install -r` 显式覆盖安装已构建的 APK，再调用 `am instrument` 运行测试，避免自动卸载清理本机数据。

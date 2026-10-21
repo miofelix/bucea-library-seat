@@ -17,8 +17,8 @@ android {
         applicationId = "cn.edu.bucea.library"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
-        versionName = "1.0.4"
+        versionCode = 19
+        versionName = "1.0.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

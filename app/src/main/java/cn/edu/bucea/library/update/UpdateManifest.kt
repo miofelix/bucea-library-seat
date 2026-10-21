@@ -2,6 +2,8 @@ package cn.edu.bucea.library.update
 
 import org.json.JSONObject
 
+private val SupportedUpdateAbis = setOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+
 const val UpdateOrigin = "https://download.miofelix.com"
 const val UpdateBaseUrl = "$UpdateOrigin/bucea-library-seat"
 const val UpdateManifestUrl = "$UpdateBaseUrl/updates/latest.json"
@@ -33,30 +35,80 @@ data class UpdateManifest(
             .put("sha256", sha256).put("url", url))
 
     companion object {
-        fun parse(json: JSONObject, expectedPackage: String): UpdateManifest {
+        /**
+         * Parse the release metadata and select the first APK matching the device ABI order.
+         * Older manifests only contain [apk], which remains the universal fallback.
+         */
+        fun parse(
+            json: JSONObject,
+            expectedPackage: String,
+            preferredAbis: List<String> = emptyList(),
+        ): UpdateManifest {
             require(json.strictLong("schemaVersion") == 1L) { "更新清单格式不受支持" }
-            val apk = json.getJSONObject("apk")
+            val packageName = json.strictString("packageName")
+            val versionCode = json.strictLong("versionCode")
+            val versionName = json.strictString("versionName")
+            val minSdk = json.strictLong("minSdk").also { require(it in 1..1000) }.toInt()
+            val notes = json.strictString("notes")
+            val prerelease = (json.get("prerelease") as? Boolean) ?: error("更新清单缺少版本类型")
+            val releaseTag = json.strictString("releaseTag")
+            val universal = parseArtifact(json.getJSONObject("apk"), releaseTag)
+            val variants = parseVariants(json, releaseTag, versionName, minSdk)
+            val selected = preferredAbis.firstNotNullOfOrNull { variants[it] } ?: universal
             val manifest = UpdateManifest(
-                json.strictString("packageName"), json.strictLong("versionCode"), json.strictString("versionName"),
-                json.strictLong("minSdk").also { require(it in 1..1000) }.toInt(), json.strictString("notes"),
-                apk.strictLong("assetId"), apk.strictString("name"), apk.strictLong("size"),
-                apk.strictString("sha256"), apk.strictString("url"),
-                (json.get("prerelease") as? Boolean) ?: error("更新清单缺少版本类型"), json.strictString("releaseTag"),
+                packageName, versionCode, versionName, minSdk, notes,
+                selected.assetId, selected.name, selected.size, selected.sha256, selected.url,
+                prerelease, releaseTag,
             )
             require(manifest.packageName == expectedPackage) { "更新包名不匹配" }
             require(manifest.versionCode in 1..2_100_000_000L && manifest.assetId > 0) { "更新版本无效" }
             require(manifest.versionName.length in 1..100 &&
                 manifest.releaseTag.matches(Regex("v[0-9][A-Za-z0-9._-]{0,198}")) &&
                 manifest.notes.length <= 16000) { "更新说明无效" }
-            require(manifest.size in 1..MaxUpdateApkBytes && manifest.sha256.matches(Regex("[0-9a-f]{64}"))) {
-                "更新文件校验信息无效"
-            }
-            require(manifest.apkName.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,180}\\.apk"))) { "更新文件名无效" }
-            // Exact comparison also rejects user-info, alternate ports, queries, fragments,
-            // encoded paths and lookalike/subdomains. Only the project HTTPS origin is allowed.
-            require(manifest.url == updateApkUrl(manifest.releaseTag, manifest.apkName)) { "更新下载地址无效" }
             return manifest
         }
+
+        private fun parseVariants(json: JSONObject, releaseTag: String, versionName: String, minSdk: Int): Map<String, ApkArtifact> {
+            val raw = json.opt("apkVariants") ?: return emptyMap()
+            val array = raw as? org.json.JSONArray ?: error("更新清单 ABI 变体格式无效")
+            require(array.length() <= SupportedUpdateAbis.size) { "更新清单 ABI 变体过多" }
+            val variants = linkedMapOf<String, ApkArtifact>()
+            for (index in 0 until array.length()) {
+                val entry = array.optJSONObject(index) ?: error("更新清单 ABI 变体格式无效")
+                val abi = entry.strictString("abi")
+                val artifact = parseArtifact(entry, releaseTag)
+                require(abi in SupportedUpdateAbis && artifact.name == "BUCEA-Library-Seat-v$versionName-$abi.apk" &&
+                    variants.put(abi, artifact) == null) {
+                    "更新清单 ABI 变体无效"
+                }
+                require(entry.strictLong("minSdk") == minSdk.toLong()) { "更新清单 ABI 最低版本不一致" }
+            }
+            return variants
+        }
+
+        private fun parseArtifact(apk: JSONObject, releaseTag: String): ApkArtifact {
+            val artifact = ApkArtifact(
+                apk.strictLong("assetId"), apk.strictString("name"), apk.strictLong("size"),
+                apk.strictString("sha256"), apk.strictString("url"),
+            )
+            require(artifact.assetId > 0) { "更新版本无效" }
+            require(artifact.size in 1..MaxUpdateApkBytes && artifact.sha256.matches(Regex("[0-9a-f]{64}"))) {
+                "更新文件校验信息无效"
+            }
+            require(artifact.name.matches(Regex("[A-Za-z0-9][A-Za-z0-9._-]{0,180}\\.apk"))) { "更新文件名无效" }
+            // Exact comparison also rejects user-info, alternate ports, queries, fragments,
+            // encoded paths and lookalike/subdomains. Only the project HTTPS origin is allowed.
+            require(artifact.url == updateApkUrl(releaseTag, artifact.name)) { "更新下载地址无效" }
+            return artifact
+        }
+
+        private data class ApkArtifact(
+            val assetId: Long,
+            val name: String,
+            val size: Long,
+            val sha256: String,
+            val url: String,
+        )
     }
 }
 
