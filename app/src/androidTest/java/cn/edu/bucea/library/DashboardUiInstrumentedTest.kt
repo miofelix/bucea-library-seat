@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import cn.edu.bucea.library.ui.Dashboard
+import cn.edu.bucea.library.ui.HubAction
+import cn.edu.bucea.library.ui.HubRecord
 import cn.edu.bucea.library.ui.LibraryHubState
 import cn.edu.bucea.library.ui.LibraryTheme
 import org.junit.Assert.assertEquals
@@ -82,6 +84,32 @@ class DashboardUiInstrumentedTest {
             assertEquals("Removed favorites shortcut must not call favorites navigation", 0, callbacks.favorites.get())
             assertEquals("Navigation must not initiate login", 0, callbacks.login.get())
             assertEquals("Navigation must not initiate account edits", 0, callbacks.accounts.get())
+        }
+    }
+
+    @Test fun dashboardOmitsCheckInAndWifiGuidanceButPreservesReservationNavigation() {
+        val details = listOf("座位：A101", "位置：图书馆二层东区", "时间：09:00 — 11:00")
+        val record = HubRecord("fixture-home-wifi", "测试预约 A101", "已预约", details)
+        for (connected in listOf(false, true)) {
+            val state = mutableStateOf(fixtureState())
+            val callbacks = Callbacks()
+            val hub = LibraryHubState(currentStatus = if (connected) "RESERVE" else "LOC_RESTRICT",
+                currentDetails = details, currentReservation = record, requiresLibraryWifi = !connected,
+                actions = if (connected) listOf(HubAction("checkIn", "签到", "合成签到操作")) else emptyList())
+            withDashboard(state, callbacks, hub) {
+                findWithScroll("The home reservation must retain its seat information") { findText("A101") }
+                val detailsAction = findWithScroll("The home reservation must retain its details link") { findText("查看我的预约") }
+                for (text in listOf("签到", "签到需连接图书馆 Wi-Fi", "打开 Wi-Fi 设置", "已连接，刷新状态")) {
+                    assertFalse("Home must omit check-in controls and Wi-Fi guidance regardless of connection: $text", hasText(text))
+                }
+                assertFalse("Home must remove the location-restricted status badge", hasText("位置受限"))
+                if (InstrumentationRegistry.getArguments().getString("captureWifiCheckInScreenshots") == "true") {
+                    captureFixture("dashboard-current-reservation-${if (connected) "connected" else "restricted"}")
+                }
+                click(detailsAction)
+                waitFor("Home must preserve navigation to the reservation flow") { callbacks.reservations.get() == 1 }
+                assertEquals("Home reservation navigation must not initiate a network refresh", 0, callbacks.refresh.get())
+            }
         }
     }
 

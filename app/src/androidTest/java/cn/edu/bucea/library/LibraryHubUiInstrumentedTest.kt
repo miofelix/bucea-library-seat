@@ -106,8 +106,9 @@ class LibraryHubUiInstrumentedTest {
         val state = mutableStateOf(LibraryHubState(currentStatus = "LOC_RESTRICT", requiresLibraryWifi = true))
         withHub(state, onRefresh = { refreshes.incrementAndGet() }, onAction = { actions.incrementAndGet() }) {
             waitFor("A location restriction must explain how to reconnect") {
-                hasText("请连接图书馆 Wi-Fi 后刷新")
+                hasText("签到需连接图书馆 Wi-Fi")
             }
+            assertFalse("A location restriction must not be shown as a reservation status", hasText("位置受限"))
             assertFalse("A known Wi-Fi requirement must not be described as unsupported", hasText("当前网络暂不支持操作座位"))
             assertFalse("A known Wi-Fi requirement must not be described as unsupported", hasText("当前网络不支持操作座位"))
             findWithScroll("Check-in must explicitly require library Wi-Fi") { findText("签到需连接图书馆 Wi-Fi") }
@@ -116,6 +117,99 @@ class LibraryHubUiInstrumentedTest {
             click(findWithScroll("Reconnect must offer a refresh action") { findText("已连接，刷新状态") })
             waitFor("Refresh must call the synthetic refresh callback once") { refreshes.get() == 1 }
             assertEquals("Connectivity guidance must not submit a seat action", 0, actions.get())
+        }
+    }
+
+    @Test fun restrictedPendingCheckInIsDisabledUntilRefreshAndStaysReadableAtLargeTextSize() {
+        val date = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+        val details = listOf("座位：A101", "位置：图书馆二层东区", "日期：$date", "时间：09:00 — 11:00")
+        val record = HubRecord("fixture-wifi-checkin", "测试预约 A101", "已预约", details, canCancel = true)
+        val checkIn = HubAction("checkIn", "签到", "合成签到操作")
+        for (fontScale in listOf(1f, 1.6f)) {
+            val refreshes = AtomicInteger()
+            val submissions = AtomicInteger()
+            val state = mutableStateOf(LibraryHubState(currentStatus = "LOC_RESTRICT", requiresLibraryWifi = true,
+                currentDetails = details, currentReservation = record))
+            withHub(state, fontScale = fontScale, onAction = { submissions.incrementAndGet() }, onRefresh = {
+                refreshes.incrementAndGet()
+                state.value = state.value.copy(currentStatus = "RESERVE", requiresLibraryWifi = false, actions = listOf(checkIn))
+            }) {
+                val disabled = findWithScroll("A pending reservation must retain its check-in button outside library Wi-Fi") { findText("签到") }
+                val target = clickableParent(disabled) ?: disabled
+                assertFalse("Check-in must be disabled outside library Wi-Fi", target.isEnabled)
+                assertTrue("Accessibility must explain why check-in is disabled",
+                    target.stateDescription?.contains("需连接图书馆 Wi-Fi") == true)
+                val buttonBounds = Rect().apply { target.getBoundsInScreen(this) }
+                val minimum = 48f * instrumentation.targetContext.resources.displayMetrics.density
+                assertTrue("Disabled check-in must retain its normal button height", buttonBounds.height() >= minimum - 1f)
+                assertFalse("The removed status badge must not remain", hasText("位置受限"))
+                assertFalse("The removed status badge must not be replaced by Wi-Fi status text", hasText("需连接馆内 Wi-Fi"))
+                tap(target)
+                instrumentation.waitForIdleSync()
+                assertFalse("Tapping disabled check-in must not open confirmation", hasText("确认签到"))
+                assertEquals("Disabled check-in must not submit any action", 0, submissions.get())
+                val title = findWithScroll("The disabled button must have prominent Wi-Fi guidance") { findText("签到需连接图书馆 Wi-Fi") }
+                val titleBounds = Rect().apply { title.getBoundsInScreen(this) }
+                val windowBounds = Rect().apply { requireNotNull(automation.rootInActiveWindow).getBoundsInScreen(this) }
+                assertTrue("The complete Wi-Fi title must remain within the screen at $fontScale font scale", windowBounds.contains(titleBounds))
+                val settings = findWithScroll("Wi-Fi settings must remain fully available at $fontScale font scale") { findText("打开 Wi-Fi 设置") }
+                val settingsBounds = Rect().apply { requireNotNull(clickableParent(settings)).getBoundsInScreen(this) }
+                val refresh = findWithScroll("The reconnect refresh must remain fully available at $fontScale font scale") { findText("已连接，刷新状态") }
+                val refreshBounds = Rect().apply { requireNotNull(clickableParent(refresh)).getBoundsInScreen(this) }
+                if (fontScale > 1.2f) {
+                    assertTrue("Large text must stack the two Wi-Fi actions without crowding", refreshBounds.top >= settingsBounds.bottom)
+                } else {
+                    assertEquals("Normal text must keep the Wi-Fi actions on one row", settingsBounds.top, refreshBounds.top)
+                }
+                if (InstrumentationRegistry.getArguments().getString("captureWifiCheckInScreenshots") == "true") {
+                    captureCurrentReservation("wifi-${if (fontScale > 1.2f) "large" else "normal"}")
+                }
+                click(findWithScroll("Reconnecting must offer a refresh") { findText("已连接，刷新状态") })
+                waitFor("Refreshing after connection must enable the same check-in button") {
+                    findText("签到")?.let { (clickableParent(it) ?: it).isEnabled } == true
+                }
+                assertEquals("Reconnect must refresh once", 1, refreshes.get())
+                assertFalse("A permitted check-in must remove the Wi-Fi guidance", hasText("签到需连接图书馆 Wi-Fi"))
+                if (InstrumentationRegistry.getArguments().getString("captureWifiCheckInScreenshots") == "true") {
+                    captureCurrentReservation("connected-${if (fontScale > 1.2f) "large" else "normal"}")
+                }
+                click(requireNode("Connected check-in must remain available") { findText("签到") })
+                waitFor("Connected check-in must retain its confirmation") { hasText("确认签到") }
+                assertEquals("Opening check-in confirmation must not submit", 0, submissions.get())
+                click(requireNode("Connected check-in must require an explicit confirmation") { findControl("确认签到") })
+                waitFor("Confirmed synthetic check-in must submit exactly once") { submissions.get() == 1 }
+            }
+        }
+    }
+
+    @Test fun wifiRestrictionDismissesAnOpenCheckInConfirmationAndDisablesItsButton() {
+        val submissions = AtomicInteger()
+        val state = mutableStateOf(LibraryHubState(currentStatus = "RESERVE",
+            actions = listOf(HubAction("checkIn", "签到", "合成签到操作"))))
+        withHub(state, onAction = { submissions.incrementAndGet() }) {
+            click(findWithScroll("An authorized reservation must offer check-in") { findText("签到") })
+            waitFor("Authorized check-in must open confirmation") { hasText("确认签到") }
+            instrumentation.runOnMainSync { state.value = state.value.copy(requiresLibraryWifi = true) }
+            waitFor("A new Wi-Fi restriction must close an obsolete confirmation") { !hasText("确认签到") }
+            val disabled = findWithScroll("A refused check-in must remain visible") { findText("签到") }
+            assertFalse("An explicit Wi-Fi refusal must disable a previously authorized check-in", (clickableParent(disabled) ?: disabled).isEnabled)
+            tap(disabled)
+            instrumentation.waitForIdleSync()
+            assertFalse("A disabled check-in must not reopen confirmation", hasText("确认签到"))
+            assertEquals("Losing Wi-Fi authorization must not submit check-in", 0, submissions.get())
+        }
+    }
+
+    @Test fun restrictedInUseOrUnknownReservationsDoNotOfferAnotherCheckIn() {
+        val state = mutableStateOf(LibraryHubState(currentStatus = "LOC_RESTRICT", requiresLibraryWifi = true))
+        withHub(state) {
+            for (status in listOf("使用中", "暂离", "结束使用", "已取消", "")) {
+                instrumentation.runOnMainSync {
+                    state.value = state.value.copy(currentReservation = HubRecord("fixture-not-pending", "测试预约", status, emptyList()))
+                }
+                instrumentation.waitForIdleSync()
+                assertFalse("A $status reservation must not imply a pending check-in", hasText("签到"))
+            }
         }
     }
 
@@ -876,6 +970,12 @@ class LibraryHubUiInstrumentedTest {
         val clickable = clickableParent(node)
         assertTrue("The verified fixture control must be enabled", (clickable ?: node).isEnabled)
         if (clickable?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true) return
+        tap(node)
+    }
+
+    /** Physical taps also verify that disabled Compose controls reject touch input. */
+    private fun tap(node: AccessibilityNodeInfo) {
+        assertEquals("Only synthetic application content may receive taps", appPackage, node.packageName?.toString())
         val bounds = Rect().apply { node.getBoundsInScreen(this) }
         val window = Rect().apply { automation.rootInActiveWindow?.getBoundsInScreen(this) }
         assertTrue("The fixture target must intersect the active window", bounds.intersect(window) && !bounds.isEmpty)

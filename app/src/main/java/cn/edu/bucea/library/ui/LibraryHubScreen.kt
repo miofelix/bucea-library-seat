@@ -37,6 +37,7 @@ import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material.icons.outlined.Wifi
 import androidx.compose.material3.Button
@@ -71,6 +72,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -139,8 +141,7 @@ fun LibraryHubScreen(
     onLocateSeat: ((ReservationMapTarget) -> Unit)? = null,
     onLocateRecord: ((HubRecord) -> Unit)? = null,
 ) {
-    val context = LocalContext.current
-    var confirmingAction by remember(state.currentStatus, state.currentDetails) { mutableStateOf<HubAction?>(null) }
+    var confirmingAction by remember(state.currentStatus, state.currentDetails, state.requiresLibraryWifi) { mutableStateOf<HubAction?>(null) }
     var removingFavorite by remember(state.section) { mutableStateOf<HubFavorite?>(null) }
     var cancellingRecord by remember(state.section, state.currentStatus, state.currentReservation) { mutableStateOf<HubRecord?>(null) }
     var bookingFavorite by remember(state.section) { mutableStateOf<HubFavorite?>(null) }
@@ -206,31 +207,6 @@ fun LibraryHubScreen(
             item(key = "current") {
                 HubCurrentReservation(state, onRefresh, onConfirmAction = { confirmingAction = it }, onLocateSeat = onLocateSeat,
                     onCancelReservation = { cancellingRecord = it })
-            }
-            if (state.requiresLibraryWifi || state.currentStatus == "LOC_RESTRICT") item(key = "wifi") {
-                Surface(color = SoftAccent, shape = RoundedCornerShape(16.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Outlined.Wifi, null, tint = Accent, modifier = Modifier.size(20.dp))
-                            Text("签到需连接图书馆 Wi-Fi", color = Ink, fontWeight = FontWeight.Medium, fontSize = 13.sp)
-                        }
-                        Text(
-                            state.actionMessage.takeIf { it.isNotBlank() }
-                                ?: "到馆后连接图书馆内部 Wi-Fi，再刷新预约状态。",
-                            color = Muted, fontSize = 12.sp, lineHeight = 20.sp,
-                        )
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            TextButton(
-                                onClick = { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) },
-                                modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(4.dp),
-                            ) { Text("打开 Wi-Fi 设置", fontSize = 12.sp) }
-                            TextButton(
-                                enabled = !state.loading, onClick = onRefresh,
-                                modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(4.dp),
-                            ) { Text("已连接，刷新状态", fontSize = 12.sp) }
-                        }
-                    }
-                }
             }
         }
         state.notice?.takeIf { it.isNotBlank() }?.let { notice ->
@@ -482,7 +458,9 @@ internal fun HubCurrentReservation(state: LibraryHubState, onRefresh: () -> Unit
     val summary = currentReservationSummary(details)
     val configuration = LocalConfiguration.current
     val actionsPerRow = if (LocalDensity.current.fontScale > 1.2f || configuration.screenWidthDp < 330) 2 else 3
-    val primaryAction = state.actions.firstOrNull { !it.destructive }
+    val requiresWifi = state.requiresLibraryWifi || state.currentStatus == "LOC_RESTRICT"
+    val actions = if (onOpenDetails == null) currentReservationActions(state) else emptyList()
+    val primaryAction = actions.firstOrNull { !it.destructive }
     val mapTarget = if (state.currentStatus !in setOf("", "NO_RESERVATION")) reservationMapTarget(details) else null
     val cancellableReservation = state.currentReservation?.takeIf { it.canCancel }
     LibraryCard(highlighted = true) {
@@ -490,14 +468,16 @@ internal fun HubCurrentReservation(state: LibraryHubState, onRefresh: () -> Unit
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Outlined.CalendarMonth, null, tint = Muted, modifier = Modifier.size(18.dp))
                 Text("当前预约", color = Muted, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                if (summary.hasInformation) HubStatusPill(currentReservationBadge(state.currentStatus), Modifier.widthIn(max = 150.dp), state.currentStatus)
+                if (summary.hasInformation) currentReservationBadge(state.currentStatus)?.let {
+                    HubStatusPill(it, Modifier.widthIn(max = 150.dp), state.currentStatus)
+                }
             }
             if (summary.seat != null) {
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(summary.seat, color = Accent, fontSize = 24.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold)
                     Text("号座位", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 3.dp))
                 }
-            } else if (!summary.hasInformation) {
+            } else if (!summary.hasInformation && state.currentStatus != "LOC_RESTRICT") {
                 Text(currentStatusLabel(state.currentStatus), color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium, lineHeight = 23.sp)
             }
             summary.location?.let { Text(it, color = Muted, fontSize = 12.sp, lineHeight = 18.sp) }
@@ -508,27 +488,40 @@ internal fun HubCurrentReservation(state: LibraryHubState, onRefresh: () -> Unit
                     summary.time?.let { withStyle(SpanStyle(color = Accent, fontSize = 15.sp, fontWeight = FontWeight.Medium)) { append(it) } }
                 }, color = Muted, lineHeight = 22.sp)
             }
-            state.actionMessage.takeIf { it.isNotBlank() && !(state.requiresLibraryWifi || state.currentStatus == "LOC_RESTRICT") &&
+            state.actionMessage.takeIf { it.isNotBlank() && !requiresWifi &&
                 it !in setOf("座位操作以图书馆系统当前提供的选项为准", "当前没有可签到的预约，已预约座位请查看预约记录") }?.let { message ->
                 Text(message, color = Muted, fontSize = 12.sp, lineHeight = 20.sp)
             }
-            if (onOpenDetails == null) state.actions.chunked(actionsPerRow).forEach { row ->
+            actions.chunked(actionsPerRow).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     row.forEach { action ->
+                        val actionModifier = Modifier.weight(1f).heightIn(min = 48.dp).semantics {
+                            if (requiresWifi) stateDescription = "不可用，需连接图书馆 Wi-Fi 后刷新"
+                        }
                         if (action == primaryAction) Button(
-                            onClick = { onConfirmAction(action) }, enabled = !state.loading,
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp),
+                            onClick = { onConfirmAction(action) }, enabled = !state.loading && !requiresWifi,
+                            modifier = actionModifier, shape = RoundedCornerShape(12.dp),
+                            border = if (requiresWifi) BorderStroke(1.dp, Color(0xFFD1D5DB)) else null,
+                            colors = ButtonDefaults.buttonColors(disabledContainerColor = Color(0xFFF3F4F6),
+                                disabledContentColor = Color(0xFF6B7280)),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                        ) { Text(action.label, fontSize = 13.sp) }
+                        ) {
+                            if (requiresWifi) {
+                                Icon(Icons.Outlined.Lock, null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                            }
+                            Text(action.label, fontSize = 13.sp)
+                        }
                         else OutlinedButton(
-                            onClick = { onConfirmAction(action) }, enabled = !state.loading,
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Line),
+                            onClick = { onConfirmAction(action) }, enabled = !state.loading && !requiresWifi,
+                            modifier = actionModifier, shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Line),
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = if (action.destructive) MaterialTheme.colorScheme.error else Accent),
                         ) { Text(action.label, fontSize = 13.sp) }
                     }
                 }
             }
+            if (requiresWifi && onOpenDetails == null) LibraryWifiGuidance(state.loading, actionsPerRow == 2, onRefresh)
             if (onOpenDetails != null || (onLocateSeat != null && mapTarget != null) ||
                 (cancellableReservation != null && onCancelReservation != null)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -556,12 +549,61 @@ internal fun HubCurrentReservation(state: LibraryHubState, onRefresh: () -> Unit
     }
 }
 
-private fun currentReservationBadge(status: String): String = when (status) {
+/** A disabled check-in is a presentation hint, never a server-authorized action. */
+private fun currentReservationActions(state: LibraryHubState): List<HubAction> {
+    if (state.actions.isNotEmpty() || !(state.requiresLibraryWifi || state.currentStatus == "LOC_RESTRICT")) return state.actions
+    val reserved = setOf("已预约", "预约", "待签到", "RESERVE", "RESERVED", "BOOKED")
+    val awaitingCheckIn = state.currentStatus in reserved ||
+        (state.currentStatus == "LOC_RESTRICT" && state.currentReservation?.let(::hubRecordStatus) in reserved)
+    return if (awaitingCheckIn) listOf(HubAction("checkIn", "签到", "")) else emptyList()
+}
+
+@Composable
+private fun LibraryWifiGuidance(loading: Boolean, stackActions: Boolean, onRefresh: () -> Unit) {
+    val context = LocalContext.current
+    val amber = Color(0xFF854D0E)
+    val settingsAction = { context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS)) }
+    Surface(color = Color(0xFFFFF8E6), shape = RoundedCornerShape(12.dp), border = BorderStroke(1.dp, Color(0xFFE9C375))) {
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Outlined.Wifi, null, tint = amber, modifier = Modifier.size(24.dp))
+                Text("签到需连接图书馆 Wi-Fi", color = amber, fontWeight = FontWeight.Bold, fontSize = 15.sp, lineHeight = 22.sp,
+                    modifier = Modifier.weight(1f))
+            }
+            Text("到馆后连接图书馆内部 Wi-Fi，再刷新预约状态。", color = amber, fontSize = 12.sp, lineHeight = 20.sp)
+            if (stackActions) {
+                Column(Modifier.fillMaxWidth()) {
+                    TextButton(onClick = settingsAction, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        contentPadding = PaddingValues(4.dp)) {
+                        Text("打开 Wi-Fi 设置", color = amber, fontSize = 12.sp)
+                    }
+                    TextButton(enabled = !loading, onClick = onRefresh, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                        contentPadding = PaddingValues(4.dp)) {
+                        Text("已连接，刷新状态", color = if (loading) Muted else amber, fontSize = 12.sp)
+                    }
+                }
+            } else {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = settingsAction, modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                        contentPadding = PaddingValues(4.dp)) {
+                        Text("打开 Wi-Fi 设置", color = amber, fontSize = 12.sp)
+                    }
+                    TextButton(enabled = !loading, onClick = onRefresh,
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp), contentPadding = PaddingValues(4.dp)) {
+                        Text("已连接，刷新状态", color = if (loading) Muted else amber, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun currentReservationBadge(status: String): String? = when (status) {
     "RESERVE", "RESERVED", "BOOKED" -> "待签到"
     "CHECK_IN", "IN_USE", "USING", "CHECKED_IN" -> "使用中"
     "AWAY", "LEAVE" -> "暂离中"
     "COMPLETE" -> "待结束使用"
-    "LOC_RESTRICT" -> "位置受限"
+    "LOC_RESTRICT" -> null
     else -> currentStatusLabel(status)
 }
 

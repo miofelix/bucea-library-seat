@@ -24,7 +24,7 @@ R2 和官网已于 2026-10-16 启用。bucket 为 `miofelix-software-releases`�
 
 ## Release 格式
 
-包名固定为 `cn.edu.bucea.library`，最低 Android 8.0 / API 26。每个 Release 包含通用 APK、`SHA256SUMS` 和 `update.json`；提供分架构包时同时包含 `arm64-v8a`、`armeabi-v7a`、`x86`、`x86_64` 四包，共七个附件。应用内更新仍选择通用包，官网提供 ARM64 等分架构包。
+包名固定为 `cn.edu.bucea.library`，最低 Android 8.0 / API 26。每个 Release 包含通用 APK、`SHA256SUMS` 和 `update.json`；提供分架构包时同时包含 `arm64-v8a`、`armeabi-v7a`、`x86`、`x86_64` 四包，共七个附件。应用内更新优先选择设备 ABI 对应的安装包，找不到时回退通用包；官网提供通用包与全部分架构包。
 
 源清单的通用字段示例：
 
