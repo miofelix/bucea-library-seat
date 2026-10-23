@@ -26,4 +26,24 @@
 | `BUCEA-Library-Seat-v1.0.6-x86.apk` | 35179081 | `e29312e304e83818afed7506f77ddd52689ec5123f2b9b2013204a844a3770ab` |
 | `BUCEA-Library-Seat-v1.0.6-x86_64.apk` | 35166994 | `47cbd06f00cdc3318a9bde01f9eb5cdb0ede9448ba1c7d50c06fc0405b9d5c1f` |
 
-发布、公开下载校验和最终设备恢复结果将在实际完成后补充。
+## 发布与分发
+
+- 发布提交：`480bfb1450816e0c415d2e38d38774c952e7bbee`，`v1.0.6` 标签指向同一提交。
+- GitHub Release `v1.0.6` 已正式发布，Release ID 为 `421753632`，通用包、四种架构包、`SHA256SUMS`、`update.json` 共七个附件齐全。
+- 发布工作流 `39945419399` 的 `publish` 与 `website` 两个 job 均成功，R2、Cloudflare Pages 和 GitHub Pages 部署完成。
+
+## 公网最终核对
+
+- Android 更新清单和官网下载元数据均为 **1.0.6 / versionCode 20 / Release ID 421753632**。
+- 从 R2 完整下载五个 APK，共 **193269789 字节**，大小和 SHA-256 全部匹配本地签名产物。
+- 五个 APK 的 HEAD 均返回 200 且长度正确；首段和末段各 1024 字节的 Range 均返回 206，`Content-Range` 与完整下载中的对应字节一致。
+- 官网与 GitHub Pages 均显示 v1.0.6，五种下载入口均指向当前发布在 R2 上的对应 APK。
+- 本轮未执行真实手机上的 v1.0.6 应用内更新下载安装；完整公网下载不计作该安装事务。
+
+## 手机恢复
+
+全部渠道发布和公网验证通过后，使用 `adb install -r` 重新安装发布开始时的准确备份。最终手机为 **1.0.5 / versionCode 19**，非调试包；从已安装路径读取的 APK SHA-256 与备份完全一致：`caa6b0d4ed27fb808ed772cf7c9ca2ea1d87cfbf828b52956cfc5d4b77beb0ec`。
+
+未卸载主应用或清空数据。恢复后应用启动成功，原账号保持登录并能同步馆内数据；字体比例 `1.0`、旋转设置 `0 / 0` 与发布前一致。
+
+安装包备份、构建和测试日志、Release 元数据、五包公网下载及恢复摘要保存在忽略的 `.private/release-1.0.6/`。

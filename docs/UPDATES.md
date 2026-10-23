@@ -14,6 +14,8 @@ Android APK 在保存原签名密钥的开发机上构建、验证并发布到 G
 
 R2 和官网已于 2026-10-16 启用。bucket 为 `miofelix-software-releases`，`download.miofelix.com` 自定义域名绑定处于活动状态。官网使用 Direct Upload Pages 项目 `bucea-library-seat-website`，生产分支为 `main`，不连接 Git 仓库；`library.miofelix.com` 已活动且启用 SSL。三项仓库 variables 和三项 secrets 已配置，首次上传、完整下载与官网上线结果见下文验证记录。官网源码保留 GitHub Release 备用下载入口；正式构建由 R2 元数据生成下载链接。此前服务的验收保留在 [UPDATE_VALIDATION.md](UPDATE_VALIDATION.md)，其中旧服务器与端口记录均属历史。
 
+`1.0.6 / versionCode 20` 已正式发布并同步 R2、官网和 GitHub Pages 镜像，改进禁用签到按钮及图书馆 Wi-Fi 提示，移除“位置受限”标签。发行说明见 [releases/1.0.6.md](releases/1.0.6.md)，构建、公网下载和手机恢复结果见 [RELEASE_VALIDATION_1.0.6.md](RELEASE_VALIDATION_1.0.6.md)。
+
 `1.0.5 / versionCode 19` 已正式发布并同步 R2 与官网，修复应用更新始终下载通用 APK 的问题：现在优先选择设备 ABI 对应的 APK，找不到时回退通用包。发行说明见 [releases/1.0.5.md](releases/1.0.5.md)，本次构建、设备与发布验证见 [RELEASE_VALIDATION_1.0.5.md](RELEASE_VALIDATION_1.0.5.md)。
 
 `1.0.4 / versionCode 18` 已正式发布并同步 R2 与官网，包含暂离后的座位信息与定位、未签到当前预约的取消入口，以及应用更新的流畅度与交互优化。发行说明见 [releases/1.0.4.md](releases/1.0.4.md)，本次构建、设备与发布验证见 [RELEASE_VALIDATION_1.0.4.md](RELEASE_VALIDATION_1.0.4.md)。
